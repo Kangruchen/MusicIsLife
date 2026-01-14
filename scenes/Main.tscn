@@ -1,0 +1,59 @@
+[gd_scene load_steps=9 format=3 uid="uid://b4ymn7qwvj5hq"]
+
+[ext_resource type="Script" uid="uid://hla1t03lkrwg" path="res://scripts/MusicPlayer.gd" id="1_h5v3q"]
+[ext_resource type="Script" uid="uid://b4verqg78hh31" path="res://scripts/BeatManager.gd" id="2_b4ymn"]
+[ext_resource type="PackedScene" uid="uid://c8jx3vn5qwm4r" path="res://scenes/GameUI.tscn" id="3_game_ui"]
+[ext_resource type="Script" uid="uid://olseljrkaswj" path="res://scripts/TrackManager.gd" id="4_track_mgr"]
+[ext_resource type="Script" uid="uid://dgu5lxyijp7a0" path="res://scripts/InputManager.gd" id="5_input_mgr"]
+[ext_resource type="Script" uid="uid://1spmii0kmgww" path="res://scripts/ScoreManager.gd" id="6_score_mgr"]
+[ext_resource type="Resource" uid="uid://brd58vvvmh20v" path="res://key_sound_config.tres" id="7_key_sound"]
+[ext_resource type="Texture2D" uid="uid://bqgejafdalqmj" path="res://assets/environment/工厂背景.png" id="8_jlsqs"]
+
+[node name="Main" type="Node"]
+
+[node name="GameUI" parent="." instance=ExtResource("3_game_ui")]
+
+[node name="MusicPlayer" type="AudioStreamPlayer" parent="."]
+script = ExtResource("1_h5v3q")
+music_path = "uid://c571fcgxffrik"
+
+[node name="BeatManager" type="Node" parent="."]
+script = ExtResource("2_b4ymn")
+generate_test_chart = false
+chart_sm_path = "res://assets/charts/Hydrogen.sm"
+
+[node name="TrackManager" type="Node" parent="."]
+script = ExtResource("4_track_mgr")
+
+[node name="InputManager" type="Node" parent="."]
+script = ExtResource("5_input_mgr")
+key_sound_config = ExtResource("7_key_sound")
+
+[node name="ScoreManager" type="Node" parent="."]
+script = ExtResource("6_score_mgr")
+hit_boss_damage_perfect = 20.0
+hit_player_health_perfect = 2.0
+hit_player_health_great = 1.0
+hit_player_health_good = 0.0
+hit_player_health_miss = -10.0
+guard_boss_damage_perfect = 10.0
+guard_boss_damage_great = 5.0
+guard_boss_damage_good = 0.0
+guard_player_health_perfect = 6.0
+guard_player_health_great = 3.0
+guard_player_health_good = 0.0
+dodge_boss_damage_perfect = 0.0
+dodge_boss_damage_great = -5.0
+dodge_boss_damage_good = -10.0
+dodge_boss_damage_miss = -20.0
+dodge_player_health_perfect = 10.0
+dodge_player_health_great = 5.0
+dodge_player_health_good = 0.0
+dodge_player_health_miss = -25.0
+max_boss_health = 200.0
+
+[node name="工厂背景" type="Sprite2D" parent="."]
+z_index = -1
+position = Vector2(683, -410.99994)
+scale = Vector2(0.2, 0.2)
+texture = ExtResource("8_jlsqs")

@@ -1,0 +1,141 @@
+extends Node
+## 节拍管理器 - 根据 BPM 和 offset 检测音乐节拍
+
+signal beat_hit(beat_number: float, note: Note)
+
+# 音乐配置
+@export var bpm: float = 128.0  # 每分钟节拍数
+@export var offset: float = 0.0  # 偏移量（秒）
+@export var generate_test_chart: bool = true  # 是否生成测试铺面
+@export var chart_resource: Chart = null  # 自定义铺面资源（拖入 .tres 文件）
+@export_file("*.json") var chart_json_path: String = ""  # JSON 铺面文件路径
+@export_file("*.sm") var chart_sm_path: String = ""  # StepMania .sm 铺面文件路径
+
+# 铺面数据
+var current_chart: Chart = null
+
+# 内部变量
+var beat_interval: float = 0.0  # 每个节拍的时间间隔（秒）
+var next_beat_time: float = 0.0  # 下一个节拍的时间
+var current_beat: float = 0.0  # 当前节拍数（支持浮点数以精确跟踪节拍）
+var is_playing: bool = false
+
+@onready var music_player: AudioStreamPlayer = get_node("../MusicPlayer")
+
+
+func _ready() -> void:
+	# 计算节拍间隔
+	beat_interval = 60.0 / bpm
+	
+	# 连接音乐播放器信号
+	if music_player:
+		music_player.music_started.connect(_on_music_started)
+		print("BeatManager 已连接到 MusicPlayer")
+	else:
+		push_error("找不到 MusicPlayer 节点")
+
+
+func _process(delta: float) -> void:
+	if not is_playing:
+		return
+	
+	# 获取当前音乐播放位置（加上音频延迟补偿）
+	var current_time: float = music_player.get_playback_position() + AudioServer.get_time_to_next_mix()
+	
+	# 检查是否到达下一个节拍
+	if current_time >= next_beat_time:
+		_on_beat()
+		# 计算下一个节拍时间
+		next_beat_time += beat_interval
+
+
+## 音乐开始播放时的回调
+func _on_music_started() -> void:
+	is_playing = true
+	current_beat = 0
+	
+	# 加载铺面（优先级：SM > JSON > Resource > 测试生成）
+	if chart_sm_path != "":
+		current_chart = SMFileLoader.load_from_sm(chart_sm_path)
+		if current_chart:
+			# 从铺面中读取配置
+			bpm = current_chart.bpm
+			offset = current_chart.offset
+			beat_interval = 60.0 / bpm
+	elif chart_json_path != "":
+		current_chart = ChartLoader.load_from_json(chart_json_path)
+		if current_chart:
+			# 从铺面中读取配置
+			bpm = current_chart.bpm
+			offset = current_chart.offset
+			beat_interval = 60.0 / bpm
+	elif chart_resource:
+		current_chart = chart_resource
+		# 从铺面资源中读取配置
+		bpm = current_chart.bpm
+		offset = current_chart.offset
+		# 重新计算节拍间隔
+		beat_interval = 60.0 / bpm
+		print("已加载自定义铺面: ", current_chart.chart_name, "，共 ", current_chart.notes.size(), " 个音符")
+	elif generate_test_chart:
+		_generate_test_chart()
+	
+	# 通知 TrackManager
+	if current_chart:
+		var track_manager = get_node("../TrackManager")
+		if track_manager:
+			track_manager.set_chart(current_chart)
+	
+	next_beat_time = offset
+	print("节拍管理器已启动 - BPM: ", bpm, ", Offset: ", offset, " 秒")
+
+
+## 生成测试铺面（随机生成音符）
+func _generate_test_chart() -> void:
+	current_chart = Chart.new()
+	current_chart.chart_name = "Test Chart"
+	current_chart.bpm = bpm
+	current_chart.offset = offset
+	
+	# 生成前100个节拍的随机音符
+	for i in range(1, 101):
+		var note := Note.new()
+		note.beat_number = float(i)  # 使用浮点数
+		note.beat_time = offset + (i - 1) * beat_interval
+		# 随机选择音符类型
+		note.type = randi() % 3 as Note.NoteType
+		current_chart.add_note(note)
+	
+	print("已生成测试铺面，共 ", current_chart.notes.size(), " 个音符")
+
+
+## 节拍触发时的回调
+func _on_beat() -> void:
+	current_beat += 1.0  # 使用浮点数
+	
+	# 获取当前节拍的音符
+	var note: Note = null
+	if current_chart:
+		note = current_chart.get_note_at_beat(current_beat)
+	
+	# 打印节拍信息和音符类型
+	if note:
+		var note_icon := _get_note_icon(note.type)
+		print("♪ 节拍 #", current_beat, " - 时间: ", "%.3f" % next_beat_time, " 秒 - 音符: ", note_icon, " ", note.get_type_string())
+	else:
+		print("♪ 节拍 #", current_beat, " - 时间: ", "%.3f" % next_beat_time, " 秒 - 无音符")
+	
+	beat_hit.emit(current_beat, note)
+
+
+## 获取音符类型对应的图标
+func _get_note_icon(type: Note.NoteType) -> String:
+	match type:
+		Note.NoteType.HIT:
+			return "⚔️"  # 攻击
+		Note.NoteType.GUARD:
+			return "🛡️"  # 防御
+		Note.NoteType.DODGE:
+			return "💨"  # 闪避
+		_:
+			return "❓"

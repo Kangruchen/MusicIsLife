@@ -1,0 +1,72 @@
+{
+	"chart_name": "Hydrogen - JSON Example",
+	"music_path": "res://music/M.O.O.N. - Hydrogen.mp3",
+	"bpm": 126.0,
+	"offset": 0.052999999999999999,
+	"notes": [
+		{
+			"beat": 3.0,
+			"type": "HIT"
+		},
+		{
+			"beat": 4.0,
+			"type": "GUARD"
+		},
+		{
+			"beat": 7.0,
+			"type": "HIT"
+		},
+		{
+			"beat": 8.0,
+			"type": "DODGE"
+		},
+		{
+			"beat": 11.0,
+			"type": "GUARD"
+		},
+		{
+			"beat": 12.0,
+			"type": "DODGE"
+		},
+		{
+			"beat": 13.0,
+			"type": "HIT"
+		},
+		{
+			"beat": 14.0,
+			"type": "GUARD"
+		},
+		{
+			"beat": 16.0,
+			"type": "HIT"
+		},
+		{
+			"beat": 17.0,
+			"type": "DODGE"
+		},
+		{
+			"beat": 18.0,
+			"type": "GUARD"
+		},
+		{
+			"beat": 20.0,
+			"type": "HIT"
+		},
+		{
+			"beat": 21.0,
+			"type": "DODGE"
+		},
+		{
+			"beat": 22.0,
+			"type": "GUARD"
+		},
+		{
+			"beat": 23.0,
+			"type": "HIT"
+		},
+		{
+			"beat": 24.0,
+			"type": "DODGE"
+		}
+	]
+}

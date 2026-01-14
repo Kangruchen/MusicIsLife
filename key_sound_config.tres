@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="KeySoundConfig" load_steps=5 format=3 uid="uid://brd58vvvmh20v"]
+
+[ext_resource type="AudioStream" uid="uid://c7gxwl5pdeqng" path="res://assets/SFX/kick.wav" id="1_i7u21"]
+[ext_resource type="Script" uid="uid://bxoqksavyl5ps" path="res://scripts/KeySoundConfig.gd" id="1_key_sound"]
+[ext_resource type="AudioStream" uid="uid://dfkuj0i3j5fp" path="res://assets/SFX/block.wav" id="2_i7u21"]
+[ext_resource type="AudioStream" uid="uid://b5bantqvxokw2" path="res://assets/SFX/hit.wav" id="3_52025"]
+
+[resource]
+script = ExtResource("1_key_sound")
+hit_sound = ExtResource("3_52025")
+guard_sound = ExtResource("2_i7u21")
+dodge_sound = ExtResource("1_i7u21")
