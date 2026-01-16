@@ -11,6 +11,9 @@ signal beat_hit(beat_number: float, note: Note)
 @export_file("*.json") var chart_json_path: String = ""  # JSON 铺面文件路径
 @export_file("*.sm") var chart_sm_path: String = ""  # StepMania .sm 铺面文件路径
 
+# 用户校准的全局延迟（秒），会叠加到所有铺面的offset上
+@export var user_offset: float = 0.0  # 可在编辑器中配置测试，正式运行时从配置文件加载
+
 # 铺面数据
 var current_chart: Chart = null
 
@@ -26,7 +29,27 @@ var total_pause_duration: float = 0.0  # 累计暂停时长
 @onready var music_player: AudioStreamPlayer = get_node("../MusicPlayer")
 
 
+func load_user_offset() -> void:
+	"""加载用户校准的音频延迟设置"""
+	# 如果在编辑器中已设置user_offset，优先使用编辑器的值（便于测试）
+	if user_offset != 0.0:
+		print("使用编辑器设置的用户延迟: ", user_offset, " 秒 (", user_offset * 1000.0, " ms)")
+		return
+	
+	# 否则从配置文件加载
+	var config := ConfigFile.new()
+	var err := config.load("user://settings.cfg")
+	if err == OK:
+		var user_offset_ms: float = config.get_value("audio", "offset", 0.0)
+		# 将毫秒转换为秒
+		user_offset = user_offset_ms / 1000.0
+		print("已加载用户校准延迟: ", user_offset_ms, " ms (", user_offset, " 秒)")
+
+
 func _ready() -> void:
+	# 加载用户校准的延迟设置
+	load_user_offset()
+	
 	# 计算节拍间隔
 	beat_interval = 60.0 / bpm
 	
@@ -63,25 +86,41 @@ func _on_music_started() -> void:
 		if current_chart:
 			# 从铺面中读取配置
 			bpm = current_chart.bpm
-			offset = current_chart.offset
+			var original_offset := current_chart.offset
+			offset = original_offset + user_offset  # 叠加用户校准延迟
 			beat_interval = 60.0 / bpm
+			# 重新计算所有音符的beat_time
+			_recalculate_note_times(current_chart, original_offset, offset)
+			print("SM铺面offset: ", original_offset, " + 用户offset: ", user_offset, " = 总offset: ", offset)
 	elif chart_json_path != "":
 		current_chart = ChartLoader.load_from_json(chart_json_path)
 		if current_chart:
 			# 从铺面中读取配置
 			bpm = current_chart.bpm
-			offset = current_chart.offset
+			var original_offset := current_chart.offset
+			offset = original_offset + user_offset  # 叠加用户校准延迟
 			beat_interval = 60.0 / bpm
+			# 重新计算所有音符的beat_time
+			_recalculate_note_times(current_chart, original_offset, offset)
+			print("JSON铺面offset: ", original_offset, " + 用户offset: ", user_offset, " = 总offset: ", offset)
 	elif chart_resource:
 		current_chart = chart_resource
 		# 从铺面资源中读取配置
 		bpm = current_chart.bpm
-		offset = current_chart.offset
+		var original_offset := current_chart.offset
+		offset = original_offset + user_offset  # 叠加用户校准延迟
 		# 重新计算节拍间隔
 		beat_interval = 60.0 / bpm
+		# 重新计算所有音符的beat_time
+		_recalculate_note_times(current_chart, original_offset, offset)
 		print("已加载自定义铺面: ", current_chart.chart_name, "，共 ", current_chart.notes.size(), " 个音符")
+		print("铺面offset: ", original_offset, " + 用户offset: ", user_offset, " = 总offset: ", offset)
 	elif generate_test_chart:
+		# 先应用用户校准延迟
+		offset += user_offset
+		# 再生成测试铺面（这样beat_time才能使用正确的offset）
 		_generate_test_chart()
+		print("测试铺面 + 用户offset: ", user_offset, " = 总offset: ", offset)
 	
 	# 通知 TrackManager
 	if current_chart:
@@ -91,6 +130,14 @@ func _on_music_started() -> void:
 	
 	next_beat_time = offset
 	print("节拍管理器已启动 - BPM: ", bpm, ", Offset: ", offset, " 秒")
+
+
+func _recalculate_note_times(chart: Chart, old_offset: float, new_offset: float) -> void:
+	"""重新计算铺面中所有音符的beat_time，应用新的offset"""
+	var offset_diff := new_offset - old_offset
+	for note in chart.notes:
+		note.beat_time += offset_diff
+	print("已重新计算 ", chart.notes.size(), " 个音符的时间，延迟调整: ", offset_diff, " 秒")
 
 
 ## 生成测试铺面（随机生成音符）
