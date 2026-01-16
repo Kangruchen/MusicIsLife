@@ -129,3 +129,12 @@ func _spawn_note(note: Note) -> void:
 	active_notes.append(note_visual)
 	
 	print("生成音符: 节拍 #", note.beat_number, " ", note.get_type_string(), " 在时间 ", "%.3f" % spawn_time)
+
+
+## 清除所有活跃的音符
+func clear_all_notes() -> void:
+	for note_visual in active_notes:
+		if note_visual and is_instance_valid(note_visual):
+			note_visual.destroy()
+	active_notes.clear()
+	print("已清除所有活跃音符")

@@ -73,6 +73,20 @@ func stop_music() -> void:
 	stop()
 
 
+## 暂停音乐播放（保留播放位置）
+func pause_music() -> void:
+	stream_paused = true
+	print("音乐已暂停")
+
+
+## 恢复音乐播放
+func resume_music() -> void:
+	stream_paused = false
+	print("音乐已恢复")
+
+
+## 应用 Miss 音效
+func apply_miss_effect() -> void:
 	# 检查是否启用了 Miss 音效
 	if not enable_miss_audio_effect:
 		return

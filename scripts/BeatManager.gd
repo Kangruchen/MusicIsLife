@@ -19,6 +19,9 @@ var beat_interval: float = 0.0  # 每个节拍的时间间隔（秒）
 var next_beat_time: float = 0.0  # 下一个节拍的时间
 var current_beat: float = 0.0  # 当前节拍数（支持浮点数以精确跟踪节拍）
 var is_playing: bool = false
+var is_paused: bool = false  # 是否暂停
+var pause_start_time: float = 0.0  # 暂停开始时间
+var total_pause_duration: float = 0.0  # 累计暂停时长
 
 @onready var music_player: AudioStreamPlayer = get_node("../MusicPlayer")
 
@@ -36,7 +39,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	if not is_playing:
+	if not is_playing or is_paused:
 		return
 	
 	# 获取当前音乐播放位置（加上音频延迟补偿）
@@ -139,3 +142,15 @@ func _get_note_icon(type: Note.NoteType) -> String:
 			return "💨"  # 闪避
 		_:
 			return "❓"
+
+
+## 暂停节拍检测
+func pause_beat_detection() -> void:
+	is_paused = true
+	print("节拍检测已暂停")
+
+
+## 恢复节拍检测
+func resume_beat_detection() -> void:
+	is_paused = false
+	print("节拍检测已恢复")
