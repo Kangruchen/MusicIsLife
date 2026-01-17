@@ -7,9 +7,8 @@
 
 [resource]
 script = ExtResource("4_7gc1v")
-hit_sound = ExtResource("3_fcfqv")
-guard_sound = ExtResource("2_3uv62")
+hit_sound = ExtResource("2_3uv62")
+guard_sound = ExtResource("3_fcfqv")
 dodge_sound = ExtResource("1_4saig")
-hit_volume_db = -80.0
-guard_volume_db = -80.0
-dodge_volume_db = -80.0
+guard_volume_db = -5.0
+dodge_volume_db = -5.0

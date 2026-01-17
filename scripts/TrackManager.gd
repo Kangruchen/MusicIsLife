@@ -17,6 +17,9 @@ const SPAWN_X: float = 900.0
 # MISS 判定窗口（超过判定线后多久算 MISS）
 const MISS_THRESHOLD: float = 0.200  # 200ms
 
+# 音符生成音效配置
+@export var key_sound_config: KeySoundConfig = null
+
 var game_ui: Control = null
 var beat_manager: Node = null
 var input_manager: Node = null
@@ -24,6 +27,13 @@ var current_chart: Chart = null
 var active_notes: Array[NoteVisual] = []
 var scheduled_notes: Array[Note] = []  # 待生成的音符
 var current_time: float = 0.0
+var is_paused: bool = false  # 是否暂停生成音符
+var pause_start_time: float = 0.0  # 暂停开始的时间
+
+# 音符生成音效播放器
+var spawn_audio_player_hit: AudioStreamPlayer = null
+var spawn_audio_player_guard: AudioStreamPlayer = null
+var spawn_audio_player_dodge: AudioStreamPlayer = null
 
 
 func _ready() -> void:
@@ -34,11 +44,44 @@ func _ready() -> void:
 	
 	if beat_manager:
 		beat_manager.beat_hit.connect(_on_beat_hit)
+	
+	# 创建音符生成音效播放器
+	spawn_audio_player_hit = AudioStreamPlayer.new()
+	spawn_audio_player_guard = AudioStreamPlayer.new()
+	spawn_audio_player_dodge = AudioStreamPlayer.new()
+	
+	spawn_audio_player_hit.name = "SpawnAudioHit"
+	spawn_audio_player_guard.name = "SpawnAudioGuard"
+	spawn_audio_player_dodge.name = "SpawnAudioDodge"
+	
+	add_child(spawn_audio_player_hit)
+	add_child(spawn_audio_player_guard)
+	add_child(spawn_audio_player_dodge)
+	
+	spawn_audio_player_hit.bus = "Master"
+	spawn_audio_player_guard.bus = "Master"
+	spawn_audio_player_dodge.bus = "Master"
+	
+	# 加载音符生成音效
+	if key_sound_config:
+		if key_sound_config.hit_sound:
+			spawn_audio_player_hit.stream = key_sound_config.hit_sound
+			spawn_audio_player_hit.volume_db = key_sound_config.hit_volume_db
+		if key_sound_config.guard_sound:
+			spawn_audio_player_guard.stream = key_sound_config.guard_sound
+			spawn_audio_player_guard.volume_db = key_sound_config.guard_volume_db
+		if key_sound_config.dodge_sound:
+			spawn_audio_player_dodge.stream = key_sound_config.dodge_sound
+			spawn_audio_player_dodge.volume_db = key_sound_config.dodge_volume_db
 
 
 func _process(_delta: float) -> void:
+	# 如果暂停，不生成新音符
+	if is_paused:
+		return
+	
 	# 获取当前音乐时间
-	var music_player: AudioStreamPlayer = get_node("../MusicPlayer")
+	var music_player: Node = get_node("../MusicPlayer")
 	if music_player and music_player.playing:
 		current_time = music_player.get_playback_position() + AudioServer.get_time_to_next_mix()
 		
@@ -49,6 +92,13 @@ func _process(_delta: float) -> void:
 		for note_visual in active_notes:
 			if note_visual and note_visual.is_active:
 				note_visual.update_position(current_time)
+				
+				# 检查是否到达判定线前两拍，播放音符音效
+				var time_before_target: float = note_visual.target_time - current_time
+				var two_beats_duration: float = 2.0 * beat_manager.beat_interval
+				if not note_visual.spawn_sound_played and time_before_target <= two_beats_duration:
+					_play_spawn_sound(note_visual.note_data.type)
+					note_visual.spawn_sound_played = true
 				
 				# 检查是否超过判定窗口（自动 MISS）
 				var time_past_target: float = current_time - note_visual.target_time
@@ -138,3 +188,55 @@ func clear_all_notes() -> void:
 			note_visual.destroy()
 	active_notes.clear()
 	print("已清除所有活跃音符")
+
+
+## 暂停音符生成
+func pause_note_spawning() -> void:
+	is_paused = true
+	pause_start_time = current_time
+	print("音符生成已暂停，时间: ", pause_start_time)
+
+
+## 恢复音符生成
+func resume_note_spawning() -> void:
+	# 先更新当前时间到最新值（避免使用暂停前的旧时间）
+	var music_player: Node = get_node("../MusicPlayer")
+	if music_player and music_player.playing:
+		current_time = music_player.get_playback_position() + AudioServer.get_time_to_next_mix()
+	
+	# 只清理判定时间在当前时间之前的音符（已经来不及打了）
+	# 保留判定时间还在未来的音符，即使它们的生成时间已过
+	var removed_count: int = 0
+	var buffer_time: float = 0.2  # 0.2秒缓冲，太接近当前时间的也跳过
+	
+	for note in scheduled_notes.duplicate():
+		# 如果音符的判定时间已经过去（加上小缓冲），则跳过
+		if note.beat_time < (current_time - buffer_time):
+			scheduled_notes.erase(note)
+			removed_count += 1
+	
+	if removed_count > 0:
+		print("已跳过 ", removed_count, " 个判定时间已过的音符")
+	
+	# 最后才恢复生成（避免_process在清理前执行）
+	is_paused = false
+	pause_start_time = 0.0
+	
+	print("音符生成已恢复")
+
+
+## 播放音符生成音效
+func _play_spawn_sound(note_type: Note.NoteType) -> void:
+	if not key_sound_config:
+		return
+	
+	match note_type:
+		Note.NoteType.HIT:
+			if spawn_audio_player_hit and spawn_audio_player_hit.stream:
+				spawn_audio_player_hit.play()
+		Note.NoteType.GUARD:
+			if spawn_audio_player_guard and spawn_audio_player_guard.stream:
+				spawn_audio_player_guard.play()
+		Note.NoteType.DODGE:
+			if spawn_audio_player_dodge and spawn_audio_player_dodge.stream:
+				spawn_audio_player_dodge.play()

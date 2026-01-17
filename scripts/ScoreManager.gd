@@ -106,6 +106,12 @@ func _ready() -> void:
 
 ## 判定触发回调
 func _on_judgment_made(track: int, judgment: int, _timing_diff: float) -> void:
+	# 如果是 MISS 判定，触发对应轨道的音效衰减
+	if judgment == 3:  # MISS
+		var music_player: Node = get_node("../MusicPlayer")
+		if music_player and music_player.has_method("apply_track_miss_effect"):
+			music_player.apply_track_miss_effect(track)
+	
 	# 根据音符类型和判定等级获取数值
 	var energy_cost: float = _get_boss_damage(track, judgment)
 	var health_change: float = _get_player_health_change(track, judgment)
@@ -215,43 +221,68 @@ func _on_boss_energy_depleted() -> void:
 	
 	is_paused_for_attack = true
 	
-	# 获取 BeatManager 计算暂停时长（4 个小节）
+	# 获取 BeatManager 计算暂停时长（5 个小节）
 	var beat_manager: Node = get_node("../BeatManager")
 	if beat_manager:
-		# 4 小节 = 4 拍/小节 * 4 = 16 拍
-		var pause_duration: float = beat_manager.beat_interval * 16.0
-		
-		# 暂停音乐
-		var music_player: AudioStreamPlayer = get_node("../MusicPlayer")
-		if music_player:
-			music_player.pause_music()
+		# 5 小节 = 4 拍/小节 * 5 = 20 拍
+		var pause_duration: float = beat_manager.beat_interval * 20.0
 		
 		# 暂停节拍检测
 		beat_manager.pause_beat_detection()
 		
-		# 清除所有活跃音符
+		# 暂停音符生成和清理已生成的音符
 		var track_manager: Node = get_node("../TrackManager")
 		if track_manager:
+			if track_manager.has_method("pause_note_spawning"):
+				track_manager.pause_note_spawning()
 			track_manager.clear_all_notes()
 		
-		# 启动计时器
+		# 暂停输入检测
+		var input_manager: Node = get_node("../InputManager")
+		if input_manager and input_manager.has_method("pause_input"):
+			input_manager.pause_input()
+		
+		# 暂停音乐（保留鼓点，并让drum跳到第9小节）
+		var music_player: Node = get_node("../MusicPlayer")
+		if music_player:
+			if music_player.has_method("pause_music_keep_drum"):
+				# 第9小节开始 = beat 32 (8小节 * 4拍)
+				var measure_9_time: float = beat_manager.offset + 32.0 * beat_manager.beat_interval
+				music_player.pause_music_keep_drum(measure_9_time)
+			else:
+				music_player.pause_music()
+			
+			# 提前0.5秒调用resume_music开始淡入
+			get_tree().create_timer(pause_duration - 0.5).timeout.connect(func():
+				if music_player and music_player.has_method("resume_music"):
+					music_player.resume_music()
+			)
+		
+		# 启动计时器（完整时长）
 		pause_timer.start(pause_duration)
-		print("游戏已暂停 ", pause_duration, " 秒（4 个小节），用于玩家攻击阶段")
+		print("游戏已暂停 ", pause_duration, " 秒（5 个小节），drum播放第9-13小节")
 
 
 ## 暂停结束的回调
 func _on_pause_timeout() -> void:
 	is_paused_for_attack = false
 	
-	# 恢复音乐
-	var music_player: AudioStreamPlayer = get_node("../MusicPlayer")
-	if music_player:
-		music_player.resume_music()
-	
 	# 恢复节拍检测
 	var beat_manager: Node = get_node("../BeatManager")
 	if beat_manager:
 		beat_manager.resume_beat_detection()
+	
+	# 恢复输入检测
+	var input_manager: Node = get_node("../InputManager")
+	if input_manager and input_manager.has_method("resume_input"):
+		input_manager.resume_input()
+	
+	# 音乐恢复已在0.5秒前开始淡入，这里不需要再调用
+	
+	# 恢复音符生成
+	var track_manager: Node = get_node("../TrackManager")
+	if track_manager and track_manager.has_method("resume_note_spawning"):
+		track_manager.resume_note_spawning()
 	
 	# 恢复 Boss 精力条
 	current_boss_energy = max_boss_energy

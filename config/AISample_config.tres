@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="MusicConfig" load_steps=5 format=3 uid="uid://le6vduwl5k1h"]
+
+[ext_resource type="AudioStream" uid="uid://dexv0n0lxqsdr" path="res://assets/music/AISample/AISample_bass.mp3" id="1_wbwg8"]
+[ext_resource type="AudioStream" uid="uid://c6ln87f7mnk8d" path="res://assets/music/AISample/AISample_drum.mp3" id="2_mgv0x"]
+[ext_resource type="AudioStream" uid="uid://dbgao1ar0anoa" path="res://assets/music/AISample/AISample_main.mp3" id="3_tm2qv"]
+[ext_resource type="Script" uid="uid://b31krmaor5ahu" path="res://scripts/MusicConfig.gd" id="4_tjxu3"]
+
+[resource]
+script = ExtResource("4_tjxu3")
+music_name = "AISample"
+main_track = ExtResource("3_tm2qv")
+drum_track = ExtResource("2_mgv0x")
+bass_track = ExtResource("1_wbwg8")
+bpm = 0.0

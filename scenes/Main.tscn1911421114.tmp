@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3 uid="uid://b4ymn7qwvj5hq"]
+[gd_scene load_steps=12 format=3 uid="uid://b4ymn7qwvj5hq"]
 
 [ext_resource type="Script" uid="uid://hla1t03lkrwg" path="res://scripts/MusicPlayer.gd" id="1_h5v3q"]
 [ext_resource type="Script" uid="uid://dnajos3fm0bkl" path="res://scripts/Main.gd" id="1_main"]
@@ -7,10 +7,9 @@
 [ext_resource type="Resource" uid="uid://le6vduwl5k1h" path="res://config/AISample_config.tres" id="4_lhr70"]
 [ext_resource type="Script" uid="uid://olseljrkaswj" path="res://scripts/TrackManager.gd" id="4_track_mgr"]
 [ext_resource type="Script" uid="uid://dgu5lxyijp7a0" path="res://scripts/InputManager.gd" id="5_input_mgr"]
-[ext_resource type="AudioStream" uid="uid://dhe24nnncnlss" path="res://assets/SFX/miss.wav" id="5_wp0k4"]
+[ext_resource type="AudioStream" uid="uid://b14ilyp5qve1b" path="res://assets/SFX/break.wav" id="5_wp0k4"]
 [ext_resource type="Script" uid="uid://1spmii0kmgww" path="res://scripts/ScoreManager.gd" id="6_score_mgr"]
 [ext_resource type="Resource" uid="uid://brd58vvvmh20v" path="res://config/key_sound_config.tres" id="7_key_sound"]
-[ext_resource type="Resource" uid="uid://tka37j3asl60" path="res://config/key_sound_config_boss.tres" id="8_bjd11"]
 [ext_resource type="Texture2D" uid="uid://bqgejafdalqmj" path="res://assets/environment/工厂背景.png" id="8_jlsqs"]
 
 [node name="Main" type="Node"]
@@ -26,7 +25,10 @@ offset_bottom = -322.0
 [node name="MusicPlayer" type="Node" parent="."]
 script = ExtResource("1_h5v3q")
 music_config = ExtResource("4_lhr70")
-miss_sound = ExtResource("5_wp0k4")
+music_path = null
+auto_play = null
+enable_miss_audio_effect = null
+break_sound = ExtResource("5_wp0k4")
 
 [node name="BeatManager" type="Node" parent="."]
 script = ExtResource("2_b4ymn")
@@ -36,7 +38,6 @@ chart_sm_path = "res://assets/charts/AISample.sm"
 
 [node name="TrackManager" type="Node" parent="."]
 script = ExtResource("4_track_mgr")
-key_sound_config = ExtResource("8_bjd11")
 
 [node name="InputManager" type="Node" parent="."]
 script = ExtResource("5_input_mgr")
@@ -64,6 +65,7 @@ dodge_boss_damage_miss = -20.0
 dodge_player_health_good = 0.0
 dodge_player_health_miss = -25.0
 max_boss_health = 2000.0
+max_boss_energy = 1000.0
 
 [node name="工厂背景" type="Sprite2D" parent="."]
 z_index = -1

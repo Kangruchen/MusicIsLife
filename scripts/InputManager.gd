@@ -30,12 +30,15 @@ const ACTION_MAPPING := {
 @export var key_sound_config: KeySoundConfig = null
 
 @onready var track_manager: Node = get_node("../TrackManager")
-@onready var music_player: AudioStreamPlayer = get_node("../MusicPlayer")
+@onready var music_player: Node = get_node("../MusicPlayer")
 
 # 音效播放器（用于播放按键音效）
 var audio_player_hit: AudioStreamPlayer = null
 var audio_player_guard: AudioStreamPlayer = null
 var audio_player_dodge: AudioStreamPlayer = null
+
+# 暂停状态
+var is_paused: bool = false
 
 
 func _ready() -> void:
@@ -97,6 +100,10 @@ func _play_key_sound(note_type: Note.NoteType) -> void:
 
 func _input(event: InputEvent) -> void:
 	if not music_player or not music_player.playing:
+		return
+	
+	# 如果处于暂停状态，忽略输入
+	if is_paused:
 		return
 	
 	# 检查输入动作
@@ -217,9 +224,25 @@ func get_judgment_color(judgment: JudgmentType) -> Color:
 
 ## 触发 MISS 判定（由 TrackManager 调用）
 func trigger_miss(track_type: Note.NoteType) -> void:
+	# 如果处于暂停状态，不触发Miss
+	if is_paused:
+		return
+	
 	# 应用 Miss 音频效果
 	_apply_miss_audio_effect()
 	
 	# 发送 MISS 判定信号
 	judgment_made.emit(track_type, JudgmentType.MISS, 0.0)
 	print("判定: MISS (自动)")
+
+
+## 暂停输入检测
+func pause_input() -> void:
+	is_paused = true
+	print("输入检测已暂停")
+
+
+## 恢复输入检测
+func resume_input() -> void:
+	is_paused = false
+	print("输入检测已恢复")

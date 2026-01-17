@@ -7,8 +7,6 @@ signal beat_hit(beat_number: float, note: Note)
 @export var bpm: float = 128.0  # 每分钟节拍数
 @export var offset: float = 0.0  # 偏移量（秒）
 @export var generate_test_chart: bool = true  # 是否生成测试铺面
-@export var chart_resource: Chart = null  # 自定义铺面资源（拖入 .tres 文件）
-@export_file("*.json") var chart_json_path: String = ""  # JSON 铺面文件路径
 @export_file("*.sm") var chart_sm_path: String = ""  # StepMania .sm 铺面文件路径
 
 # 用户校准的全局延迟（秒），会叠加到所有铺面的offset上
@@ -26,7 +24,7 @@ var is_paused: bool = false  # 是否暂停
 var pause_start_time: float = 0.0  # 暂停开始时间
 var total_pause_duration: float = 0.0  # 累计暂停时长
 
-@onready var music_player: AudioStreamPlayer = get_node("../MusicPlayer")
+@onready var music_player: Node = get_node("../MusicPlayer")
 
 
 func load_user_offset() -> void:
@@ -80,7 +78,7 @@ func _on_music_started() -> void:
 	is_playing = true
 	current_beat = 0.0
 	
-	# 加载铺面（优先级：SM > JSON > Resource > 测试生成）
+	# 加载铺面（优先级：SM > 测试生成）
 	if chart_sm_path != "":
 		current_chart = SMFileLoader.load_from_sm(chart_sm_path)
 		if current_chart:
@@ -92,29 +90,6 @@ func _on_music_started() -> void:
 			# 重新计算所有音符的beat_time
 			_recalculate_note_times(current_chart, original_offset, offset)
 			print("SM铺面offset: ", original_offset, " + 用户offset: ", user_offset, " = 总offset: ", offset)
-	elif chart_json_path != "":
-		current_chart = ChartLoader.load_from_json(chart_json_path)
-		if current_chart:
-			# 从铺面中读取配置
-			bpm = current_chart.bpm
-			var original_offset := current_chart.offset
-			offset = original_offset + user_offset  # 叠加用户校准延迟
-			beat_interval = 60.0 / bpm
-			# 重新计算所有音符的beat_time
-			_recalculate_note_times(current_chart, original_offset, offset)
-			print("JSON铺面offset: ", original_offset, " + 用户offset: ", user_offset, " = 总offset: ", offset)
-	elif chart_resource:
-		current_chart = chart_resource
-		# 从铺面资源中读取配置
-		bpm = current_chart.bpm
-		var original_offset := current_chart.offset
-		offset = original_offset + user_offset  # 叠加用户校准延迟
-		# 重新计算节拍间隔
-		beat_interval = 60.0 / bpm
-		# 重新计算所有音符的beat_time
-		_recalculate_note_times(current_chart, original_offset, offset)
-		print("已加载自定义铺面: ", current_chart.chart_name, "，共 ", current_chart.notes.size(), " 个音符")
-		print("铺面offset: ", original_offset, " + 用户offset: ", user_offset, " = 总offset: ", offset)
 	elif generate_test_chart:
 		# 先应用用户校准延迟
 		offset += user_offset

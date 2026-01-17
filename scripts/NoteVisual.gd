@@ -9,6 +9,7 @@ var start_x: float = 0.0  # 起始X坐标
 var target_x: float = 0.0  # 目标X坐标（判定线）
 var track_y: float = 0.0  # 轨道Y坐标
 var is_active: bool = true  # 是否活跃
+var spawn_sound_played: bool = false  # 音符生成音效是否已播放
 
 # 音符颜色
 const NOTE_COLORS := {
