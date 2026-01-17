@@ -78,7 +78,7 @@ func _process(delta: float) -> void:
 ## 音乐开始播放时的回调
 func _on_music_started() -> void:
 	is_playing = true
-	current_beat = 0
+	current_beat = 0.0
 	
 	# 加载铺面（优先级：SM > JSON > Resource > 测试生成）
 	if chart_sm_path != "":
@@ -150,8 +150,8 @@ func _generate_test_chart() -> void:
 	# 生成前100个节拍的随机音符
 	for i in range(1, 101):
 		var note := Note.new()
-		note.beat_number = float(i)  # 使用浮点数
-		note.beat_time = offset + (i - 1) * beat_interval
+		note.beat_number = float(i)  # 使用浮点数，从1开始
+		note.beat_time = offset + i * beat_interval  # 第i拍的时间
 		# 随机选择音符类型
 		note.type = randi() % 3 as Note.NoteType
 		current_chart.add_note(note)
@@ -161,7 +161,7 @@ func _generate_test_chart() -> void:
 
 ## 节拍触发时的回调
 func _on_beat() -> void:
-	current_beat += 1.0  # 使用浮点数
+	current_beat += 1.0  # 使用浮点数，递增到下一拍
 	
 	# 获取当前节拍的音符
 	var note: Note = null

@@ -63,18 +63,18 @@ func _setup_key_sounds() -> void:
 	if not key_sound_config:
 		return
 	
-	# 加载音效到对应的播放器
+	# 加载音效到对应的播放器，并设置各自的音量
 	if key_sound_config.hit_sound:
 		audio_player_hit.stream = key_sound_config.hit_sound
-		audio_player_hit.volume_db = key_sound_config.volume_db
+		audio_player_hit.volume_db = key_sound_config.hit_volume_db
 	
 	if key_sound_config.guard_sound:
 		audio_player_guard.stream = key_sound_config.guard_sound
-		audio_player_guard.volume_db = key_sound_config.volume_db
+		audio_player_guard.volume_db = key_sound_config.guard_volume_db
 	
 	if key_sound_config.dodge_sound:
 		audio_player_dodge.stream = key_sound_config.dodge_sound
-		audio_player_dodge.volume_db = key_sound_config.volume_db
+		audio_player_dodge.volume_db = key_sound_config.dodge_volume_db
 
 
 ## 播放按键音效

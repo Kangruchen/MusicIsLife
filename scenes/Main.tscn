@@ -7,7 +7,7 @@
 [ext_resource type="Script" uid="uid://olseljrkaswj" path="res://scripts/TrackManager.gd" id="4_track_mgr"]
 [ext_resource type="Script" uid="uid://dgu5lxyijp7a0" path="res://scripts/InputManager.gd" id="5_input_mgr"]
 [ext_resource type="Script" uid="uid://1spmii0kmgww" path="res://scripts/ScoreManager.gd" id="6_score_mgr"]
-[ext_resource type="Resource" uid="uid://brd58vvvmh20v" path="res://key_sound_config.tres" id="7_key_sound"]
+[ext_resource type="Resource" uid="uid://brd58vvvmh20v" path="res://config/key_sound_config.tres" id="7_key_sound"]
 [ext_resource type="Texture2D" uid="uid://bqgejafdalqmj" path="res://assets/environment/工厂背景.png" id="8_jlsqs"]
 
 [node name="Main" type="Node"]
@@ -28,7 +28,7 @@ music_path = "uid://vjo68u05d3yh"
 script = ExtResource("2_b4ymn")
 bpm = 0.0
 generate_test_chart = false
-chart_sm_path = "res://assets/charts/Hydrogen.sm"
+chart_sm_path = "res://assets/charts/AISample.sm"
 
 [node name="TrackManager" type="Node" parent="."]
 script = ExtResource("4_track_mgr")
@@ -59,6 +59,7 @@ dodge_boss_damage_miss = -20.0
 dodge_player_health_good = 0.0
 dodge_player_health_miss = -25.0
 max_boss_health = 2000.0
+max_boss_energy = 1000.0
 
 [node name="工厂背景" type="Sprite2D" parent="."]
 z_index = -1

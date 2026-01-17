@@ -28,8 +28,12 @@ static func load_from_sm(sm_path: String, difficulty: String = "") -> Chart:
 	chart.bpm = _parse_first_bpm(bpms_str)
 	
 	# 解析 OFFSET
+	# StepMania offset: 负值 = 第一拍在音频开始后，正值 = 第一拍在音频开始前
+	# 我们直接使用绝对值，因为负的 offset 在我们系统中表示提前（不常用）
 	var offset_str := _extract_tag(content, "OFFSET")
-	chart.offset = offset_str.to_float()
+	var sm_offset := offset_str.to_float()
+	# 取绝对值，确保第一拍总是在音频开始后
+	chart.offset = abs(sm_offset)
 	
 	# 解析音符数据
 	var notes_data := _extract_notes_section(content, difficulty)
