@@ -3,12 +3,11 @@
 importer="mp3"
 type="AudioStreamMP3"
 uid="uid://dexv0n0lxqsdr"
-path="res://.godot/imported/AISample_bass.mp3-8c6094936fa6cf5bcedda6f726ced91a.mp3str"
+valid=false
 
 [deps]
 
 source_file="res://assets/music/AISample/AISample_bass.mp3"
-dest_files=["res://.godot/imported/AISample_bass.mp3-8c6094936fa6cf5bcedda6f726ced91a.mp3str"]
 
 [params]
 
