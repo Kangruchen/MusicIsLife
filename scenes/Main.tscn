@@ -11,7 +11,7 @@
 [ext_resource type="Script" uid="uid://1spmii0kmgww" path="res://scripts/ScoreManager.gd" id="6_score_mgr"]
 [ext_resource type="Resource" uid="uid://brd58vvvmh20v" path="res://config/key_sound_config.tres" id="7_key_sound"]
 [ext_resource type="Resource" uid="uid://tka37j3asl60" path="res://config/key_sound_config_boss.tres" id="8_bjd11"]
-[ext_resource type="Texture2D" uid="uid://bqgejafdalqmj" path="res://assets/environment/工厂背景.png" id="8_jlsqs"]
+[ext_resource type="Texture2D" uid="uid://bqgejafdalqmj" path="res://assets/environment/工厂背景.png" id="12_bjd11"]
 
 [node name="Main" type="Node"]
 script = ExtResource("1_main")
@@ -69,11 +69,10 @@ dodge_player_health_miss = -20.0
 max_boss_health = 2000.0
 max_boss_energy = 50.0
 
+[node name="Camera2D" type="Camera2D" parent="."]
+
 [node name="工厂背景" type="Sprite2D" parent="."]
 z_index = -1
-position = Vector2(179.99998, -3803.9998)
+position = Vector2(178, -311)
 scale = Vector2(0.35, 0.35)
-texture = ExtResource("8_jlsqs")
-
-[node name="Camera2D" type="Camera2D" parent="."]
-position = Vector2(0, 3)
+texture = ExtResource("12_bjd11")
