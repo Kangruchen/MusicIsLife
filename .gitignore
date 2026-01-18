@@ -1,3 +1,24 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# Godot-specific ignores
+*.translation
+*.import
+
+# Exported EXE/binary files
+*.exe
+*.pck
+*.app
+*.dmg
+*.zip
+
+# System/tool-specific ignores
+.DS_Store
+Thumbs.db
+
+# Logs and crash reports
+*.log
+.mono/
+data_*/
+mono_crash.*.json

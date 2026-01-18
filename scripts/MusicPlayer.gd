@@ -167,11 +167,15 @@ func pause_music_keep_drum(drum_seek_time: float = -1.0) -> void:
 	elif bass_player.stream and bass_player.playing:
 		paused_position = bass_player.get_playback_position()
 	
+	# 立即暂停 main 和 bass 播放
+	main_player.stream_paused = true
+	bass_player.stream_paused = true
+	
 	# 立即让 drum 跳转到指定位置
 	if drum_seek_time >= 0.0 and drum_player.stream:
 		drum_player.seek(drum_seek_time)
 	
-	# 创建淡出 Tween（0.5秒）
+	# 创建淡出 Tween（0.5秒）- 用于平滑音量变化
 	var fadeout_tween: Tween = create_tween()
 	fadeout_tween.set_parallel(true)
 	fadeout_tween.set_ease(Tween.EASE_OUT)
@@ -185,40 +189,43 @@ func pause_music_keep_drum(drum_seek_time: float = -1.0) -> void:
 	var drum_boost_vol: float = min(drum_player.volume_db + 6.0, 0.0)
 	fadeout_tween.tween_property(drum_player, "volume_db", drum_boost_vol, 0.5)
 	
-	# 淡出完成后暂停 main 和 bass 播放
-	fadeout_tween.finished.connect(func():
-		main_player.stream_paused = true
-		bass_player.stream_paused = true
-		print("Main和Bass已暂停播放")
-	)
-	
-	print("音乐淡出中（0.5秒后暂停）")
+	print("Main和Bass已立即暂停，音量淡出中")
 
 
 ## 恢复音乐播放（提前0.5秒调用以便淡入）
 func resume_music() -> void:
-	# 恢复 main 和 bass 播放，先设置为静音
+	# 先让所有轨道设置为静音
 	main_player.volume_db = -80.0
 	bass_player.volume_db = -80.0
-	main_player.stream_paused = false
-	bass_player.stream_paused = false
-	
-	# 所有轨道回到暂停前的位置继续播放
-	if paused_position > 0.0:
-		if main_player.stream:
-			main_player.seek(paused_position)
-		if bass_player.stream:
-			bass_player.seek(paused_position)
-		if drum_player.stream:
-			drum_player.seek(paused_position)
-		
-		print("音乐恢复到暂停前位置: ", paused_position)
-		paused_position = 0.0
 	
 	# 获取正常音量
 	var main_normal_vol: float = music_config.main_volume_db if music_config else NORMAL_VOLUME_DB
 	var drum_normal_vol: float = music_config.drum_volume_db if music_config else NORMAL_VOLUME_DB
 	var bass_normal_vol: float = music_config.bass_volume_db if music_config else NORMAL_VOLUME_DB
+	
+	# 先降低鼓点音量，为同步做准备
+	var drum_sync_tween: Tween = create_tween()
+	drum_sync_tween.set_ease(Tween.EASE_OUT)
+	drum_sync_tween.tween_property(drum_player, "volume_db", -80.0, 0.25)
+	
+	# 0.25秒后所有轨道同时同步到目标位置（在音量最低时跳转）
+	drum_sync_tween.tween_callback(func():
+		if paused_position > 0.0:
+			# 解除 main 和 bass 的暂停状态
+			main_player.stream_paused = false
+			bass_player.stream_paused = false
+			
+			# 所有轨道同时 seek 到目标位置
+			if main_player.stream:
+				main_player.seek(paused_position)
+			if bass_player.stream:
+				bass_player.seek(paused_position)
+			if drum_player.stream:
+				drum_player.seek(paused_position)
+			
+			print("所有轨道已同步到目标位置: ", paused_position)
+			paused_position = 0.0
+	)
 	
 	# 创建淡入 Tween（0.5秒）
 	var fadein_tween: Tween = create_tween()
@@ -231,7 +238,7 @@ func resume_music() -> void:
 	fadein_tween.tween_property(bass_player, "volume_db", bass_normal_vol, 0.5)
 	fadein_tween.tween_property(drum_player, "volume_db", drum_normal_vol, 0.5)
 	
-	print("音乐淡入恢复中（0.5秒）")
+	print("音乐淡入恢复中（0.5秒），所有轨道将平滑同步")
 
 
 ## 获取当前播放位置（使用主轨道作为参考）

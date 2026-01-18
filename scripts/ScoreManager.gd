@@ -242,6 +242,17 @@ func _on_boss_energy_depleted() -> void:
 		if input_manager and input_manager.has_method("pause_input"):
 			input_manager.pause_input()
 		
+		# 启动暂停阶段视觉效果
+		var game_ui: Node = get_node("../GameUI")
+		if game_ui:
+			# 第一个小节：倒计时
+			game_ui.show_pause_countdown(beat_manager)
+			# 后四个小节：节拍闪光效果（延迟一个小节后开始）
+			get_tree().create_timer(beat_manager.beat_interval * 4.0).timeout.connect(func():
+				if game_ui and game_ui.has_method("play_beat_flash_effects"):
+					game_ui.play_beat_flash_effects(beat_manager, 16)
+			)
+		
 		# 暂停音乐（保留鼓点，并让drum跳到第9小节）
 		var music_player: Node = get_node("../MusicPlayer")
 		if music_player:
@@ -266,6 +277,11 @@ func _on_boss_energy_depleted() -> void:
 ## 暂停结束的回调
 func _on_pause_timeout() -> void:
 	is_paused_for_attack = false
+	
+	# 隐藏暂停视觉效果
+	var game_ui: Node = get_node("../GameUI")
+	if game_ui and game_ui.has_method("hide_pause_effects"):
+		game_ui.hide_pause_effects()
 	
 	# 恢复节拍检测
 	var beat_manager: Node = get_node("../BeatManager")
