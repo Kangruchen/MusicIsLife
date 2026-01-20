@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://b7k4n5m8qwp2s"]
 
-[ext_resource type="Script" path="res://scripts/NoteVisual.gd" id="1_note_visual"]
+[ext_resource type="Script" uid="uid://ol1t5gmdg8ki" path="res://scripts/NoteVisual.gd" id="1_note_visual"]
 
 [node name="NoteVisual" type="Node2D"]
 script = ExtResource("1_note_visual")

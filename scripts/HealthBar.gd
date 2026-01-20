@@ -48,6 +48,13 @@ func set_value(value: float) -> void:
 	_update_bar()
 
 
+## 设置最大值
+func set_max_value(new_max: float) -> void:
+	max_value = new_max
+	current_value = min(current_value, max_value)  # 确保当前值不超过新的最大值
+	_update_bar()
+
+
 ## 增加值
 func add_value(amount: float) -> void:
 	current_value += amount

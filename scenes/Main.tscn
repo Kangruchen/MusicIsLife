@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3 uid="uid://b4ymn7qwvj5hq"]
+[gd_scene load_steps=14 format=3 uid="uid://b4ymn7qwvj5hq"]
 
 [ext_resource type="Script" uid="uid://hla1t03lkrwg" path="res://scripts/MusicPlayer.gd" id="1_h5v3q"]
 [ext_resource type="Script" uid="uid://dnajos3fm0bkl" path="res://scripts/Main.gd" id="1_main"]
@@ -12,6 +12,7 @@
 [ext_resource type="Resource" uid="uid://brd58vvvmh20v" path="res://config/key_sound_config.tres" id="7_key_sound"]
 [ext_resource type="Resource" uid="uid://tka37j3asl60" path="res://config/key_sound_config_boss.tres" id="8_bjd11"]
 [ext_resource type="Texture2D" uid="uid://bqgejafdalqmj" path="res://assets/environment/工厂背景.png" id="12_bjd11"]
+[ext_resource type="Resource" uid="uid://c1vhiqdiogunj" path="res://config/attack_config.tres" id="12_qmy6f"]
 
 [node name="Main" type="Node"]
 script = ExtResource("1_main")
@@ -58,8 +59,8 @@ guard_player_health_perfect = 4.0
 guard_player_health_great = 2.0
 guard_player_health_good = 0.0
 guard_player_health_miss = -15.0
-dodge_boss_damage_perfect = 0.0
-dodge_boss_damage_great = -1.0
+dodge_boss_damage_perfect = 2.0
+dodge_boss_damage_great = 0.0
 dodge_boss_damage_good = -3.0
 dodge_boss_damage_miss = -5.0
 dodge_player_health_perfect = 6.0
@@ -67,7 +68,7 @@ dodge_player_health_great = 4.0
 dodge_player_health_good = 0.0
 dodge_player_health_miss = -20.0
 max_boss_health = 2000.0
-max_boss_energy = 50.0
+attack_config = ExtResource("12_qmy6f")
 
 [node name="Camera2D" type="Camera2D" parent="."]
 
