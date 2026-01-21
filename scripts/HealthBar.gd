@@ -26,9 +26,9 @@ func _update_bar() -> void:
 	# 限制数值范围
 	current_value = clampf(current_value, 0.0, max_value)
 	
-	# 更新条的宽度
+	# 更新条的宽度（使用scale_x来避免锚点冲突）
 	var ratio: float = current_value / max_value
-	bar_rect.size.x = size.x * ratio
+	bar_rect.scale.x = ratio
 	
 	# 更新数值文本
 	value_label.text = "%d / %d" % [int(current_value), int(max_value)]

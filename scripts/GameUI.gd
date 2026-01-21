@@ -452,7 +452,7 @@ func _add_charge_visual_effect(note: ColorRect) -> void:
 	var top_border: ColorRect = ColorRect.new()
 	top_border.color = Color(1.0, 0.5, 0.0, 0.8)  # 橙色边框
 	top_border.anchor_right = 1.0
-	top_border.size.y = 3.0
+	top_border.offset_bottom = 3.0
 	top_border.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	note.add_child(top_border)
 	
@@ -469,7 +469,7 @@ func _add_charge_visual_effect(note: ColorRect) -> void:
 	# 创建左边框
 	var left_border: ColorRect = ColorRect.new()
 	left_border.color = Color(1.0, 0.5, 0.0, 0.8)
-	left_border.size.x = 3.0
+	left_border.offset_right = 3.0
 	left_border.anchor_bottom = 1.0
 	left_border.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	note.add_child(left_border)
@@ -481,12 +481,13 @@ func _add_charge_visual_effect(note: ColorRect) -> void:
 	right_border.anchor_right = 1.0
 	right_border.anchor_bottom = 1.0
 	right_border.offset_left = -3.0
+	right_border.offset_right = 0.0
 	right_border.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	note.add_child(right_border)
 	
 	# 创建闪烁动画（同时作用于所有边框）
 	var tween: Tween = create_tween()
-	tween.set_loops()
+	tween.set_loops(5)  # 循环5次，避免无限循环
 	var borders: Array[ColorRect] = [top_border, bottom_border, left_border, right_border]
 	for border in borders:
 		tween.parallel().tween_property(border, "color:a", 1.0, 0.5)
