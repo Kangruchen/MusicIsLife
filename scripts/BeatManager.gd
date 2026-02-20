@@ -99,9 +99,11 @@ func _on_music_started() -> void:
 	
 	# 通知 TrackManager
 	if current_chart:
-		var track_manager = get_node("../TrackManager")
+		var track_manager: TrackManager = get_node_or_null("../TrackManager") as TrackManager
 		if track_manager:
 			track_manager.set_chart(current_chart)
+		else:
+			push_error("找不到 TrackManager 节点或脚本未正确加载")
 	
 	next_beat_time = offset
 	print("节拍管理器已启动 - BPM: ", bpm, ", Offset: ", offset, " 秒")

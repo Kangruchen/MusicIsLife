@@ -62,9 +62,9 @@ var current_boss_health: float = 0.0
 var current_boss_energy: float = 0.0
 var temporary_energy_reduce: float = 0.0  # 本次攻击阶段的临时精力削减量
 var is_next_attack_charged: bool = false  # 下次攻击是否为蓄力版本
-var player_health_bar: HealthBar = null
-var boss_health_bar: HealthBar = null
-var boss_energy_bar: HealthBar = null
+var player_health_bar: ProgressBar = null
+var boss_health_bar: ProgressBar = null
+var boss_guard_bar: ProgressBar = null
 
 # 暂停相关
 var is_paused_for_attack: bool = false  # 是否因精力耗尽而暂停
@@ -84,22 +84,22 @@ func _ready() -> void:
 	add_child(pause_timer)
 	
 	# 获取血量条引用
-	var game_ui: Control = get_node("../GameUI")
+	var game_ui: Node = get_node("../GameUI")
 	if game_ui:
-		player_health_bar = game_ui.get_node_or_null("PlayerHealthBar")
-		boss_health_bar = game_ui.get_node_or_null("BossHealthBar")
-		boss_energy_bar = game_ui.get_node_or_null("BossEnergyBar")
+		boss_health_bar = game_ui.get_node_or_null("MarginContainer/VBoxContainer/BossHealthBar") as ProgressBar
+		boss_guard_bar = game_ui.get_node_or_null("MarginContainer/VBoxContainer/BossGuardBar") as ProgressBar
+		player_health_bar = game_ui.get_node_or_null("MarginContainer2/VBoxContainer/PlayerHealthBar") as ProgressBar
 		
-		# 设置血量条的最大值
-		if player_health_bar:
-			player_health_bar.max_value = max_player_health
-			player_health_bar.current_value = current_player_health
+		# 设置血量条的最大值和初始值
 		if boss_health_bar:
 			boss_health_bar.max_value = max_boss_health
-			boss_health_bar.current_value = current_boss_health
-		if boss_energy_bar:
-			boss_energy_bar.max_value = max_boss_energy
-			boss_energy_bar.current_value = current_boss_energy
+			boss_health_bar.value = current_boss_health
+		if boss_guard_bar:
+			boss_guard_bar.max_value = max_boss_energy
+			boss_guard_bar.value = current_boss_energy
+		if player_health_bar:
+			player_health_bar.max_value = max_player_health
+			player_health_bar.value = current_player_health
 	
 	# 连接输入管理器信号
 	var input_manager: Node = get_node("../InputManager")
@@ -207,17 +207,14 @@ func _get_player_health_change(track: int, judgment: int) -> float:
 ## 更新血量条显示
 func _update_health_bars() -> void:
 	if player_health_bar:
-		player_health_bar.set_value(current_player_health)
+		player_health_bar.value = current_player_health
 	
 	if boss_health_bar:
-		boss_health_bar.set_value(current_boss_health)
+		boss_health_bar.value = current_boss_health
 	
-	if boss_energy_bar:
-		if boss_energy_bar.has_method("set_max_value"):
-			boss_energy_bar.set_max_value(max_boss_energy)
-		else:
-			boss_energy_bar.max_value = max_boss_energy
-		boss_energy_bar.set_value(current_boss_energy)
+	if boss_guard_bar:
+		boss_guard_bar.max_value = max_boss_energy
+		boss_guard_bar.value = current_boss_energy
 
 
 ## 重置游戏

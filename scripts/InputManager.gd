@@ -163,56 +163,64 @@ func _handle_input(track_type: Note.NoteType) -> void:
 	# 获取当前时间
 	var current_time: float = music_player.get_playback_position() + AudioServer.get_time_to_next_mix()
 	
-	# 查找该轨道上最近的音符
+	# 查找该轨道上最近的可视音符
 	var closest_note: NoteVisual = null
 	var min_time_diff: float = INF
 	
 	for note_visual in track_manager.active_notes:
 		if not note_visual or not is_instance_valid(note_visual):
 			continue
-		
-		# 只检查对应轨道的音符
 		if note_visual.note_data.type != track_type:
 			continue
-		
-		# 只检查尚未被判定的音符
 		if not note_visual.is_active:
 			continue
-		
-		# 计算时间差
 		var time_diff: float = abs(current_time - note_visual.target_time)
-		
-		# 只考虑在判定窗口内的音符
 		if time_diff <= JUDGMENT_WINDOWS[JudgmentType.GOOD]:
 			if time_diff < min_time_diff:
 				min_time_diff = time_diff
 				closest_note = note_visual
 	
-	# 如果找到音符，进行判定
+	# 可视音符判定
 	if closest_note:
 		var judgment: JudgmentType = _calculate_judgment(min_time_diff)
 		var timing_diff: float = current_time - closest_note.target_time
-		
-		# 播放按键音效（击中音符时）
 		_play_key_sound(track_type)
-		
-		# 标记音符为已判定
 		closest_note.is_active = false
 		closest_note.destroy()
-		
-		# 如果是 MISS，应用音频效果
 		if judgment == JudgmentType.MISS:
 			_apply_miss_audio_effect()
-		
-		# 发送判定信号
 		judgment_made.emit(track_type, judgment, timing_diff)
-		
 		print("判定: ", _get_judgment_text(judgment), " (", int(min_time_diff * 1000), "ms)")
-	else:
-		# 没有音符在判定窗口内，视为空按Miss
-		_apply_miss_audio_effect()
-		judgment_made.emit(track_type, JudgmentType.MISS, 0.0)
-		print("判定: MISS (空按)")
+		return
+	
+	# 查找非可视追踪音符
+	var closest_tracked: Note = null
+	var min_tracked_diff: float = INF
+	
+	for note in track_manager.tracked_notes:
+		if note.type != track_type:
+			continue
+		var time_diff: float = abs(current_time - note.beat_time)
+		if time_diff <= JUDGMENT_WINDOWS[JudgmentType.GOOD]:
+			if time_diff < min_tracked_diff:
+				min_tracked_diff = time_diff
+				closest_tracked = note
+	
+	if closest_tracked:
+		var judgment: JudgmentType = _calculate_judgment(min_tracked_diff)
+		var timing_diff: float = current_time - closest_tracked.beat_time
+		_play_key_sound(track_type)
+		track_manager.tracked_notes.erase(closest_tracked)
+		if judgment == JudgmentType.MISS:
+			_apply_miss_audio_effect()
+		judgment_made.emit(track_type, judgment, timing_diff)
+		print("判定: ", _get_judgment_text(judgment), " (", int(min_tracked_diff * 1000), "ms)")
+		return
+	
+	# 没有音符在判定窗口内，视为空按Miss
+	_apply_miss_audio_effect()
+	judgment_made.emit(track_type, JudgmentType.MISS, 0.0)
+	print("判定: MISS (空按)")
 
 
 ## 计算判定等级

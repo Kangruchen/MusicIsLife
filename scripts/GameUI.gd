@@ -1,37 +1,16 @@
-extends Control
-## 游戏UI - 管理三条轨道和判定线
+extends CanvasLayer
+## 游戏UI - 管理血条显示和攻击阶段UI
 
-# 轨道配置
-const TRACK_HEIGHT: float = 100.0  # 每条轨道高度
-const TRACK_SPACING: float = 20.0  # 轨道间距
-const JUDGMENT_LINE_X: float = 150.0  # 判定线X坐标
-const TRACK_START_Y: float = 100.0  # 第一条轨道的Y坐标
+# 轨道配置（游戏逻辑坐标，用于判定计算）
+const TRACK_HEIGHT: float = 80.0  # 每条轨道高度
+const TRACK_SPACING: float = 10.0  # 轨道间距
+const JUDGMENT_LINE_X: float = 100.0  # 判定线X坐标
+const TRACK_START_Y: float = 57.0  # 第一条轨道的Y坐标
 
-# 轨道颜色
-const TRACK_COLORS := {
-	Note.NoteType.HIT: Color(1.0, 0.3, 0.3, 0.3),    # 红色
-	Note.NoteType.GUARD: Color(0.3, 0.3, 1.0, 0.3),  # 蓝色
-	Note.NoteType.DODGE: Color(0.3, 1.0, 0.3, 0.3)   # 绿色
-}
-
-# 判定线颜色
-const JUDGMENT_LINE_COLOR := Color(1.0, 1.0, 1.0, 0.8)
-
-# 判定显示预制场景
-const JUDGMENT_DISPLAY_SCENE := preload("res://scenes/JudgmentDisplay.tscn")
-
-# 血量条配置
-const HEALTH_BAR_HEIGHT: float = 30.0
-const HEALTH_BAR_MARGIN: float = 20.0
-const HEALTH_BAR_SPACING: float = 10.0
-
-@onready var tracks_container: Control = $TracksContainer
-@onready var judgment_line: ColorRect = $JudgmentLine
-@onready var notes_container: Control = $NotesContainer
-@onready var judgment_container: Control = $JudgmentContainer
-@onready var player_health_bar: Control = $PlayerHealthBar
-@onready var boss_health_bar: Control = $BossHealthBar
-@onready var boss_energy_bar: Control = $BossEnergyBar
+# 血量条引用
+@onready var boss_health_bar: ProgressBar = $MarginContainer/VBoxContainer/BossHealthBar
+@onready var boss_guard_bar: ProgressBar = $MarginContainer/VBoxContainer/BossGuardBar
+@onready var player_health_bar: ProgressBar = $MarginContainer2/VBoxContainer/PlayerHealthBar
 
 # 暂停阶段视觉效果元素
 var countdown_label: Label = null
@@ -39,8 +18,6 @@ var beat_flash_effect: ColorRect = null
 
 # 攻击阶段UI元素
 var attack_ui_container: Control = null
-var attack_circles_container: HBoxContainer = null  # 圆圈容器
-var attack_circles: Array[ColorRect] = []  # 16个圆圈
 var attack_hint_label: Label = null
 var attack_count: int = 0  # 已发动的攻击次数
 var is_next_attack_charged: bool = false  # 下次攻击是否为蓄力版本
@@ -92,20 +69,12 @@ func _ready() -> void:
 	
 	# 创建攻击 UI容器（初始隐藏）
 	_create_attack_ui()
-	
-	# 设置血条的z_index，确保在最上层显示
-	if player_health_bar:
-		player_health_bar.z_index = 100
-	if boss_health_bar:
-		boss_health_bar.z_index = 100
-	if boss_energy_bar:
-		boss_energy_bar.z_index = 100
 
 
 ## 获取指定音符类型的轨道Y坐标
 func get_track_y(note_type: Note.NoteType) -> float:
 	var track_index := note_type as int
-	return TRACK_START_Y + track_index * (TRACK_HEIGHT + TRACK_SPACING) + TRACK_HEIGHT / 2
+	return TRACK_START_Y + track_index * (TRACK_HEIGHT + TRACK_SPACING) + TRACK_HEIGHT / 2.0
 
 
 ## 获取判定线X坐标
@@ -113,31 +82,14 @@ func get_judgment_line_x() -> float:
 	return JUDGMENT_LINE_X
 
 
-## 获取音符容器
+## 获取音符容器（音符视觉暂时停用）
 func get_notes_container() -> Control:
-	return notes_container
+	return null
 
 
-## 判定触发回调
-func _on_judgment_made(track: Note.NoteType, judgment: int, _timing_diff: float) -> void:
-	# 创建判定显示
-	var judgment_display: Node2D = JUDGMENT_DISPLAY_SCENE.instantiate()
-	
-	# 获取判定颜色
-	var input_manager: Node = get_node("../InputManager")
-	var color: Color = Color.WHITE
-	if input_manager:
-		color = input_manager.get_judgment_color(judgment)
-	
-	# 获取轨道Y坐标
-	var track_y: float = get_track_y(track)
-	
-	# 初始化判定显示
-	judgment_display.initialize(judgment, track, color, track_y)
-	judgment_display.position.x = JUDGMENT_LINE_X
-	
-	# 添加到判定容器
-	judgment_container.add_child(judgment_display)
+## 判定触发回调（判定视觉显示暂时停用）
+func _on_judgment_made(_track: Note.NoteType, _judgment: int, _timing_diff: float) -> void:
+	pass
 
 
 ## 显示暂停倒计时（第一个小节，倒计时4-3-2-1）

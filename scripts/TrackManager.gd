@@ -1,4 +1,5 @@
 extends Node
+class_name TrackManager
 ## 轨道管理器 - 负责生成和管理音符的可视化
 
 # 预制场景
@@ -11,16 +12,22 @@ const SPAWN_ADVANCE := {
 	Note.NoteType.DODGE: 4   # 提前4拍（生成后1拍不动，3拍移动）
 }
 
-# 音符生成位置X坐标
-const SPAWN_X: float = 900.0
+# 音符生成位置X坐标（动态计算，在 _ready 中初始化）
+var spawn_x: float = 900.0
 
 # MISS 判定窗口（超过判定线后多久算 MISS）
 const MISS_THRESHOLD: float = 0.200  # 200ms
 
+# 音符视觉生成开关（暂时停用）
+var note_visual_enabled: bool = false
+
+# 非可视音符追踪（用于判定和 MISS 检测）
+var tracked_notes: Array[Note] = []
+
 # 音符生成音效配置
 @export var key_sound_config: KeySoundConfig = null
 
-var game_ui: Control = null
+var game_ui: Node = null
 var beat_manager: Node = null
 var input_manager: Node = null
 var current_chart: Chart = null
@@ -37,6 +44,9 @@ var spawn_audio_player_dodge: AudioStreamPlayer = null
 
 
 func _ready() -> void:
+	# 根据实际视口宽度动态计算音符生成X坐标（屏幕右侧外100px）
+	spawn_x = get_viewport().get_visible_rect().size.x + 100.0
+	
 	# 获取引用
 	game_ui = get_node("../GameUI")
 	beat_manager = get_node("../BeatManager")
@@ -114,6 +124,15 @@ func _process(_delta: float) -> void:
 		
 		# 移除已销毁的音符
 		active_notes = active_notes.filter(func(n): return n != null and is_instance_valid(n))
+		
+		# 检查非可视追踪音符的 MISS
+		for i in range(tracked_notes.size() - 1, -1, -1):
+			var note: Note = tracked_notes[i]
+			var time_past: float = current_time - note.beat_time
+			if time_past > MISS_THRESHOLD:
+				if input_manager:
+					input_manager.trigger_miss(note.type)
+				tracked_notes.remove_at(i)
 
 
 ## 设置铺面数据
@@ -153,32 +172,32 @@ func _check_and_spawn_notes(current_beat: float) -> void:
 
 ## 生成音符
 func _spawn_note(note: Note) -> void:
-	if not game_ui:
-		return
-	
-	# 创建音符实例
-	var note_visual := NOTE_VISUAL_SCENE.instantiate() as NoteVisual
-	
-	# 计算位置
-	var track_y: float = game_ui.get_track_y(note.type)
-	var judgment_x: float = game_ui.get_judgment_line_x()
-	var spawn_pos := Vector2(SPAWN_X, track_y)
-	var target_pos := Vector2(judgment_x, track_y)
-	
-	# 计算时间
-	var advance_beats: int = SPAWN_ADVANCE[note.type]
-	var spawn_time: float = note.beat_time - advance_beats * beat_manager.beat_interval
-	var move_start_time: float = spawn_time + beat_manager.beat_interval  # 延迟1拍开始移动
-	var target_time: float = note.beat_time
-	
-	# 初始化音符
-	note_visual.initialize(note, spawn_pos, target_pos, move_start_time, target_time)
-	
-	# 添加到场景
-	game_ui.get_notes_container().add_child(note_visual)
-	active_notes.append(note_visual)
-	
-	print("生成音符: 节拍 #", note.beat_number, " ", note.get_type_string(), " 在时间 ", "%.3f" % spawn_time)
+	if note_visual_enabled:
+		# 可视模式：创建 NoteVisual 实例
+		if not game_ui:
+			return
+		var notes_container: Control = game_ui.get_notes_container()
+		if not notes_container:
+			return
+		
+		var note_visual := NOTE_VISUAL_SCENE.instantiate() as NoteVisual
+		var track_y: float = game_ui.get_track_y(note.type)
+		var judgment_x: float = game_ui.get_judgment_line_x()
+		var spawn_pos := Vector2(spawn_x, track_y)
+		var target_pos := Vector2(judgment_x, track_y)
+		
+		var advance_beats: int = SPAWN_ADVANCE[note.type]
+		var spawn_time: float = note.beat_time - advance_beats * beat_manager.beat_interval
+		var move_start_time: float = spawn_time + beat_manager.beat_interval
+		var target_time: float = note.beat_time
+		
+		note_visual.initialize(note, spawn_pos, target_pos, move_start_time, target_time)
+		notes_container.add_child(note_visual)
+		active_notes.append(note_visual)
+		print("生成音符: 节拍 #", note.beat_number, " ", note.get_type_string(), " 在时间 ", "%.3f" % spawn_time)
+	else:
+		# 非可视模式：仅追踪音符用于判定
+		tracked_notes.append(note)
 
 
 ## 清除所有活跃的音符
@@ -187,6 +206,7 @@ func clear_all_notes() -> void:
 		if note_visual and is_instance_valid(note_visual):
 			note_visual.destroy()
 	active_notes.clear()
+	tracked_notes.clear()
 	print("已清除所有活跃音符")
 
 
@@ -217,6 +237,11 @@ func resume_note_spawning() -> void:
 	
 	if removed_count > 0:
 		print("已跳过 ", removed_count, " 个判定时间已过的音符")
+	
+	# 清理已过期的追踪音符
+	for i in range(tracked_notes.size() - 1, -1, -1):
+		if tracked_notes[i].beat_time < (current_time - buffer_time):
+			tracked_notes.remove_at(i)
 	
 	# 最后才恢复生成（避免_process在清理前执行）
 	is_paused = false

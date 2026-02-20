@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3 uid="uid://b4ymn7qwvj5hq"]
+[gd_scene load_steps=16 format=3 uid="uid://b4ymn7qwvj5hq"]
 
 [ext_resource type="Script" uid="uid://hla1t03lkrwg" path="res://scripts/MusicPlayer.gd" id="1_h5v3q"]
 [ext_resource type="Script" uid="uid://dnajos3fm0bkl" path="res://scripts/Main.gd" id="1_main"]
@@ -13,16 +13,15 @@
 [ext_resource type="Resource" uid="uid://tka37j3asl60" path="res://config/key_sound_config_boss.tres" id="8_bjd11"]
 [ext_resource type="Texture2D" uid="uid://bqgejafdalqmj" path="res://assets/environment/工厂背景.png" id="12_bjd11"]
 [ext_resource type="Resource" uid="uid://c1vhiqdiogunj" path="res://config/attack_config.tres" id="12_qmy6f"]
+[ext_resource type="Texture2D" uid="uid://30fmm367b0px" path="res://assets/environment/scene_smaller.png" id="14_mwfav"]
+
+[sub_resource type="CompressedTexture2D" id="CompressedTexture2D_mwfav"]
+load_path = "res://.godot/imported/new.png-8b0fda6bad6df3aaedb77714777f6390.ctex"
 
 [node name="Main" type="Node"]
 script = ExtResource("1_main")
 
 [node name="GameUI" parent="." instance=ExtResource("3_game_ui")]
-custom_minimum_size = Vector2(1152, 648)
-offset_left = -579.0
-offset_top = -322.0
-offset_right = -579.0
-offset_bottom = -322.0
 
 [node name="MusicPlayer" type="Node" parent="."]
 script = ExtResource("1_h5v3q")
@@ -68,12 +67,25 @@ dodge_player_health_great = 4.0
 dodge_player_health_good = 0.0
 dodge_player_health_miss = -20.0
 max_boss_health = 2000.0
+max_boss_energy = 10000.0
 attack_config = ExtResource("12_qmy6f")
 
 [node name="Camera2D" type="Camera2D" parent="."]
 
 [node name="工厂背景" type="Sprite2D" parent="."]
 z_index = -1
-position = Vector2(178, -311)
+position = Vector2(117, -1422.9999)
 scale = Vector2(0.35, 0.35)
 texture = ExtResource("12_bjd11")
+
+[node name="New" type="Sprite2D" parent="."]
+z_index = 1
+position = Vector2(267, 112)
+scale = Vector2(0.25, 0.25)
+texture = SubResource("CompressedTexture2D_mwfav")
+region_enabled = true
+region_rect = Rect2(786.4032, 0, 529.5968, 512)
+
+[node name="SceneSmaller" type="Sprite2D" parent="."]
+scale = Vector2(0.4, 0.4)
+texture = ExtResource("14_mwfav")
