@@ -296,8 +296,8 @@ func _on_boss_energy_depleted() -> void:
 				if game_ui and game_ui.has_method("play_beat_flash_effects"):
 					game_ui.play_beat_flash_effects(beat_manager, 16)
 			)
-			# 倒计时后启动攻击阶段（20拍：16拍攻击 + 4拍返回倒计时）
-			get_tree().create_timer(countdown_duration).timeout.connect(func():
+			# 提前半拍启动攻击阶段，使输入系统能接受引入第四拍后半的预输入
+			get_tree().create_timer(countdown_duration - beat_interval_value * 0.5).timeout.connect(func():
 				_start_attack_phase(attack_duration + return_countdown_duration, beat_manager.beat_interval)
 			)
 		

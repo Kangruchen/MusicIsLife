@@ -1,0 +1,96 @@
+[gd_scene load_steps=15 format=3 uid="uid://df3a1jhkv5551"]
+
+[ext_resource type="Texture2D" uid="uid://btwvdaklbc8y0" path="res://assets/VFX/bling_blue.png" id="1_wrrf1"]
+[ext_resource type="Texture2D" uid="uid://4fel1y0k2ejj" path="res://assets/VFX/bling_green.png" id="2_ddope"]
+[ext_resource type="Texture2D" uid="uid://doiipeo1ao3j7" path="res://assets/VFX/bling_red.png" id="3_rk08m"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_q2fw0"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_gmhtv"]
+atlas = ExtResource("1_wrrf1")
+region = Rect2(30, 0, 15, 15)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_e4ro8"]
+atlas = ExtResource("1_wrrf1")
+region = Rect2(45, 0, 15, 15)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_o1rjl"]
+atlas = ExtResource("1_wrrf1")
+region = Rect2(60, 0, 15, 15)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_7knj7"]
+atlas = ExtResource("2_ddope")
+region = Rect2(15, 0, 15, 15)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_lqswg"]
+atlas = ExtResource("2_ddope")
+region = Rect2(30, 0, 15, 15)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_3xjpo"]
+atlas = ExtResource("2_ddope")
+region = Rect2(45, 0, 15, 15)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_bpeno"]
+atlas = ExtResource("2_ddope")
+region = Rect2(60, 0, 15, 15)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_r5kmk"]
+atlas = ExtResource("3_rk08m")
+region = Rect2(45, 0, 15, 15)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_vdwj3"]
+atlas = ExtResource("3_rk08m")
+region = Rect2(60, 0, 15, 15)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_vod4t"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_gmhtv")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_e4ro8")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_o1rjl")
+}],
+"loop": false,
+"name": &"bling_blue",
+"speed": 1.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_7knj7")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_lqswg")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_3xjpo")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_bpeno")
+}],
+"loop": false,
+"name": &"bling_green",
+"speed": 1.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_r5kmk")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_vdwj3")
+}],
+"loop": false,
+"name": &"bling_red",
+"speed": 1.0
+}]
+
+[node name="bling" type="Node2D"]
+scale = Vector2(6, 6)
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+material = SubResource("ShaderMaterial_q2fw0")
+sprite_frames = SubResource("SpriteFrames_vod4t")
+animation = &"bling_green"

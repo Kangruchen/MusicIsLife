@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="MusicConfig" load_steps=3 format=3 uid="uid://le6vduwl5k1h"]
+
+[ext_resource type="AudioStream" uid="uid://dgmmnbruepxvh" path="res://assets/music/demo2/demo2.mp3" id="1_6qbsq"]
+[ext_resource type="Script" uid="uid://b31krmaor5ahu" path="res://scripts/MusicConfig.gd" id="2_fjuhu"]
+
+[resource]
+script = ExtResource("2_fjuhu")
+music_name = "demo2"
+main_track = ExtResource("1_6qbsq")
+bpm = 0.0

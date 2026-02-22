@@ -4,6 +4,7 @@ extends Node
 # 判定信号
 signal judgment_made(track: Note.NoteType, judgment: JudgmentType, timing_diff: float)
 signal attack_performed(attack_type: AttackType)  # 玩家发动攻击信号
+signal any_key_pressed  # 任意轨道按键按下时触发（用于角色动画）
 
 # 判定类型
 enum JudgmentType {
@@ -53,12 +54,14 @@ var is_paused: bool = false
 var is_attack_phase: bool = false
 var attack_phase_timer: Timer = null
 var attack_beat_timer: Timer = null
-var auto_enhance_timer: Timer = null  # 自动强化延迟计时器
 var current_beat_in_attack: int = 0
 var attack_beat_interval: float = 0.0
 var current_beat_start_time: float = 0.0  # 当前拍的开始时间
 var attack_phase_start_time: float = 0.0  # 攻击阶段开始时间
 var current_beat_has_input: bool = false  # 当前拍是否已有输入
+var _pre_beat_input_received: bool = false  # 下一拍已收到预输入（节拍前半拍窗口）
+var _heavy_skip_next_beat: bool = false    # 重击占用下一拍标志
+var _beat_generation: int = 0            # 每拍递增，用于使过期的自动强化回调失效
 
 
 func _ready() -> void:
@@ -68,16 +71,13 @@ func _ready() -> void:
 	attack_phase_timer.timeout.connect(_on_attack_phase_end)
 	add_child(attack_phase_timer)
 	
-	# 创建攻击节拍计时器
+	# 创建攻击节拍计时器（one_shot，每拍手动重启以支持第一拍半拍延迟）
 	attack_beat_timer = Timer.new()
+	attack_beat_timer.one_shot = true
 	attack_beat_timer.timeout.connect(_on_attack_beat)
 	add_child(attack_beat_timer)
 	
-	# 创建自动强化延迟计时器
-	auto_enhance_timer = Timer.new()
-	auto_enhance_timer.one_shot = true
-	auto_enhance_timer.timeout.connect(_on_auto_enhance_timeout)
-	add_child(auto_enhance_timer)
+	# auto_enhance 已改为在 _on_attack_beat 内同步处理，不再使用独立 Timer
 	# 创建三个音效播放器
 	audio_player_hit = AudioStreamPlayer.new()
 	audio_player_guard = AudioStreamPlayer.new()
@@ -150,6 +150,7 @@ func _input(event: InputEvent) -> void:
 	# 检查输入动作
 	for action in ACTION_MAPPING:
 		if event.is_action_pressed(action):
+			any_key_pressed.emit()
 			var track_type: Note.NoteType = ACTION_MAPPING[action]
 			_handle_input(track_type)
 			break  # 一次只处理一个输入
@@ -301,31 +302,36 @@ func resume_input() -> void:
 func start_attack_phase(duration: float, beat_interval: float) -> void:
 	is_attack_phase = true
 	attack_beat_interval = beat_interval
-	current_beat_in_attack = 0  # 从0开始，显示为拍1
+	current_beat_in_attack = 0  # 代表输入拍第1拍（尚未到来）
 	attack_phase_start_time = Time.get_ticks_msec() / 1000.0
-	current_beat_start_time = attack_phase_start_time
+	# 第一输入拍在 0.5*BI 之后到来（本函数提前半拍被调用）
+	current_beat_start_time = attack_phase_start_time + 0.5 * beat_interval
 	current_beat_has_input = false
+	_pre_beat_input_received = false
+	_heavy_skip_next_beat = false
 	
-	# 立即显示UI（动画和前两个音符已在准备阶段生成）
+	# 立即显示UI（动画和前两个音符已在准备阶段生成，分别对应输入第1、第2拍）
 	var game_ui: Node = get_node_or_null("../GameUI")
 	if game_ui and game_ui.has_method("show_attack_ui"):
 		game_ui.show_attack_ui()
-		# 生成第三个音符（为总拍7准备）
-		if game_ui.has_method("spawn_beat_note"):
-			game_ui.spawn_beat_note(beat_interval * 2.0)
-			print("DEBUG: 生成第3个音符 (总拍5开始)")
 	
 	# 打印第一拍的log（总拍5/24）
 	print("[总拍5/24] 输入阶段 - 拍1/16")
 	
-	# 启动第一拍的自动强化计时器（150ms后触发）
-	auto_enhance_timer.start(0.15)
-	
 	# 启动总计时器
 	attack_phase_timer.start(duration)
 	
-	# 启动节拍计时器（每拍触发一次）
-	attack_beat_timer.start(beat_interval)
+	# 第一输入拍在半拍后到来（one_shot，之后在 _on_attack_beat 内手动重启）
+	attack_beat_timer.start(0.5 * beat_interval)
+	
+	# 为输入拍第1拍安排自动强化（在第1拍重音后半拍触发）
+	# 自动强化时机 = 第1拍到来时刻 + 0.5*BI = 距现在 1.0*BI
+	_beat_generation += 1
+	var _gen := _beat_generation
+	var _bidx := 0
+	get_tree().create_timer(beat_interval).timeout.connect(func():
+		_try_auto_enhance(_gen, _bidx)
+	)
 
 
 ## 攻击阶段的输入处理
@@ -333,25 +339,31 @@ func _handle_attack_phase_input(event: InputEvent) -> void:
 	# 检测按键动作
 	for action in ACTION_MAPPING:
 		if event.is_action_pressed(action):
-			# 检查当前拍是否已有输入
-			if current_beat_has_input:
+			any_key_pressed.emit()
+			
+			# 提前计算时机（需在 has_input 判断前完成，以支持节拍前预输入）
+			var current_time: float = Time.get_ticks_msec() / 1000.0
+			var time_since_beat: float = current_time - current_beat_start_time
+			var next_beat_time: float = current_beat_start_time + attack_beat_interval
+			var time_to_next_beat: float = next_beat_time - current_time
+			# 半拍窗口：每拍重音前后各半拍均属于该拍的输入时间
+			var half_window: float = attack_beat_interval * 0.5
+			# 情形A：当前拍的前半拍（仅第1拍时 time_since_beat < 0）
+			var is_pre_current_beat: bool = time_since_beat < 0.0 and time_since_beat >= -half_window
+			# 情形B：下一拍的前半拍（下一拍重音前半拍内）
+			var is_pre_next_beat: bool = time_to_next_beat >= 0.0 and time_to_next_beat < half_window
+			# 两种情形都应设置 _pre_beat_input_received，等待对应拍的 _on_attack_beat 继承
+			var is_pre_beat: bool = is_pre_current_beat or is_pre_next_beat
+			
+			# 检查当前拍是否已有输入；预输入归属于将要到来的拍，跳过此限制
+			if current_beat_has_input and not is_pre_beat:
 				print("当前拍已输入过攻击，不再接受新输入")
 				return
 			
-			# 检查是否在当前拍的判定范围内（前后150ms）
-			var current_time: float = Time.get_ticks_msec() / 1000.0
-			var time_since_beat: float = current_time - current_beat_start_time
-			
-			# 允许在节拍前150ms到后150ms的范围内输入
-			var next_beat_time: float = current_beat_start_time + attack_beat_interval
-			var time_to_next_beat: float = next_beat_time - current_time
-			
-			# 如果离下一拍很近（150ms内），也允许输入
-			if time_since_beat > 0.15 and time_to_next_beat > 0.15:
+			# 如果时机不对（既不在当前拍后半窗口，也不在任何预输入窗口）
+			if time_since_beat > half_window and time_to_next_beat > half_window:
 				print("输入时机不对，自动发动强化")
-				# 标记当前拍已有输入
 				current_beat_has_input = true
-				# 立即发动强化
 				attack_performed.emit(AttackType.ENHANCE)
 				return
 			
@@ -366,8 +378,12 @@ func _handle_attack_phase_input(event: InputEvent) -> void:
 				Note.NoteType.DODGE:
 					attack_type = AttackType.HEAL
 			
-			# 标记当前拍已有输入
-			current_beat_has_input = true
+			# 标记输入已接收：预输入等待 _on_attack_beat 继承，否则归属当前拍
+			if is_pre_beat:
+				_pre_beat_input_received = true
+				print("预输入（距下一拍 ", int(time_to_next_beat * 1000), "ms / 距本拍 ", int(time_since_beat * 1000), "ms）")
+			else:
+				current_beat_has_input = true
 			
 			# 发送攻击信号
 			attack_performed.emit(attack_type)
@@ -378,66 +394,87 @@ func _handle_attack_phase_input(event: InputEvent) -> void:
 				# 立即填满下一个音符
 				attack_performed.emit(AttackType.HEAVY)
 				print("重攻击填充第二拍音符")
-				
-				# 跳过下一拍（标记下一拍也已有输入）
-				get_tree().create_timer(attack_beat_interval).timeout.connect(func():
-					if is_attack_phase and current_beat_in_attack < 16:
-						current_beat_has_input = true
-						print("重攻击消耗第二拍")
-				)
+				# 用标志位记录下一拍已占用，_on_attack_beat 同步读取（无竞态）
+				_heavy_skip_next_beat = true
+				print("重击占用下一拍")
 			
 			return
 
 
-## 攻击节拍触发
+## 攻击节拍触发（每一个输入拍重音到来时触发）
 func _on_attack_beat() -> void:
-	# 打印当前状态用于调试
 	print("DEBUG: _on_attack_beat触发 - current_beat=", current_beat_in_attack, ", has_input=", current_beat_has_input)
 	
-	# 递增拍数
+	# 递增拍数，更新当前拍起始时间
 	current_beat_in_attack += 1
 	current_beat_start_time = Time.get_ticks_msec() / 1000.0
-	current_beat_has_input = false  # 重置当前拍的输入标志
+	# 继承占用状态，优先级：预输入 > 重击占用 > 默认
+	# 注意：_pre_beat_input_received 和 _heavy_skip_next_beat 可同时为 true（预输入搭配重击）
+	# 此时 _pre_beat_input_received 负责当前拍，_heavy_skip_next_beat 保留至下一拍
+	if _pre_beat_input_received:
+		current_beat_has_input = true
+		_pre_beat_input_received = false
+		# _heavy_skip_next_beat 不清除，留待下一次 _on_attack_beat 消耗
+	elif _heavy_skip_next_beat:
+		current_beat_has_input = true
+		_heavy_skip_next_beat = false
+		print("重击占用本拍")
+	else:
+		current_beat_has_input = false
 	
-	# 为新的一拍启动自动强化计时器（仅前16拍）
+	# 16 拍输入阶段内
 	if current_beat_in_attack < 16:
-		auto_enhance_timer.start(0.15)
-		
-		# 生成下一个节拍标记（仅前13拍，因为准备阶段2个+start_attack_phase1个=3个，再生成13个，共16个）
-		if current_beat_in_attack < 14:
+		# 重启节拍计时器，等待下一拍重音（第16拍后不再需要）
+		attack_beat_timer.start(attack_beat_interval)
+	
+	if current_beat_in_attack <= 16:
+		# 安排自动强化（本拍重音后半拍触发），第16拍同样需要
+		_beat_generation += 1
+		var _gen := _beat_generation
+		var _bidx := current_beat_in_attack
+		get_tree().create_timer(attack_beat_interval * 0.5).timeout.connect(func():
+			_try_auto_enhance(_gen, _bidx)
+		)
+		# 生成下一个节拍标记视觉音符（小于15时生成，覆盖拍3-16）
+		if current_beat_in_attack < 15:
 			var game_ui: Node = get_node_or_null("../GameUI")
 			if game_ui and game_ui.has_method("spawn_beat_note"):
 				game_ui.spawn_beat_note(attack_beat_interval * 2.0)
 				print("DEBUG: 生成音符 (拍", current_beat_in_attack + 1, ")")
-	
-	if current_beat_in_attack < 16:
-		var total_beat: int = current_beat_in_attack + 5  # 加上准备阶段的4拍，再加1（因为从0开始）
-		var display_beat: int = current_beat_in_attack + 1  # 显示从1开始
+		
+		var total_beat: int = current_beat_in_attack + 5
+		var display_beat: int = current_beat_in_attack + 1
 		print("[总拍", total_beat, "/24] 输入阶段 - 拍", display_beat, "/16")
 	elif current_beat_in_attack >= 16 and current_beat_in_attack < 20:
-		var countdown: int = 20 - current_beat_in_attack  # 16->4, 17->3, 18->2, 19->1
+		# 退出阶段：继续驱动节拍计时器以支持返回倒计时显示
+		attack_beat_timer.start(attack_beat_interval)
+		var countdown: int = 20 - current_beat_in_attack
 		var total_beat: int = current_beat_in_attack + 5
 		print("[总拍", total_beat, "/24] 结束阶段 - 倒计时", countdown)
-		# 通知GameUI显示倒计时
 		var game_ui: Node = get_node_or_null("../GameUI")
 		if game_ui and game_ui.has_method("show_return_countdown"):
 			game_ui.show_return_countdown(countdown)
 
 
-## 自动强化超时（每拍150ms后触发）
-func _on_auto_enhance_timeout() -> void:
-	# 检查当前拍是否有输入
-	if not current_beat_has_input and current_beat_in_attack < 16:
-		# 标记已有输入（虽然是自动强化）
+## 尝试自动强化（带生成计数器校验，防止过期回调误触发）
+func _try_auto_enhance(gen: int, beat_idx: int) -> void:
+	if not is_attack_phase:
+		return
+	if _beat_generation != gen:
+		return  # 该回调已过期（新的一拍已经开始）
+	if current_beat_in_attack != beat_idx:
+		return  # 拍数已推进，不属于目标拍
+	if not current_beat_has_input:
 		current_beat_has_input = true
-		# 发动强化攻击
 		attack_performed.emit(AttackType.ENHANCE)
-		print("自动强化（150ms超时）")
+		print("自动强化（拍", beat_idx + 1, "，无输入）")
+
 
 
 ## 攻击阶段结束
 func _on_attack_phase_end() -> void:
 	is_attack_phase = false
+	_beat_generation += 1  # 使所有待回调的自动强化全部失效
 	attack_beat_timer.stop()
 	
 	print("[总拍24/24] 攻击阶段结束")

@@ -1,38 +1,59 @@
-[gd_scene load_steps=16 format=3 uid="uid://b4ymn7qwvj5hq"]
+[gd_scene load_steps=18 format=3 uid="uid://b4ymn7qwvj5hq"]
 
 [ext_resource type="Script" uid="uid://hla1t03lkrwg" path="res://scripts/MusicPlayer.gd" id="1_h5v3q"]
 [ext_resource type="Script" uid="uid://dnajos3fm0bkl" path="res://scripts/Main.gd" id="1_main"]
 [ext_resource type="Script" uid="uid://b4verqg78hh31" path="res://scripts/BeatManager.gd" id="2_b4ymn"]
 [ext_resource type="PackedScene" uid="uid://c8jx3vn5qwm4r" path="res://scenes/GameUI.tscn" id="3_game_ui"]
-[ext_resource type="Resource" uid="uid://le6vduwl5k1h" path="res://config/AISample_config.tres" id="4_lhr70"]
 [ext_resource type="Script" uid="uid://olseljrkaswj" path="res://scripts/TrackManager.gd" id="4_track_mgr"]
 [ext_resource type="Script" uid="uid://dgu5lxyijp7a0" path="res://scripts/InputManager.gd" id="5_input_mgr"]
 [ext_resource type="AudioStream" uid="uid://dhe24nnncnlss" path="res://assets/SFX/miss.wav" id="5_wp0k4"]
 [ext_resource type="Script" uid="uid://1spmii0kmgww" path="res://scripts/ScoreManager.gd" id="6_score_mgr"]
 [ext_resource type="Resource" uid="uid://brd58vvvmh20v" path="res://config/key_sound_config.tres" id="7_key_sound"]
 [ext_resource type="Resource" uid="uid://tka37j3asl60" path="res://config/key_sound_config_boss.tres" id="8_bjd11"]
-[ext_resource type="Texture2D" uid="uid://bqgejafdalqmj" path="res://assets/environment/工厂背景.png" id="12_bjd11"]
 [ext_resource type="Resource" uid="uid://c1vhiqdiogunj" path="res://config/attack_config.tres" id="12_qmy6f"]
+[ext_resource type="PackedScene" uid="uid://da8ttcx4kdymg" path="res://scenes/character.tscn" id="13_qmy6f"]
 [ext_resource type="Texture2D" uid="uid://30fmm367b0px" path="res://assets/environment/scene_smaller.png" id="14_mwfav"]
 
-[sub_resource type="CompressedTexture2D" id="CompressedTexture2D_mwfav"]
-load_path = "res://.godot/imported/new.png-8b0fda6bad6df3aaedb77714777f6390.ctex"
+[sub_resource type="Gradient" id="Gradient_bjd11"]
+offsets = PackedFloat32Array(0.034632035, 0.5194805, 0.987013)
+colors = PackedColorArray(1, 1, 1, 1, 0.509804, 0.509804, 0.509804, 1, 0, 0, 0, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_qmy6f"]
+gradient = SubResource("Gradient_bjd11")
+width = 256
+height = 256
+fill = 2
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(0, 0)
+
+[sub_resource type="Gradient" id="Gradient_qmy6f"]
+offsets = PackedFloat32Array(0, 0.22943723, 0.38528138)
+colors = PackedColorArray(1, 1, 1, 1, 0.36796537, 0.36796537, 0.36796537, 1, 0, 0, 0, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_mwfav"]
+gradient = SubResource("Gradient_qmy6f")
+width = 256
+height = 512
+fill = 1
+fill_from = Vector2(0.5, 1)
+fill_to = Vector2(0.5, 0)
 
 [node name="Main" type="Node"]
 script = ExtResource("1_main")
 
 [node name="GameUI" parent="." instance=ExtResource("3_game_ui")]
+visible = false
 
 [node name="MusicPlayer" type="Node" parent="."]
 script = ExtResource("1_h5v3q")
-music_config = ExtResource("4_lhr70")
+music_path = "uid://dgmmnbruepxvh"
 miss_sound = ExtResource("5_wp0k4")
 
 [node name="BeatManager" type="Node" parent="."]
 script = ExtResource("2_b4ymn")
 bpm = 0.0
 generate_test_chart = false
-chart_sm_path = "res://assets/charts/AISample.sm"
+chart_sm_path = "res://assets/charts/demo2.sm"
 
 [node name="TrackManager" type="Node" parent="."]
 script = ExtResource("4_track_mgr")
@@ -67,25 +88,40 @@ dodge_player_health_great = 4.0
 dodge_player_health_good = 0.0
 dodge_player_health_miss = -20.0
 max_boss_health = 2000.0
-max_boss_energy = 10000.0
 attack_config = ExtResource("12_qmy6f")
 
 [node name="Camera2D" type="Camera2D" parent="."]
 
-[node name="工厂背景" type="Sprite2D" parent="."]
-z_index = -1
-position = Vector2(117, -1422.9999)
-scale = Vector2(0.35, 0.35)
-texture = ExtResource("12_bjd11")
-
-[node name="New" type="Sprite2D" parent="."]
-z_index = 1
-position = Vector2(267, 112)
-scale = Vector2(0.25, 0.25)
-texture = SubResource("CompressedTexture2D_mwfav")
-region_enabled = true
-region_rect = Rect2(786.4032, 0, 529.5968, 512)
-
 [node name="SceneSmaller" type="Sprite2D" parent="."]
 scale = Vector2(0.4, 0.4)
 texture = ExtResource("14_mwfav")
+
+[node name="Lights" type="Node2D" parent="."]
+
+[node name="PointLight2D5" type="PointLight2D" parent="Lights"]
+position = Vector2(255, -89)
+color = Color(1, 0.7058824, 0.41568628, 0.78431374)
+texture = SubResource("GradientTexture2D_qmy6f")
+
+[node name="PointLight2D6" type="PointLight2D" parent="Lights"]
+position = Vector2(-257, -88)
+color = Color(1, 0.7058824, 0.41568628, 0.78431374)
+texture = SubResource("GradientTexture2D_qmy6f")
+
+[node name="PointLight2D8" type="PointLight2D" parent="Lights"]
+position = Vector2(-3, 15)
+color = Color(1, 0.7058824, 0.41568628, 0.78431374)
+texture = SubResource("GradientTexture2D_qmy6f")
+
+[node name="PointLight2D7" type="PointLight2D" parent="Lights"]
+position = Vector2(-1, -89)
+energy = 1.5
+texture = SubResource("GradientTexture2D_mwfav")
+
+[node name="CanvasModulate" type="CanvasModulate" parent="."]
+color = Color(0.61474454, 0.6147446, 0.61474454, 1)
+
+[node name="Character" parent="." instance=ExtResource("13_qmy6f")]
+light_mask = 2
+position = Vector2(244, 94)
+script = null

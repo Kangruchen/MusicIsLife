@@ -25,6 +25,12 @@ var lowpass_filter: AudioEffectLowPassFilter = null
 var filter_tween: Tween = null
 var volume_tween: Tween = null
 
+# 攻击阶段专用 drum 轨道路径
+const ATTACK_DRUM_PATH: String = "res://assets/music/AISample/AISample_drum.mp3"
+# 攻击阶段前暂存的原始 drum 轨道（用于结束后恢复）
+var _pre_attack_drum_stream: AudioStream = null
+var _pre_attack_drum_volume_db: float = 0.0
+
 # 多轨道播放器
 var main_player: AudioStreamPlayer = null
 var drum_player: AudioStreamPlayer = null
@@ -171,9 +177,24 @@ func pause_music_keep_drum(drum_seek_time: float = -1.0) -> void:
 	main_player.stream_paused = true
 	bass_player.stream_paused = true
 	
-	# 立即让 drum 跳转到指定位置
-	if drum_seek_time >= 0.0 and drum_player.stream:
-		drum_player.seek(drum_seek_time)
+	# 暂存原始 drum 轨道（用于攻击阶段结束后恢复）
+	_pre_attack_drum_stream = drum_player.stream
+	_pre_attack_drum_volume_db = drum_player.volume_db
+	
+	# 始终切换为攻击阶段专用 drum 轨道（不受音乐配置影响）
+	var attack_drum_stream: AudioStream = load(ATTACK_DRUM_PATH)
+	if attack_drum_stream:
+		drum_player.stop()
+		drum_player.stream = attack_drum_stream
+		drum_player.volume_db = NORMAL_VOLUME_DB
+		drum_player.play()
+		if drum_seek_time >= 0.0:
+			drum_player.seek(drum_seek_time)
+		print("已切换至攻击阶段专用 drum 轨道，跳转至: ", drum_seek_time, " 秒")
+	else:
+		push_warning("无法加载攻击阶段 drum 轨道: ", ATTACK_DRUM_PATH)
+		if drum_seek_time >= 0.0 and drum_player.stream:
+			drum_player.seek(drum_seek_time)
 	
 	# 创建淡出 Tween（0.5秒）- 用于平滑音量变化
 	var fadeout_tween: Tween = create_tween()
@@ -214,6 +235,13 @@ func resume_music() -> void:
 			# 解除 main 和 bass 的暂停状态
 			main_player.stream_paused = false
 			bass_player.stream_paused = false
+			
+			# 恢复原始 drum 轨道（攻击阶段结束后切回原配置）
+			drum_player.stop()
+			drum_player.stream = _pre_attack_drum_stream
+			if _pre_attack_drum_stream:
+				drum_player.play()
+			print("drum 轨道已恢复为原始配置")
 			
 			# 所有轨道同时 seek 到目标位置
 			if main_player.stream:

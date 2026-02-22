@@ -1,0 +1,94 @@
+[gd_scene load_steps=13 format=3 uid="uid://da8ttcx4kdymg"]
+
+[ext_resource type="Script" path="res://scripts/Character.gd" id="2_char"]
+[ext_resource type="Texture2D" uid="uid://btvrak0yochju" path="res://assets/character/character_sheet.png" id="1_agfs1"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_rkhd4"]
+atlas = ExtResource("1_agfs1")
+region = Rect2(0, 158, 206, 158)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_lrhn5"]
+atlas = ExtResource("1_agfs1")
+region = Rect2(206, 158, 206, 158)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_my7n2"]
+atlas = ExtResource("1_agfs1")
+region = Rect2(412, 158, 206, 158)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_dp8ca"]
+atlas = ExtResource("1_agfs1")
+region = Rect2(618, 158, 206, 158)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_0lw5n"]
+atlas = ExtResource("1_agfs1")
+region = Rect2(824, 158, 206, 158)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_2cgup"]
+atlas = ExtResource("1_agfs1")
+region = Rect2(1030, 158, 206, 158)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_a5ia6"]
+atlas = ExtResource("1_agfs1")
+region = Rect2(0, 0, 206, 158)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_0dpix"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_rkhd4")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_lrhn5")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_my7n2")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_dp8ca")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_0lw5n")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_2cgup")
+}],
+"loop": false,
+"name": &"attack1",
+"speed": 8.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_a5ia6")
+}],
+"loop": true,
+"name": &"idle",
+"speed": 5.0
+}]
+
+[sub_resource type="Gradient" id="Gradient_mwfav"]
+offsets = PackedFloat32Array(0.24675325, 0.73593074)
+colors = PackedColorArray(1, 1, 1, 1, 0, 0, 0, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_agfs1"]
+gradient = SubResource("Gradient_mwfav")
+width = 256
+height = 256
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+
+[node name="Character" type="Node2D"]
+script = ExtResource("2_char")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+light_mask = 2
+sprite_frames = SubResource("SpriteFrames_0dpix")
+animation = &"idle"
+autoplay = "idle"
+
+[node name="CharacterLight" type="PointLight2D" parent="."]
+position = Vector2(16, 0)
+color = Color(0.28627452, 0.5529412, 0.61960787, 1)
+energy = 3.0
+range_item_cull_mask = 2
+shadow_item_cull_mask = 2
+texture = SubResource("GradientTexture2D_agfs1")

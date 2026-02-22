@@ -4,6 +4,24 @@ class_name TrackManager
 
 # 预制场景
 const NOTE_VISUAL_SCENE := preload("res://scenes/NoteVisual.tscn")
+const BLING_SCENE := preload("res://scenes/bling.tscn")
+
+# Bling 特效配置
+const BLING_BASE_X: float = 50.0  # 特效基础X坐标（屏幕左侧）
+const BLING_OFFSET_X: float = 50.0  # 同行多个特效的水平偏移
+const BLING_ROW_HEIGHT: float = 50.0  # 每行高度
+const BLING_START_Y: float = 230.0  # 第一行Y坐标
+const BLING_ANIMATIONS: Dictionary = {
+	Note.NoteType.HIT: "bling_red",
+	Note.NoteType.GUARD: "bling_blue",
+	Note.NoteType.DODGE: "bling_green"
+}
+# 特效行排列顺序：red第一排、green第二排、blue第三排
+const BLING_ROW_ORDER: Dictionary = {
+	Note.NoteType.HIT: 0,    # red - 第一排
+	Note.NoteType.GUARD: 1,  # blue - 第二排
+	Note.NoteType.DODGE: 2   # green - 第三排
+}
 
 # 生成提前量（拍数）
 const SPAWN_ADVANCE := {
@@ -41,6 +59,9 @@ var pause_start_time: float = 0.0  # 暂停开始的时间
 var spawn_audio_player_hit: AudioStreamPlayer = null
 var spawn_audio_player_guard: AudioStreamPlayer = null
 var spawn_audio_player_dodge: AudioStreamPlayer = null
+
+# 活跃的 Bling 特效追踪（按轨道分组，用于避免重叠）
+var _active_blings: Dictionary = {}
 
 
 func _ready() -> void:
@@ -172,6 +193,9 @@ func _check_and_spawn_notes(current_beat: float) -> void:
 
 ## 生成音符
 func _spawn_note(note: Note) -> void:
+	# 生成屏幕左侧特效动画（无论音符可视化是否启用）
+	_spawn_bling_effect(note)
+	
 	if note_visual_enabled:
 		# 可视模式：创建 NoteVisual 实例
 		if not game_ui:
@@ -207,6 +231,12 @@ func clear_all_notes() -> void:
 			note_visual.destroy()
 	active_notes.clear()
 	tracked_notes.clear()
+	# 清除所有活跃的 Bling 特效
+	for track_type in _active_blings:
+		for bling in _active_blings[track_type]:
+			if bling and is_instance_valid(bling):
+				bling.queue_free()
+	_active_blings.clear()
 	print("已清除所有活跃音符")
 
 
@@ -248,6 +278,67 @@ func resume_note_spawning() -> void:
 	pause_start_time = 0.0
 	
 	print("音符生成已恢复")
+
+
+## 生成 Bling 特效动画
+func _spawn_bling_effect(note: Note) -> void:
+	if not game_ui:
+		return
+	
+	var bling: Node2D = BLING_SCENE.instantiate()
+	var anim_sprite: AnimatedSprite2D = bling.get_node("AnimatedSprite2D")
+	
+	# 获取对应的动画名称
+	var anim_name: String = BLING_ANIMATIONS[note.type]
+	
+	# 调整动画速度：每帧对应1拍
+	# 动画帧数恰好等于提前拍数（red=2帧/2拍, blue=3帧/3拍, green=4帧/4拍）
+	# 基础FPS=1.0，所以 speed_scale = 1/beat_interval 即可让每帧持续1拍
+	if beat_manager.beat_interval > 0:
+		anim_sprite.speed_scale = 1.0 / beat_manager.beat_interval
+	
+	# 计算位置（固定行排列，同行多个特效向右偏移）
+	var row_index: int = BLING_ROW_ORDER[note.type]
+	var row_y: float = BLING_START_Y + row_index * BLING_ROW_HEIGHT
+	var x_offset: float = _get_bling_x_offset(note.type)
+	bling.position = Vector2(BLING_BASE_X + x_offset, row_y)
+	
+	# 连接动画完成信号，播放结束后自动销毁
+	anim_sprite.animation_finished.connect(func() -> void: bling.queue_free())
+	
+	# 添加到 GameUI（CanvasLayer）并播放
+	game_ui.add_child(bling)
+	anim_sprite.play(anim_name)
+	
+	# 追踪活跃特效（用于避免重叠）
+	if not _active_blings.has(note.type):
+		_active_blings[note.type] = []
+	_active_blings[note.type].append(bling)
+
+
+## 获取 Bling 特效的X偏移量（找到第一个没有被占据的位置）
+func _get_bling_x_offset(note_type: Note.NoteType) -> float:
+	if not _active_blings.has(note_type):
+		return 0.0
+	
+	# 清理已销毁的特效引用
+	_active_blings[note_type] = _active_blings[note_type].filter(
+		func(e): return e != null and is_instance_valid(e)
+	)
+	
+	# 收集所有已占据的X位置（取整到槽位索引避免浮点误差）
+	var occupied_slots: Array[int] = []
+	for existing_bling in _active_blings[note_type]:
+		var slot: int = roundi((existing_bling.position.x - BLING_BASE_X) / BLING_OFFSET_X)
+		if slot not in occupied_slots:
+			occupied_slots.append(slot)
+	
+	# 找到第一个未被占据的槽位
+	var target_slot: int = 0
+	while target_slot in occupied_slots:
+		target_slot += 1
+	
+	return target_slot * BLING_OFFSET_X
 
 
 ## 播放音符生成音效

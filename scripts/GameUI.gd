@@ -36,6 +36,8 @@ func _ready() -> void:
 		# 连接攻击信号
 		if input_manager.has_signal("attack_performed"):
 			input_manager.attack_performed.connect(_on_attack_performed)
+
+	show() # 游戏开始时将UI设为可见
 	
 	# 创建倒计时标签（初始隐藏）
 	countdown_label = Label.new()
@@ -258,23 +260,20 @@ func hide_attack_ui() -> void:
 
 
 ## 生成一个节拍标记（从右侧移动到判定线）
-## move_duration: 从起始位置到判定线需要的时间（秒）
+## move_duration: 音符中心从起始位置移动到判定线所需秒数（= 2 × beat_interval）
 func spawn_beat_note(move_duration: float) -> void:
 	if not beat_track_container:
 		return
 	
-	# 获取判定窗口时长（从InputManager）
-	var input_manager: Node = get_node_or_null("../InputManager")
-	var judgment_window: float = 0.15  # 默认150ms
-	if input_manager:
-		# 使用GOOD判定窗口（前后各150ms）
-		judgment_window = input_manager.JUDGMENT_WINDOWS[input_manager.JudgmentType.GOOD]
-	
-	# 计算音符移动速度（从800px到400px判定线）
+	# 计算音符移动速度（从起始位置到判定线 400px）
 	var speed: float = 400.0 / move_duration  # px/秒
 	
-	# 计算音符长度：应该覆盖整个判定窗口（前后各judgment_window）
-	var note_width: float = speed * (judgment_window * 2.0)
+	# 音符宽度 = 速度 × 一拍时长（前后各半拍 = 完整输入窗口）
+	# move_duration = 2 × beat_interval，所以 beat_interval = move_duration / 2
+	var note_width: float = speed * (move_duration * 0.5)
+	# 起始位置：音符中心在 move_duration 后恰好对齐判定线（x=400）
+	var note_half_width: float = note_width / 2.0
+	var note_start_left: float = 800.0 - note_half_width
 	
 	# 创建节拍标记
 	var beat_note: ColorRect = ColorRect.new()
@@ -282,17 +281,16 @@ func spawn_beat_note(move_duration: float) -> void:
 	beat_note.custom_minimum_size = Vector2(note_width, 40)
 	beat_note.anchor_top = 0.5
 	beat_note.anchor_bottom = 0.5
-	beat_note.offset_left = 800.0  # 从右侧开始
-	beat_note.offset_right = 800.0 + note_width
+	beat_note.offset_left = note_start_left   # 从偏移起始位置开始（中心对齐节拍时刻）
+	beat_note.offset_right = note_start_left + note_width
 	beat_note.offset_top = -20.0
 	beat_note.offset_bottom = 20.0
 	beat_track_container.add_child(beat_note)
 	active_beat_notes.append(beat_note)
 	
 	# 计算移动：音符中心到达判定线（400px）时正好是节拍时刻
-	# 音符起始位置需要考虑音符长度的一半
-	var note_half_width: float = note_width / 2.0
-	var start_left: float = 800.0
+	# 起始位置向左偏移半个音符宽度，使中心在 move_duration 后恰好对齐判定线
+	var start_left: float = note_start_left
 	var end_left: float = -100.0 - note_width  # 完全穿过后消失
 	var total_distance: float = start_left - end_left
 	var total_duration: float = total_distance / speed
