@@ -26,6 +26,8 @@ var is_next_attack_charged: bool = false  # 下次攻击是否为蓄力版本
 var beat_track_container: Control = null
 var beat_judgment_line: ColorRect = null
 var active_beat_notes: Array[ColorRect] = []  # 当前活动的节拍标记
+var _beat_note_speed: float = 0.0  # 所有节拍音符的统一移动速度（px/秒）
+var _beat_note_width: float = 0.0  # 所有节拍音符的统一宽度（px）
 
 
 func _ready() -> void:
@@ -82,6 +84,10 @@ func _ready() -> void:
 	
 	# 创建攻击 UI容器（初始隐藏）
 	_create_attack_ui()
+
+
+func _process(_delta: float) -> void:
+	_update_beat_note_positions()
 
 
 ## 获取指定音符类型的轨道Y坐标
@@ -290,58 +296,70 @@ func hide_attack_ui() -> void:
 		if is_instance_valid(note):
 			note.queue_free()
 	active_beat_notes.clear()
+	_beat_note_speed = 0.0
+	_beat_note_width = 0.0
 	
 	# 隐藏大屏幕倒计旰标签
 	if countdown_label:
 		countdown_label.visible = false
 
 
-## 生成一个节拍标记（从右侧移动到判定线）
-## move_duration: 音符中心从起始位置移动到判定线所需秒数（= 2 × beat_interval）
-func spawn_beat_note(move_duration: float) -> void:
+## 生成一个节拍标记（基于绝对时间定位，由 _process 统一驱动，消除帧漂移）
+## beat_interval: 一拍的时长（秒）
+## target_time: 音符中心到达判定线的绝对时间（Time.get_ticks_msec / 1000.0 基准）
+func spawn_beat_note(beat_interval: float, target_time: float) -> void:
 	if not beat_track_container:
 		return
 	
-	# 计算音符移动速度（从起始位置到判定线 400px）
-	var speed: float = 400.0 / move_duration  # px/秒
-	
-	# 音符宽度 = 速度 × 一拍时长（前后各半拍 = 完整输入窗口）
-	# move_duration = 2 × beat_interval，所以 beat_interval = move_duration / 2
-	var note_width: float = speed * (move_duration * 0.5)
-	# 起始位置：音符中心在 move_duration 后恰好对齐判定线（x=400）
-	var note_half_width: float = note_width / 2.0
-	var note_start_left: float = 800.0 - note_half_width
+	# 计算统一速度和宽度（400px 对应 2 拍移动距离）
+	_beat_note_speed = 400.0 / (2.0 * beat_interval)
+	_beat_note_width = _beat_note_speed * beat_interval  # 一拍宽度
 	
 	# 创建节拍标记
 	var beat_note: ColorRect = ColorRect.new()
 	beat_note.color = Color(1.0, 1.0, 1.0, 0.8)  # 白色（未输入状态）
-	beat_note.custom_minimum_size = Vector2(note_width, 40)
+	beat_note.custom_minimum_size = Vector2(_beat_note_width, 40)
 	beat_note.anchor_top = 0.5
 	beat_note.anchor_bottom = 0.5
-	beat_note.offset_left = note_start_left   # 从偏移起始位置开始（中心对齐节拍时刻）
-	beat_note.offset_right = note_start_left + note_width
 	beat_note.offset_top = -20.0
 	beat_note.offset_bottom = 20.0
+	# 存储目标时间，由 _process 基于绝对时间计算位置
+	beat_note.set_meta("target_time", target_time)
 	beat_track_container.add_child(beat_note)
 	active_beat_notes.append(beat_note)
 	
-	# 计算移动：音符中心到达判定线（400px）时正好是节拍时刻
-	# 起始位置向左偏移半个音符宽度，使中心在 move_duration 后恰好对齐判定线
-	var start_left: float = note_start_left
-	var end_left: float = -100.0 - note_width  # 完全穿过后消失
-	var total_distance: float = start_left - end_left
-	var total_duration: float = total_distance / speed
-	
-	# 使用Tween动画
-	var tween: Tween = create_tween()
-	tween.tween_property(beat_note, "offset_left", end_left, total_duration)
-	tween.parallel().tween_property(beat_note, "offset_right", end_left + note_width, total_duration)
-	
-	# 穿过判定线后销毁（但不从数组中移除，保持索引稳定）
-	tween.tween_callback(func():
-		if is_instance_valid(beat_note):
-			beat_note.queue_free()
-	)
+	# 立即设置初始位置
+	_position_single_beat_note(beat_note)
+
+
+## 统一更新所有节拍音符位置（基于绝对时间，保证相邻音符严格无缝）
+func _update_beat_note_positions() -> void:
+	if _beat_note_speed <= 0.0 or active_beat_notes.is_empty():
+		return
+	var hw: float = _beat_note_width / 2.0
+	var now: float = Time.get_ticks_msec() / 1000.0
+	for note in active_beat_notes:
+		if not is_instance_valid(note):
+			continue
+		var target_time: float = note.get_meta("target_time", 0.0)
+		var center_x: float = 400.0 + (target_time - now) * _beat_note_speed
+		note.offset_left = center_x - hw
+		note.offset_right = center_x + hw
+		# 完全移出屏幕左侧后销毁（不从数组移除，保持索引稳定）
+		if center_x + hw < -50.0:
+			note.queue_free()
+
+
+## 为单个音符设定初始位置（生成时立即调用）
+func _position_single_beat_note(note: ColorRect) -> void:
+	if _beat_note_speed <= 0.0:
+		return
+	var hw: float = _beat_note_width / 2.0
+	var now: float = Time.get_ticks_msec() / 1000.0
+	var target_time: float = note.get_meta("target_time", 0.0)
+	var center_x: float = 400.0 + (target_time - now) * _beat_note_speed
+	note.offset_left = center_x - hw
+	note.offset_right = center_x + hw
 
 
 ## 显示返回倒计时

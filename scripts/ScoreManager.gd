@@ -241,21 +241,27 @@ func _on_boss_energy_depleted() -> void:
 	EventBus.show_beat_track_requested.emit()
 	EventBus.show_pause_countdown_requested.emit(bi)
 	
+	# 计算第一输入拍的绝对时间（所有音符共享同一时间网格）
+	var depletion_time: float = Time.get_ticks_msec() / 1000.0
+	var first_beat_abs_time: float = depletion_time + 4.0 * bi  # 输入拍第1拍
+	var note1_target: float = first_beat_abs_time
+	var note2_target: float = first_beat_abs_time + bi
 	# 在准备阶段第3拍开始时生成第一个音符
 	get_tree().create_timer(bi * 2.0).timeout.connect(func():
-		EventBus.spawn_beat_note_requested.emit(bi * 2.0)
+		EventBus.spawn_beat_note_requested.emit(bi, note1_target)
 	)
 	# 在准备阶段第4拍开始时生成第二个音符
 	get_tree().create_timer(bi * 3.0).timeout.connect(func():
-		EventBus.spawn_beat_note_requested.emit(bi * 2.0)
+		EventBus.spawn_beat_note_requested.emit(bi, note2_target)
 	)
 	# 后四个小节：节拍闪光效果
 	get_tree().create_timer(countdown_duration).timeout.connect(func():
 		EventBus.play_beat_flash_requested.emit(bi, GameConstants.INPUT_BEATS)
 	)
-	# 提前半拍启动攻击阶段
+	# 提前半拍启动攻击阶段（传入 first_beat_abs_time 保证时间网格一证）
+	var _fba := first_beat_abs_time
 	get_tree().create_timer(countdown_duration - bi * GameConstants.FIRST_BEAT_DELAY_RATIO).timeout.connect(func():
-		_start_attack_phase(attack_duration + return_countdown_duration, bi)
+		_start_attack_phase(attack_duration + return_countdown_duration, bi, _fba)
 	)
 	
 	# 暂停音乐（保留鼓点，让drum跳到指定小节）
@@ -305,16 +311,16 @@ func _on_pause_timeout() -> void:
 
 
 ## 开始攻击阶段
-func _start_attack_phase(duration: float, bi: float) -> void:
+func _start_attack_phase(duration: float, bi: float, first_beat_abs_time: float) -> void:
 	print("攻击阶段开始！")
 	
 	# 重置蓄力状态和临时精力削减量
 	is_next_attack_charged = false
 	temporary_energy_reduce = 0.0
 	
-	# 启用攻击输入监听
+	# 启用攻击输入监听（传入 first_beat_abs_time 统一时间基准）
 	if input_manager and input_manager.has_method("start_attack_phase"):
-		input_manager.start_attack_phase(duration, bi)
+		input_manager.start_attack_phase(duration, bi, first_beat_abs_time)
 	
 	# 通过 EventBus 通知 UI 显示攻击界面
 	EventBus.show_attack_ui_requested.emit()

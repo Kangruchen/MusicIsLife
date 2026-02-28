@@ -54,13 +54,14 @@ visible = false
 
 [node name="SceneSmaller" type="Sprite2D" parent="."]
 modulate = Color(0.68503374, 0.68503374, 0.68503374, 1)
-scale = Vector2(0.4, 0.4)
+scale = Vector2(0.333, 0.333)
 texture = ExtResource("14_mwfav")
 
 [node name="Lights" type="Node2D" parent="."]
 
 [node name="PointLight2D6" type="PointLight2D" parent="Lights"]
-position = Vector2(-257, -89)
+position = Vector2(-251, -59)
+scale = Vector2(0.8, 0.8)
 texture = SubResource("GradientTexture2D_qmy6f")
 
 [node name="PointLight2D7" type="PointLight2D" parent="Lights"]
@@ -69,14 +70,15 @@ color = Color(2.454227, 1.7546934, 1.0644869, 0.78431374)
 texture = SubResource("GradientTexture2D_qmy6f")
 
 [node name="PointLight2D8" type="PointLight2D" parent="Lights"]
-position = Vector2(255, -88)
+position = Vector2(240, -60)
+scale = Vector2(0.8, 0.8)
 color = Color(2.454227, 1.7546934, 1.0644869, 0.78431374)
 texture = SubResource("GradientTexture2D_qmy6f")
 
 [node name="Character" parent="." instance=ExtResource("13_qmy6f")]
 light_mask = 2
-position = Vector2(257, 129)
-scale = Vector2(0.5, 0.5)
+position = Vector2(220, 107)
+scale = Vector2(0.4, 0.4)
 anim_config = ExtResource("17_charanim")
 
 [node name="CanvasModulate" type="CanvasModulate" parent="."]
@@ -88,37 +90,37 @@ environment = SubResource("Environment_cvmbd")
 [node name="PositionNodes" type="Node2D" parent="."]
 
 [node name="Laser1" type="Node2D" parent="PositionNodes"]
-position = Vector2(0, 125)
+position = Vector2(0, 100)
 
 [node name="Laser2" type="Node2D" parent="PositionNodes"]
-position = Vector2(0, 145)
+position = Vector2(0, 115)
 
 [node name="Laser3" type="Node2D" parent="PositionNodes"]
-position = Vector2(0, 165)
+position = Vector2(0, 130)
 
 [node name="WarnLaser1" type="Node2D" parent="PositionNodes"]
-position = Vector2(-360, 125)
+position = Vector2(-300, 100)
 
 [node name="WarnLaser2" type="Node2D" parent="PositionNodes"]
-position = Vector2(-360, 145)
+position = Vector2(-300, 115)
 
 [node name="WarnLaser3" type="Node2D" parent="PositionNodes"]
-position = Vector2(-360, 165)
+position = Vector2(-300, 130)
 
 [node name="Missile1" type="Node2D" parent="PositionNodes"]
-position = Vector2(-206, 137)
+position = Vector2(-272, -65)
 
 [node name="Charge1" type="Node2D" parent="PositionNodes"]
-position = Vector2(118, 139)
+position = Vector2(228, -40)
 
 [node name="Missile2" type="Node2D" parent="PositionNodes"]
-position = Vector2(-151, 137)
+position = Vector2(-235, -102)
 
 [node name="Boss形象设计" type="Sprite2D" parent="."]
 light_mask = 4
 z_index = 1
-position = Vector2(-5.9999995, -153)
-scale = Vector2(0.4, 0.4)
+position = Vector2(-6, -125.99999)
+scale = Vector2(0.333, 0.333)
 texture = ExtResource("16_cvmbd")
 
 [node name="BossLight" type="PointLight2D" parent="Boss形象设计"]
@@ -147,15 +149,15 @@ bpm = 0.0
 generate_test_chart = false
 chart_sm_path = "res://assets/charts/demo2.sm"
 
-[node name="TrackManager" type="Node" parent="GameManager" node_paths=PackedStringArray("game_ui", "guard_position_nodes", "hit_position_nodes", "dodge_position_nodes", "guard_warn_position_nodes")]
+[node name="TrackManager" type="Node" parent="GameManager" node_paths=PackedStringArray("guard_position_nodes", "hit_position_nodes", "dodge_position_nodes", "guard_warn_position_nodes", "game_ui")]
 script = ExtResource("4_track_mgr")
-game_ui = NodePath("../../GameUI")
 key_sound_config = ExtResource("8_bjd11")
 track_animation_config = ExtResource("8_mwfav")
 guard_position_nodes = [NodePath("../../PositionNodes/Laser1"), NodePath("../../PositionNodes/Laser2"), NodePath("../../PositionNodes/Laser3")]
 hit_position_nodes = [NodePath("../../PositionNodes/Missile1"), NodePath("../../PositionNodes/Missile2")]
 dodge_position_nodes = [NodePath("../../PositionNodes/Charge1")]
 guard_warn_position_nodes = [NodePath("../../PositionNodes/WarnLaser1"), NodePath("../../PositionNodes/WarnLaser2"), NodePath("../../PositionNodes/WarnLaser3")]
+game_ui = NodePath("../../GameUI")
 
 [node name="InputManager" type="Node" parent="GameManager"]
 script = ExtResource("5_input_mgr")

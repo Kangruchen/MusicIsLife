@@ -34,7 +34,7 @@ signal boss_defeated
 signal show_attack_ui_requested
 signal hide_attack_ui_requested
 signal show_beat_track_requested
-signal spawn_beat_note_requested(move_duration: float)
+signal spawn_beat_note_requested(beat_interval: float, target_time: float)
 signal show_return_countdown_requested(count: int)
 signal show_pause_countdown_requested(bi: float)
 signal play_beat_flash_requested(bi: float, beat_count: int)
