@@ -11,20 +11,8 @@ signal boss_energy_depleted()  # Boss 精力条被打空
 signal player_died()
 signal boss_defeated()
 
-# === HIT 音符配置 ===
-@export_group("HIT 音符 (攻击)")
-@export var hit_boss_damage_perfect: float = 15.0
-@export var hit_boss_damage_great: float = 10.0
-@export var hit_boss_damage_good: float = 5.0
-@export var hit_boss_damage_miss: float = 0.0
-
-@export var hit_player_health_perfect: float = 3.0
-@export var hit_player_health_great: float = 2.0
-@export var hit_player_health_good: float = 1.0
-@export var hit_player_health_miss: float = -15.0
-
 # === GUARD 音符配置 ===
-@export_group("GUARD 音符 (防御)")
+@export_group("GUARD 音符 (防御) - J键第一轨道")
 @export var guard_boss_damage_perfect: float = 5.0
 @export var guard_boss_damage_great: float = 3.0
 @export var guard_boss_damage_good: float = 2.0
@@ -35,8 +23,20 @@ signal boss_defeated()
 @export var guard_player_health_good: float = 4.0
 @export var guard_player_health_miss: float = -20.0
 
+# === HIT 音符配置 ===
+@export_group("HIT 音符 (攻击) - I键第二轨道")
+@export var hit_boss_damage_perfect: float = 15.0
+@export var hit_boss_damage_great: float = 10.0
+@export var hit_boss_damage_good: float = 5.0
+@export var hit_boss_damage_miss: float = 0.0
+
+@export var hit_player_health_perfect: float = 3.0
+@export var hit_player_health_great: float = 2.0
+@export var hit_player_health_good: float = 1.0
+@export var hit_player_health_miss: float = -15.0
+
 # === DODGE 音符配置 ===
-@export_group("DODGE 音符 (闪避)")
+@export_group("DODGE 音符 (闪避) - L键第三轨道")
 @export var dodge_boss_damage_perfect: float = 8.0
 @export var dodge_boss_damage_great: float = 5.0
 @export var dodge_boss_damage_good: float = 3.0
@@ -84,7 +84,7 @@ func _ready() -> void:
 	add_child(pause_timer)
 	
 	# 获取血量条引用
-	var game_ui: Node = get_node("../GameUI")
+	var game_ui: Node = get_node("../../GameUI")
 	if game_ui:
 		boss_health_bar = game_ui.get_node_or_null("MarginContainer/VBoxContainer/BossHealthBar") as ProgressBar
 		boss_guard_bar = game_ui.get_node_or_null("MarginContainer/VBoxContainer/BossGuardBar") as ProgressBar
@@ -159,18 +159,18 @@ func _on_judgment_made(track: int, judgment: int, _timing_diff: float) -> void:
 ## 获取对Boss的伤害值
 func _get_boss_damage(track: int, judgment: int) -> float:
 	match track:
-		Note.NoteType.HIT:
-			match judgment:
-				0: return hit_boss_damage_perfect
-				1: return hit_boss_damage_great
-				2: return hit_boss_damage_good
-				3: return hit_boss_damage_miss
 		Note.NoteType.GUARD:
 			match judgment:
 				0: return guard_boss_damage_perfect
 				1: return guard_boss_damage_great
 				2: return guard_boss_damage_good
 				3: return guard_boss_damage_miss
+		Note.NoteType.HIT:
+			match judgment:
+				0: return hit_boss_damage_perfect
+				1: return hit_boss_damage_great
+				2: return hit_boss_damage_good
+				3: return hit_boss_damage_miss
 		Note.NoteType.DODGE:
 			match judgment:
 				0: return dodge_boss_damage_perfect
@@ -183,18 +183,18 @@ func _get_boss_damage(track: int, judgment: int) -> float:
 ## 获取玩家血量变化值
 func _get_player_health_change(track: int, judgment: int) -> float:
 	match track:
-		Note.NoteType.HIT:
-			match judgment:
-				0: return hit_player_health_perfect
-				1: return hit_player_health_great
-				2: return hit_player_health_good
-				3: return hit_player_health_miss
 		Note.NoteType.GUARD:
 			match judgment:
 				0: return guard_player_health_perfect
 				1: return guard_player_health_great
 				2: return guard_player_health_good
 				3: return guard_player_health_miss
+		Note.NoteType.HIT:
+			match judgment:
+				0: return hit_player_health_perfect
+				1: return hit_player_health_great
+				2: return hit_player_health_good
+				3: return hit_player_health_miss
 		Note.NoteType.DODGE:
 			match judgment:
 				0: return dodge_player_health_perfect
@@ -271,7 +271,7 @@ func _on_boss_energy_depleted() -> void:
 			input_manager.pause_input()
 		
 		# 启动暂停阶段视觉效果
-		var game_ui: Node = get_node("../GameUI")
+		var game_ui: Node = get_node("../../GameUI")
 		if game_ui:
 			# 立即显示迷你音轨
 			if game_ui.has_method("show_beat_track"):
@@ -327,7 +327,7 @@ func _on_pause_timeout() -> void:
 	is_paused_for_attack = false
 	
 	# 隐藏暂停视觉效果
-	var game_ui: Node = get_node("../GameUI")
+	var game_ui: Node = get_node("../../GameUI")
 	if game_ui and game_ui.has_method("hide_pause_effects"):
 		game_ui.hide_pause_effects()
 	
@@ -371,7 +371,7 @@ func _start_attack_phase(duration: float, beat_interval: float) -> void:
 		input_manager.start_attack_phase(duration, beat_interval)
 	
 	# 显示攻击UI
-	var game_ui: Node = get_node("../GameUI")
+	var game_ui: Node = get_node("../../GameUI")
 	if game_ui and game_ui.has_method("show_attack_ui"):
 		game_ui.show_attack_ui()
 

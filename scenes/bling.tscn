@@ -53,10 +53,13 @@ animations = [{
 }, {
 "duration": 1.0,
 "texture": SubResource("AtlasTexture_o1rjl")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_o1rjl")
 }],
 "loop": false,
 "name": &"bling_blue",
-"speed": 1.0
+"speed": 2.0
 }, {
 "frames": [{
 "duration": 1.0,
@@ -70,10 +73,13 @@ animations = [{
 }, {
 "duration": 1.0,
 "texture": SubResource("AtlasTexture_bpeno")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_bpeno")
 }],
 "loop": false,
 "name": &"bling_green",
-"speed": 1.0
+"speed": 2.0
 }, {
 "frames": [{
 "duration": 1.0,
@@ -81,10 +87,13 @@ animations = [{
 }, {
 "duration": 1.0,
 "texture": SubResource("AtlasTexture_vdwj3")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_vdwj3")
 }],
 "loop": false,
 "name": &"bling_red",
-"speed": 1.0
+"speed": 2.0
 }]
 
 [node name="bling" type="Node2D"]
@@ -93,4 +102,4 @@ scale = Vector2(6, 6)
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
 material = SubResource("ShaderMaterial_q2fw0")
 sprite_frames = SubResource("SpriteFrames_vod4t")
-animation = &"bling_green"
+animation = &"bling_blue"

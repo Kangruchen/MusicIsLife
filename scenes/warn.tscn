@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3 uid="uid://dh8mmm7is87ex"]
+
+[ext_resource type="Texture2D" uid="uid://bhy4164mx6tgc" path="res://assets/VFX/warn.png" id="1_jygea"]
+
+[node name="Warn" type="Node2D"]
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(1, 0)
+scale = Vector2(2, 2)
+texture = ExtResource("1_jygea")

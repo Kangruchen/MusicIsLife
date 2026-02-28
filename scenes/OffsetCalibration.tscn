@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://dlm5k4n6vfxye"]
 
-[ext_resource type="Script" path="res://scripts/OffsetCalibration.gd" id="1_offset"]
+[ext_resource type="Script" uid="uid://ctf25p4ql775" path="res://scripts/OffsetCalibration.gd" id="1_offset"]
 
 [node name="OffsetCalibration" type="Control"]
 layout_mode = 3

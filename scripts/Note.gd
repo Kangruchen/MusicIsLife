@@ -3,9 +3,9 @@ class_name Note
 ## 音符数据 - 表示铺面中的一个音符
 
 enum NoteType {
-	HIT,    # 攻击音符
-	GUARD,  # 防御音符
-	DODGE   # 闪避音符
+	GUARD,  # 防御音符 (J键，第一条轨道)
+	HIT,    # 攻击音符 (I键，第二条轨道)
+	DODGE   # 闪避音符 (L键，第三条轨道)
 }
 
 @export var beat_time: float = 0.0  # 音符所在的节拍时间（秒）
@@ -16,10 +16,10 @@ enum NoteType {
 ## 获取音符类型的字符串表示
 func get_type_string() -> String:
 	match type:
-		NoteType.HIT:
-			return "HIT"
 		NoteType.GUARD:
 			return "GUARD"
+		NoteType.HIT:
+			return "HIT"
 		NoteType.DODGE:
 			return "DODGE"
 		_:

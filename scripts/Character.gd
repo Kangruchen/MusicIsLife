@@ -1,52 +1,128 @@
 extends Node2D
-## 主角控制器 - 负责根据玩家输入播放角色动画
+class_name Character
+## 主角控制器 - 根据 InputManager 信号播放角色动画
+## 防御阶段：通过 defense_key_pressed 信号播放格挡/攻击/闪避动画
+## 攻击阶段：通过 attack_performed 信号播放轻攻击/重攻击/蓄力/恢复动画
 
-# attack1 动画帧数（与 SpriteFrames 中定义一致）
-const ATTACK1_FRAMES: int = 6
-const ATTACK1_DEFAULT_FPS: float = 8.0
+## 角色动画配置资源
+@export var anim_config: CharacterAnimConfig = null
 
 @onready var animated_sprite: AnimatedSprite2D = $AnimatedSprite2D
 
+## AnimationPlayer 引用（可选，若场景中存在则自动获取）
+var _animation_player: AnimationPlayer = null
+## InputManager 引用
 var _input_manager: Node = null
+## BeatManager 引用（用于节拍同步）
 var _beat_manager: Node = null
 
 
 func _ready() -> void:
-	_input_manager = get_node_or_null("../InputManager")
-	_beat_manager = get_node_or_null("../BeatManager")
+	# 获取 AnimationPlayer（如果存在）
+	_animation_player = get_node_or_null("AnimationPlayer") as AnimationPlayer
 
-	if _input_manager and _input_manager.has_signal("any_key_pressed"):
-		_input_manager.any_key_pressed.connect(_on_any_key_pressed)
+	# 获取 InputManager 并连接信号
+	_input_manager = get_node_or_null("../GameManager/InputManager")
+	if _input_manager:
+		if _input_manager.has_signal("defense_key_pressed"):
+			_input_manager.defense_key_pressed.connect(_on_defense_action)
+		if _input_manager.has_signal("attack_performed"):
+			_input_manager.attack_performed.connect(_on_attack_action)
 	else:
-		push_warning("Character: 未找到 InputManager 或 any_key_pressed 信号")
+		push_warning("[Character] 未找到 InputManager 节点")
+
+	# 获取 BeatManager（用于节拍同步播放速度）
+	_beat_manager = get_node_or_null("../GameManager/BeatManager")
 
 	# 动画播完后回到 idle
-	animated_sprite.animation_finished.connect(_on_animation_finished)
+	if animated_sprite:
+		animated_sprite.animation_finished.connect(_on_animation_finished)
+
+	print("[Character] 初始化完成 | InputManager: ", _input_manager != null,
+		" | BeatManager: ", _beat_manager != null,
+		" | AnimationPlayer: ", _animation_player != null)
 
 
-## 任意轨道按键按下时触发
-func _on_any_key_pressed() -> void:
-	# 根据当前 BPM 计算使动画恰好播完一拍所需的 speed_scale
-	var beat_interval: float = _get_beat_interval()
-	if beat_interval > 0.0:
-		# speed_scale = 默认总时长 / 目标时长
-		var default_duration: float = float(ATTACK1_FRAMES) / ATTACK1_DEFAULT_FPS
-		animated_sprite.speed_scale = default_duration / beat_interval
-	else:
+## 防御阶段按键回调
+func _on_defense_action(track: Note.NoteType) -> void:
+	if not anim_config:
+		return
+	var anim_name: String = anim_config.get_defense_anim(track)
+	_play_anim(anim_name, true)
+
+
+## 攻击阶段攻击回调
+func _on_attack_action(attack_type: int) -> void:
+	if not anim_config:
+		return
+	var anim_name: String = anim_config.get_attack_anim(attack_type)
+	_play_anim(anim_name, false)
+
+
+## 播放指定动画（优先 AnimatedSprite2D，若无则尝试 AnimationPlayer）
+## beat_sync: 是否将播放速度同步到一个节拍间隔
+func _play_anim(anim_name: String, beat_sync: bool) -> void:
+	if anim_name.is_empty():
+		return
+
+	# 尝试 AnimatedSprite2D
+	if animated_sprite and animated_sprite.sprite_frames \
+		and animated_sprite.sprite_frames.has_animation(anim_name):
+		if beat_sync:
+			_apply_beat_sync_speed(anim_name)
+		else:
+			animated_sprite.speed_scale = 1.0
+		animated_sprite.frame = 0
+		animated_sprite.play(anim_name)
+		return
+
+	# 回退到 AnimationPlayer
+	if _animation_player and _animation_player.has_animation(anim_name):
+		if beat_sync and _beat_manager and _beat_manager.get("beat_interval") != null:
+			var anim_length: float = _animation_player.get_animation(anim_name).length
+			if anim_length > 0.0:
+				_animation_player.speed_scale = anim_length / _beat_manager.beat_interval
+			else:
+				_animation_player.speed_scale = 1.0
+		else:
+			_animation_player.speed_scale = 1.0
+		_animation_player.play(anim_name)
+		return
+
+	push_warning("[Character] 动画 '%s' 在 AnimatedSprite2D 和 AnimationPlayer 中均未找到" % anim_name)
+
+
+## 将 AnimatedSprite2D 播放速度同步到一个节拍间隔
+func _apply_beat_sync_speed(anim_name: String) -> void:
+	if not _beat_manager or _beat_manager.get("beat_interval") == null:
 		animated_sprite.speed_scale = 1.0
+		return
 
-	# 无论当前是否正在播放 attack1，都从头重新播放（打断重置）
-	animated_sprite.play("attack1")
+	var beat_interval: float = _beat_manager.beat_interval
+	if beat_interval <= 0.0:
+		animated_sprite.speed_scale = 1.0
+		return
+
+	var sprite_frames: SpriteFrames = animated_sprite.sprite_frames
+	var frame_count: int = sprite_frames.get_frame_count(anim_name)
+	var base_fps: float = sprite_frames.get_animation_speed(anim_name)
+	if frame_count <= 0 or base_fps <= 0.0:
+		animated_sprite.speed_scale = 1.0
+		return
+
+	# 计算原始时长，然后缩放到一个节拍
+	var total_duration_weight: float = 0.0
+	for i in range(frame_count):
+		total_duration_weight += sprite_frames.get_frame_duration(anim_name, i)
+	var original_duration: float = total_duration_weight / base_fps
+	animated_sprite.speed_scale = clampf(original_duration / beat_interval, 0.1, 10.0)
 
 
 ## 动画播放完毕后恢复 idle
 func _on_animation_finished() -> void:
-	if animated_sprite.animation == "attack1":
-		animated_sprite.play("idle")
-
-
-## 获取当前节拍间隔（秒）
-func _get_beat_interval() -> float:
-	if _beat_manager and _beat_manager.get("beat_interval") != null:
-		return _beat_manager.beat_interval
-	return 0.0
+	if not anim_config:
+		return
+	var idle: String = anim_config.idle_anim
+	if animated_sprite.animation != idle and not idle.is_empty():
+		animated_sprite.speed_scale = 1.0
+		animated_sprite.play(idle)

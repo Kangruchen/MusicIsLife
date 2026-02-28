@@ -158,10 +158,10 @@ func _on_beat() -> void:
 ## 获取音符类型对应的图标
 func _get_note_icon(type: Note.NoteType) -> String:
 	match type:
-		Note.NoteType.HIT:
-			return "⚔️"  # 攻击
 		Note.NoteType.GUARD:
 			return "🛡️"  # 防御
+		Note.NoteType.HIT:
+			return "⚔️"  # 攻击
 		Note.NoteType.DODGE:
 			return "💨"  # 闪避
 		_:

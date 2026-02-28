@@ -4,7 +4,7 @@ extends Node
 # 判定信号
 signal judgment_made(track: Note.NoteType, judgment: JudgmentType, timing_diff: float)
 signal attack_performed(attack_type: AttackType)  # 玩家发动攻击信号
-signal any_key_pressed  # 任意轨道按键按下时触发（用于角色动画）
+signal defense_key_pressed(track: Note.NoteType)  # 防御阶段按键触发（携带轨道信息，用于角色动画）
 
 # 判定类型
 enum JudgmentType {
@@ -16,9 +16,9 @@ enum JudgmentType {
 
 # 攻击类型
 enum AttackType {
-	LIGHT,     # 轻攻击（第一条轨道）
-	HEAVY,     # 重攻击（第二条轨道）
-	HEAL,      # 回复（第三条轨道）
+	LIGHT,     # 轻攻击（第一条轨道，J键/GUARD）
+	HEAVY,     # 重攻击（第二条轨道，I键/HIT）
+	HEAL,      # 回复（第三条轨道，L键/DODGE）
 	ENHANCE    # 强化（什么都不做）
 }
 
@@ -31,8 +31,8 @@ const JUDGMENT_WINDOWS := {
 
 # 动作映射到音符类型
 const ACTION_MAPPING := {
-	"note_hit": Note.NoteType.HIT,
 	"note_guard": Note.NoteType.GUARD,
+	"note_hit": Note.NoteType.HIT,
 	"note_dodge": Note.NoteType.DODGE
 }
 
@@ -43,8 +43,8 @@ const ACTION_MAPPING := {
 @onready var music_player: Node = get_node("../MusicPlayer")
 
 # 音效播放器（用于播放按键音效）
-var audio_player_hit: AudioStreamPlayer = null
 var audio_player_guard: AudioStreamPlayer = null
+var audio_player_hit: AudioStreamPlayer = null
 var audio_player_dodge: AudioStreamPlayer = null
 
 # 暂停状态
@@ -79,18 +79,18 @@ func _ready() -> void:
 	
 	# auto_enhance 已改为在 _on_attack_beat 内同步处理，不再使用独立 Timer
 	# 创建三个音效播放器
-	audio_player_hit = AudioStreamPlayer.new()
 	audio_player_guard = AudioStreamPlayer.new()
+	audio_player_hit = AudioStreamPlayer.new()
 	audio_player_dodge = AudioStreamPlayer.new()
 	
 	# 添加到场景树
-	add_child(audio_player_hit)
 	add_child(audio_player_guard)
+	add_child(audio_player_hit)
 	add_child(audio_player_dodge)
 	
 	# 设置音效播放器参数
-	audio_player_hit.bus = "Master"
 	audio_player_guard.bus = "Master"
+	audio_player_hit.bus = "Master"
 	audio_player_dodge.bus = "Master"
 	
 	# 如果有配置文件，加载音效
@@ -103,13 +103,13 @@ func _setup_key_sounds() -> void:
 		return
 	
 	# 加载音效到对应的播放器，并设置各自的音量
-	if key_sound_config.hit_sound:
-		audio_player_hit.stream = key_sound_config.hit_sound
-		audio_player_hit.volume_db = key_sound_config.hit_volume_db
-	
 	if key_sound_config.guard_sound:
 		audio_player_guard.stream = key_sound_config.guard_sound
 		audio_player_guard.volume_db = key_sound_config.guard_volume_db
+	
+	if key_sound_config.hit_sound:
+		audio_player_hit.stream = key_sound_config.hit_sound
+		audio_player_hit.volume_db = key_sound_config.hit_volume_db
 	
 	if key_sound_config.dodge_sound:
 		audio_player_dodge.stream = key_sound_config.dodge_sound
@@ -123,10 +123,10 @@ func _play_key_sound(note_type: Note.NoteType) -> void:
 	
 	var player: AudioStreamPlayer = null
 	match note_type:
-		Note.NoteType.HIT:
-			player = audio_player_hit
 		Note.NoteType.GUARD:
 			player = audio_player_guard
+		Note.NoteType.HIT:
+			player = audio_player_hit
 		Note.NoteType.DODGE:
 			player = audio_player_dodge
 	
@@ -140,6 +140,12 @@ func _input(event: InputEvent) -> void:
 		_handle_attack_phase_input(event)
 		return
 	
+	# 防御阶段：按下轨道按键时触发角色动画信号（携带轨道信息）
+	for action in ACTION_MAPPING:
+		if event.is_action_pressed(action):
+			defense_key_pressed.emit(ACTION_MAPPING[action])
+			break
+	
 	if not music_player or not music_player.playing:
 		return
 	
@@ -150,7 +156,6 @@ func _input(event: InputEvent) -> void:
 	# 检查输入动作
 	for action in ACTION_MAPPING:
 		if event.is_action_pressed(action):
-			any_key_pressed.emit()
 			var track_type: Note.NoteType = ACTION_MAPPING[action]
 			_handle_input(track_type)
 			break  # 一次只处理一个输入
@@ -311,7 +316,7 @@ func start_attack_phase(duration: float, beat_interval: float) -> void:
 	_heavy_skip_next_beat = false
 	
 	# 立即显示UI（动画和前两个音符已在准备阶段生成，分别对应输入第1、第2拍）
-	var game_ui: Node = get_node_or_null("../GameUI")
+	var game_ui: Node = get_node_or_null("../../GameUI")
 	if game_ui and game_ui.has_method("show_attack_ui"):
 		game_ui.show_attack_ui()
 	
@@ -339,8 +344,6 @@ func _handle_attack_phase_input(event: InputEvent) -> void:
 	# 检测按键动作
 	for action in ACTION_MAPPING:
 		if event.is_action_pressed(action):
-			any_key_pressed.emit()
-			
 			# 提前计算时机（需在 has_input 判断前完成，以支持节拍前预输入）
 			var current_time: float = Time.get_ticks_msec() / 1000.0
 			var time_since_beat: float = current_time - current_beat_start_time
@@ -371,9 +374,9 @@ func _handle_attack_phase_input(event: InputEvent) -> void:
 			var attack_type: AttackType = AttackType.ENHANCE
 			
 			match track:
-				Note.NoteType.HIT:
-					attack_type = AttackType.LIGHT
 				Note.NoteType.GUARD:
+					attack_type = AttackType.LIGHT
+				Note.NoteType.HIT:
 					attack_type = AttackType.HEAVY
 				Note.NoteType.DODGE:
 					attack_type = AttackType.HEAL
@@ -437,7 +440,7 @@ func _on_attack_beat() -> void:
 		)
 		# 生成下一个节拍标记视觉音符（小于15时生成，覆盖拍3-16）
 		if current_beat_in_attack < 15:
-			var game_ui: Node = get_node_or_null("../GameUI")
+			var game_ui: Node = get_node_or_null("../../GameUI")
 			if game_ui and game_ui.has_method("spawn_beat_note"):
 				game_ui.spawn_beat_note(attack_beat_interval * 2.0)
 				print("DEBUG: 生成音符 (拍", current_beat_in_attack + 1, ")")
@@ -451,7 +454,7 @@ func _on_attack_beat() -> void:
 		var countdown: int = 20 - current_beat_in_attack
 		var total_beat: int = current_beat_in_attack + 5
 		print("[总拍", total_beat, "/24] 结束阶段 - 倒计时", countdown)
-		var game_ui: Node = get_node_or_null("../GameUI")
+		var game_ui: Node = get_node_or_null("../../GameUI")
 		if game_ui and game_ui.has_method("show_return_countdown"):
 			game_ui.show_return_countdown(countdown)
 
@@ -481,7 +484,7 @@ func _on_attack_phase_end() -> void:
 	print("========== 攻击阶段结束 ==========\n")
 	
 	# 通知GameUI隐藏攻击UI
-	var game_ui: Node = get_node_or_null("../GameUI")
+	var game_ui: Node = get_node_or_null("../../GameUI")
 	if game_ui and game_ui.has_method("hide_attack_ui"):
 		game_ui.hide_attack_ui()
 

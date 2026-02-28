@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CharacterAnimConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/CharacterAnimConfig.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+guard_anim = "attack1"
+hit_anim = "attack1"
+dodge_anim = "attack1"
+light_attack_anim = "attack1"
+heavy_attack_anim = "attack1"
+charge_anim = "attack1"
+heal_anim = "attack1"
+idle_anim = "idle"

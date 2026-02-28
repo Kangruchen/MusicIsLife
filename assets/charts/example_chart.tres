@@ -6,23 +6,25 @@
 [sub_resource type="Resource" id="Resource_6qawb"]
 script = ExtResource("2_note")
 beat_number = 1
+type = 1
 metadata/_custom_type_script = "uid://ovqp6e6w2uvq"
 
 [sub_resource type="Resource" id="Resource_hx25l"]
 script = ExtResource("2_note")
 beat_number = 3
-type = 1
+type = 0
 metadata/_custom_type_script = "uid://ovqp6e6w2uvq"
 
 [sub_resource type="Resource" id="Resource_3p2gb"]
 script = ExtResource("2_note")
 beat_number = 5
+type = 1
 metadata/_custom_type_script = "uid://ovqp6e6w2uvq"
 
 [sub_resource type="Resource" id="Resource_okd6r"]
 script = ExtResource("2_note")
 beat_number = 7
-type = 1
+type = 0
 metadata/_custom_type_script = "uid://ovqp6e6w2uvq"
 
 [resource]

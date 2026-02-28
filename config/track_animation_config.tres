@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="TrackAnimationConfig" load_steps=5 format=3 uid="uid://cmtg6v8fmuctn"]
+
+[ext_resource type="PackedScene" uid="uid://df3a1jhkv5551" path="res://scenes/bling.tscn" id="1_4oan4"]
+[ext_resource type="Script" uid="uid://beqf7fggoqww7" path="res://scripts/TrackAnimationConfig.gd" id="1_anim"]
+[ext_resource type="PackedScene" uid="uid://bcm01qchxk50h" path="res://scenes/laser.tscn" id="1_hd6f2"]
+[ext_resource type="PackedScene" uid="uid://dh8mmm7is87ex" path="res://scenes/warn.tscn" id="2_warn"]
+
+[resource]
+script = ExtResource("1_anim")
+guard_warn_scene = ExtResource("2_warn")
+guard_scene = ExtResource("1_hd6f2")
+guard_animation_name = "laser"
+guard_attack_end_frame = 6
+hit_scene = ExtResource("1_4oan4")
+hit_animation_name = "bling_blue"
+hit_attack_end_frame = 3
+dodge_scene = ExtResource("1_4oan4")
+dodge_animation_name = "bling_green"
+dodge_attack_end_frame = 4

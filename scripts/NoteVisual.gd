@@ -13,8 +13,8 @@ var spawn_sound_played: bool = false  # 音符生成音效是否已播放
 
 # 音符颜色
 const NOTE_COLORS := {
-	Note.NoteType.HIT: Color.RED,
 	Note.NoteType.GUARD: Color.CYAN,
+	Note.NoteType.HIT: Color.RED,
 	Note.NoteType.DODGE: Color.GREEN
 }
 
@@ -47,10 +47,10 @@ func _setup_visual() -> void:
 	
 	# 根据类型设置不同的大小
 	match note_data.type:
-		Note.NoteType.HIT:
-			sprite.size = Vector2(40, 40)  # 正方形
 		Note.NoteType.GUARD:
 			sprite.size = Vector2(50, 30)  # 横向矩形
+		Note.NoteType.HIT:
+			sprite.size = Vector2(40, 40)  # 正方形
 		Note.NoteType.DODGE:
 			sprite.size = Vector2(30, 50)  # 纵向矩形
 	

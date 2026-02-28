@@ -29,8 +29,8 @@ var active_beat_notes: Array[ColorRect] = []  # 当前活动的节拍标记
 
 
 func _ready() -> void:
-	# 连接输入管理器信号
-	var input_manager: Node = get_node("../InputManager")
+	# 连接输入管理器信号（InputManager 在 Main/GameManager/ 下）
+	var input_manager: Node = get_node("../GameManager/InputManager")
 	if input_manager:
 		input_manager.judgment_made.connect(_on_judgment_made)
 		# 连接攻击信号

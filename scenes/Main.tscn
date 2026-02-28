@@ -1,4 +1,4 @@
-[gd_scene load_steps=18 format=3 uid="uid://b4ymn7qwvj5hq"]
+[gd_scene load_steps=22 format=3 uid="uid://b4ymn7qwvj5hq"]
 
 [ext_resource type="Script" uid="uid://hla1t03lkrwg" path="res://scripts/MusicPlayer.gd" id="1_h5v3q"]
 [ext_resource type="Script" uid="uid://dnajos3fm0bkl" path="res://scripts/Main.gd" id="1_main"]
@@ -10,9 +10,12 @@
 [ext_resource type="Script" uid="uid://1spmii0kmgww" path="res://scripts/ScoreManager.gd" id="6_score_mgr"]
 [ext_resource type="Resource" uid="uid://brd58vvvmh20v" path="res://config/key_sound_config.tres" id="7_key_sound"]
 [ext_resource type="Resource" uid="uid://tka37j3asl60" path="res://config/key_sound_config_boss.tres" id="8_bjd11"]
+[ext_resource type="Resource" uid="uid://cmtg6v8fmuctn" path="res://config/track_animation_config.tres" id="8_mwfav"]
 [ext_resource type="Resource" uid="uid://c1vhiqdiogunj" path="res://config/attack_config.tres" id="12_qmy6f"]
 [ext_resource type="PackedScene" uid="uid://da8ttcx4kdymg" path="res://scenes/character.tscn" id="13_qmy6f"]
 [ext_resource type="Texture2D" uid="uid://30fmm367b0px" path="res://assets/environment/scene_smaller.png" id="14_mwfav"]
+[ext_resource type="Texture2D" uid="uid://b6da62fifqgh1" path="res://assets/enemy/boss形象设计.png" id="16_cvmbd"]
+[ext_resource type="Resource" path="res://config/character_anim_config.tres" id="17_charanim"]
 
 [sub_resource type="Gradient" id="Gradient_bjd11"]
 offsets = PackedFloat32Array(0.034632035, 0.5194805, 0.987013)
@@ -20,11 +23,14 @@ colors = PackedColorArray(1, 1, 1, 1, 0.509804, 0.509804, 0.509804, 1, 0, 0, 0, 
 
 [sub_resource type="GradientTexture2D" id="GradientTexture2D_qmy6f"]
 gradient = SubResource("Gradient_bjd11")
-width = 256
-height = 256
+width = 400
+height = 300
 fill = 2
 fill_from = Vector2(0.5, 0.5)
 fill_to = Vector2(0, 0)
+
+[sub_resource type="Environment" id="Environment_cvmbd"]
+glow_enabled = true
 
 [sub_resource type="Gradient" id="Gradient_qmy6f"]
 offsets = PackedFloat32Array(0, 0.22943723, 0.38528138)
@@ -44,34 +50,118 @@ script = ExtResource("1_main")
 [node name="GameUI" parent="." instance=ExtResource("3_game_ui")]
 visible = false
 
-[node name="MusicPlayer" type="Node" parent="."]
+[node name="Camera2D" type="Camera2D" parent="."]
+
+[node name="SceneSmaller" type="Sprite2D" parent="."]
+modulate = Color(0.68503374, 0.68503374, 0.68503374, 1)
+scale = Vector2(0.4, 0.4)
+texture = ExtResource("14_mwfav")
+
+[node name="Lights" type="Node2D" parent="."]
+
+[node name="PointLight2D6" type="PointLight2D" parent="Lights"]
+position = Vector2(-257, -89)
+texture = SubResource("GradientTexture2D_qmy6f")
+
+[node name="PointLight2D7" type="PointLight2D" parent="Lights"]
+position = Vector2(-3, -56)
+color = Color(2.454227, 1.7546934, 1.0644869, 0.78431374)
+texture = SubResource("GradientTexture2D_qmy6f")
+
+[node name="PointLight2D8" type="PointLight2D" parent="Lights"]
+position = Vector2(255, -88)
+color = Color(2.454227, 1.7546934, 1.0644869, 0.78431374)
+texture = SubResource("GradientTexture2D_qmy6f")
+
+[node name="Character" parent="." instance=ExtResource("13_qmy6f")]
+light_mask = 2
+position = Vector2(257, 129)
+scale = Vector2(0.5, 0.5)
+anim_config = ExtResource("17_charanim")
+
+[node name="CanvasModulate" type="CanvasModulate" parent="."]
+color = Color(0.61474454, 0.6147446, 0.61474454, 1)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_cvmbd")
+
+[node name="PositionNodes" type="Node2D" parent="."]
+
+[node name="Laser1" type="Node2D" parent="PositionNodes"]
+position = Vector2(0, 125)
+
+[node name="Laser2" type="Node2D" parent="PositionNodes"]
+position = Vector2(0, 145)
+
+[node name="Laser3" type="Node2D" parent="PositionNodes"]
+position = Vector2(0, 165)
+
+[node name="WarnLaser1" type="Node2D" parent="PositionNodes"]
+position = Vector2(-360, 125)
+
+[node name="WarnLaser2" type="Node2D" parent="PositionNodes"]
+position = Vector2(-360, 145)
+
+[node name="WarnLaser3" type="Node2D" parent="PositionNodes"]
+position = Vector2(-360, 165)
+
+[node name="Missile1" type="Node2D" parent="PositionNodes"]
+position = Vector2(-206, 137)
+
+[node name="Charge1" type="Node2D" parent="PositionNodes"]
+position = Vector2(118, 139)
+
+[node name="Missile2" type="Node2D" parent="PositionNodes"]
+position = Vector2(-151, 137)
+
+[node name="Boss形象设计" type="Sprite2D" parent="."]
+light_mask = 4
+z_index = 1
+position = Vector2(-5.9999995, -153)
+scale = Vector2(0.4, 0.4)
+texture = ExtResource("16_cvmbd")
+
+[node name="BossLight" type="PointLight2D" parent="Boss形象设计"]
+position = Vector2(19.999996, -135)
+scale = Vector2(4.9999995, 4.9999995)
+color = Color(1.8247963, 1.8247963, 1.8247963, 0.78431374)
+range_item_cull_mask = 4
+texture = SubResource("GradientTexture2D_qmy6f")
+
+[node name="PointLight2D7" type="PointLight2D" parent="Boss形象设计"]
+position = Vector2(24.999996, -165)
+scale = Vector2(4.9999995, 4.9999995)
+energy = 1.5
+texture = SubResource("GradientTexture2D_mwfav")
+
+[node name="GameManager" type="Node" parent="."]
+
+[node name="MusicPlayer" type="Node" parent="GameManager"]
 script = ExtResource("1_h5v3q")
 music_path = "uid://dgmmnbruepxvh"
 miss_sound = ExtResource("5_wp0k4")
 
-[node name="BeatManager" type="Node" parent="."]
+[node name="BeatManager" type="Node" parent="GameManager"]
 script = ExtResource("2_b4ymn")
 bpm = 0.0
 generate_test_chart = false
 chart_sm_path = "res://assets/charts/demo2.sm"
 
-[node name="TrackManager" type="Node" parent="."]
+[node name="TrackManager" type="Node" parent="GameManager" node_paths=PackedStringArray("guard_position_nodes", "hit_position_nodes", "dodge_position_nodes", "guard_warn_position_nodes")]
 script = ExtResource("4_track_mgr")
 key_sound_config = ExtResource("8_bjd11")
+track_animation_config = ExtResource("8_mwfav")
+guard_position_nodes = [NodePath("../../PositionNodes/Laser1"), NodePath("../../PositionNodes/Laser2"), NodePath("../../PositionNodes/Laser3")]
+hit_position_nodes = [NodePath("../../PositionNodes/Missile1"), NodePath("../../PositionNodes/Missile2")]
+dodge_position_nodes = [NodePath("../../PositionNodes/Charge1")]
+guard_warn_position_nodes = [NodePath("../../PositionNodes/WarnLaser1"), NodePath("../../PositionNodes/WarnLaser2"), NodePath("../../PositionNodes/WarnLaser3")]
 
-[node name="InputManager" type="Node" parent="."]
+[node name="InputManager" type="Node" parent="GameManager"]
 script = ExtResource("5_input_mgr")
 key_sound_config = ExtResource("7_key_sound")
 
-[node name="ScoreManager" type="Node" parent="."]
+[node name="ScoreManager" type="Node" parent="GameManager"]
 script = ExtResource("6_score_mgr")
-hit_boss_damage_perfect = 7.0
-hit_boss_damage_great = 4.0
-hit_boss_damage_good = 2.0
-hit_player_health_perfect = 2.0
-hit_player_health_great = 1.0
-hit_player_health_good = 0.0
-hit_player_health_miss = -10.0
 guard_boss_damage_perfect = 4.0
 guard_boss_damage_great = 2.0
 guard_boss_damage_good = 1.0
@@ -79,6 +169,13 @@ guard_player_health_perfect = 4.0
 guard_player_health_great = 2.0
 guard_player_health_good = 0.0
 guard_player_health_miss = -15.0
+hit_boss_damage_perfect = 7.0
+hit_boss_damage_great = 4.0
+hit_boss_damage_good = 2.0
+hit_player_health_perfect = 2.0
+hit_player_health_great = 1.0
+hit_player_health_good = 0.0
+hit_player_health_miss = -10.0
 dodge_boss_damage_perfect = 2.0
 dodge_boss_damage_great = 0.0
 dodge_boss_damage_good = -3.0
@@ -89,39 +186,3 @@ dodge_player_health_good = 0.0
 dodge_player_health_miss = -20.0
 max_boss_health = 2000.0
 attack_config = ExtResource("12_qmy6f")
-
-[node name="Camera2D" type="Camera2D" parent="."]
-
-[node name="SceneSmaller" type="Sprite2D" parent="."]
-scale = Vector2(0.4, 0.4)
-texture = ExtResource("14_mwfav")
-
-[node name="Lights" type="Node2D" parent="."]
-
-[node name="PointLight2D5" type="PointLight2D" parent="Lights"]
-position = Vector2(255, -89)
-color = Color(1, 0.7058824, 0.41568628, 0.78431374)
-texture = SubResource("GradientTexture2D_qmy6f")
-
-[node name="PointLight2D6" type="PointLight2D" parent="Lights"]
-position = Vector2(-257, -88)
-color = Color(1, 0.7058824, 0.41568628, 0.78431374)
-texture = SubResource("GradientTexture2D_qmy6f")
-
-[node name="PointLight2D8" type="PointLight2D" parent="Lights"]
-position = Vector2(-3, 15)
-color = Color(1, 0.7058824, 0.41568628, 0.78431374)
-texture = SubResource("GradientTexture2D_qmy6f")
-
-[node name="PointLight2D7" type="PointLight2D" parent="Lights"]
-position = Vector2(-1, -89)
-energy = 1.5
-texture = SubResource("GradientTexture2D_mwfav")
-
-[node name="CanvasModulate" type="CanvasModulate" parent="."]
-color = Color(0.61474454, 0.6147446, 0.61474454, 1)
-
-[node name="Character" parent="." instance=ExtResource("13_qmy6f")]
-light_mask = 2
-position = Vector2(244, 94)
-script = null
