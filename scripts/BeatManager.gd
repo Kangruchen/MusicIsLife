@@ -1,8 +1,6 @@
 extends Node
 ## 节拍管理器 - 根据 BPM 和 offset 检测音乐节拍
 
-signal beat_hit(beat_number: float, note: Note)
-
 # 音乐配置
 @export var bpm: float = 128.0  # 每分钟节拍数
 @export var offset: float = 0.0  # 偏移量（秒）
@@ -51,12 +49,9 @@ func _ready() -> void:
 	# 计算节拍间隔
 	beat_interval = 60.0 / bpm
 	
-	# 连接音乐播放器信号
-	if music_player:
-		music_player.music_started.connect(_on_music_started)
-		print("BeatManager 已连接到 MusicPlayer")
-	else:
-		push_error("找不到 MusicPlayer 节点")
+	# 通过 EventBus 监听音乐开始信号（替代直连 MusicPlayer）
+	EventBus.music_started.connect(_on_music_started)
+	print("BeatManager 已通过 EventBus 连接到 music_started")
 
 
 func _process(delta: float) -> void:
@@ -97,13 +92,12 @@ func _on_music_started() -> void:
 		_generate_test_chart()
 		print("测试铺面 + 用户offset: ", user_offset, " = 总offset: ", offset)
 	
-	# 通知 TrackManager
+	# 将 beat_interval 写入 EventBus 供全局读取
+	EventBus.beat_interval = beat_interval
+	
+	# 通过 EventBus 通知铺面已加载
 	if current_chart:
-		var track_manager: TrackManager = get_node_or_null("../TrackManager") as TrackManager
-		if track_manager:
-			track_manager.set_chart(current_chart)
-		else:
-			push_error("找不到 TrackManager 节点或脚本未正确加载")
+		EventBus.chart_loaded.emit(current_chart)
 	
 	next_beat_time = offset
 	print("节拍管理器已启动 - BPM: ", bpm, ", Offset: ", offset, " 秒")
@@ -152,7 +146,7 @@ func _on_beat() -> void:
 	else:
 		print("♪ 节拍 #", current_beat, " - 时间: ", "%.3f" % next_beat_time, " 秒 - 无音符")
 	
-	beat_hit.emit(current_beat, note)
+	EventBus.beat_hit.emit(current_beat, note)
 
 
 ## 获取音符类型对应的图标

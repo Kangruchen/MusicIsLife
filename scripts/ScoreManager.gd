@@ -4,10 +4,7 @@ extends Node
 # 预加载资源类型
 const AttackConfig = preload("res://scripts/AttackConfig.gd")
 
-# 信号
-signal player_health_changed(new_value: float)
-signal boss_health_changed(new_value: float)
-signal boss_energy_depleted()  # Boss 精力条被打空
+# 信号（保留用于本地监听）
 signal player_died()
 signal boss_defeated()
 
@@ -62,13 +59,16 @@ var current_boss_health: float = 0.0
 var current_boss_energy: float = 0.0
 var temporary_energy_reduce: float = 0.0  # 本次攻击阶段的临时精力削减量
 var is_next_attack_charged: bool = false  # 下次攻击是否为蓄力版本
-var player_health_bar: ProgressBar = null
-var boss_health_bar: ProgressBar = null
-var boss_guard_bar: ProgressBar = null
+
+# 同级兄弟节点引用（GameManager 内部）
+@onready var beat_manager: Node = get_node("../BeatManager")
+@onready var track_manager: Node = get_node("../TrackManager")
+@onready var input_manager: Node = get_node("../InputManager")
+@onready var music_player: Node = get_node("../MusicPlayer")
 
 # 暂停相关
-var is_paused_for_attack: bool = false  # 是否因精力耗尽而暂停
-var pause_timer: Timer = null  # 暂停计时器
+var is_paused_for_attack: bool = false
+var pause_timer: Timer = null
 
 
 func _ready() -> void:
@@ -83,42 +83,25 @@ func _ready() -> void:
 	pause_timer.timeout.connect(_on_pause_timeout)
 	add_child(pause_timer)
 	
-	# 获取血量条引用
-	var game_ui: Node = get_node("../../GameUI")
-	if game_ui:
-		boss_health_bar = game_ui.get_node_or_null("MarginContainer/VBoxContainer/BossHealthBar") as ProgressBar
-		boss_guard_bar = game_ui.get_node_or_null("MarginContainer/VBoxContainer/BossGuardBar") as ProgressBar
-		player_health_bar = game_ui.get_node_or_null("MarginContainer2/VBoxContainer/PlayerHealthBar") as ProgressBar
-		
-		# 设置血量条的最大值和初始值
-		if boss_health_bar:
-			boss_health_bar.max_value = max_boss_health
-			boss_health_bar.value = current_boss_health
-		if boss_guard_bar:
-			boss_guard_bar.max_value = max_boss_energy
-			boss_guard_bar.value = current_boss_energy
-		if player_health_bar:
-			player_health_bar.max_value = max_player_health
-			player_health_bar.value = current_player_health
+	# 通过 EventBus 连接信号（替代 get_node + signal connect）
+	EventBus.judgment_made.connect(_on_judgment_made)
+	EventBus.attack_performed.connect(_on_attack_performed)
 	
-	# 连接输入管理器信号
-	var input_manager: Node = get_node("../InputManager")
-	if input_manager:
-		input_manager.judgment_made.connect(_on_judgment_made)
-		input_manager.attack_performed.connect(_on_attack_performed)  # 连接攻击信号
-	
-	# 连接自己的精力耗尽信号
-	boss_energy_depleted.connect(_on_boss_energy_depleted)
-	
-	# 初始化血量
-	_update_health_bars()
+	# 延迟一帧广播初始血量（确保 GameUI 已连接 EventBus）
+	call_deferred("_emit_health_update")
+
+
+## 广播所有血量/精力状态到 EventBus
+func _emit_health_update() -> void:
+	EventBus.player_health_updated.emit(current_player_health, max_player_health)
+	EventBus.boss_health_updated.emit(current_boss_health, max_boss_health)
+	EventBus.boss_energy_updated.emit(current_boss_energy, max_boss_energy)
 
 
 ## 判定触发回调
 func _on_judgment_made(track: int, judgment: int, _timing_diff: float) -> void:
 	# 如果是 MISS 判定，触发对应轨道的音效衰减
 	if judgment == 3:  # MISS
-		var music_player: Node = get_node("../MusicPlayer")
 		if music_player and music_player.has_method("apply_track_miss_effect"):
 			music_player.apply_track_miss_effect(track)
 	
@@ -133,26 +116,25 @@ func _on_judgment_made(track: int, judgment: int, _timing_diff: float) -> void:
 	
 	# 检测精力条是否被打空
 	if old_energy > 0.0 and current_boss_energy <= 0.0:
-		boss_energy_depleted.emit()
+		EventBus.boss_energy_depleted.emit()
+		_on_boss_energy_depleted()
 		print("Boss 精力耗尽！")
 	
 	# 改变玩家血量
 	current_player_health += health_change
 	current_player_health = clampf(current_player_health, 0.0, max_player_health)
 	
-	# 更新显示
-	_update_health_bars()
-	
-	# 发送信号
-	player_health_changed.emit(current_player_health)
-	boss_health_changed.emit(current_boss_health)
+	# 通过 EventBus 广播血量变化
+	_emit_health_update()
 	
 	# 检查胜负条件
 	if current_player_health <= 0.0:
 		player_died.emit()
+		EventBus.player_died.emit()
 		print("玩家失败！")
 	elif current_boss_health <= 0.0:
 		boss_defeated.emit()
+		EventBus.boss_defeated.emit()
 		print("Boss 被击败！")
 
 
@@ -204,17 +186,9 @@ func _get_player_health_change(track: int, judgment: int) -> float:
 	return 0.0
 
 
-## 更新血量条显示
+## 更新血量条显示（通过 EventBus 广播）
 func _update_health_bars() -> void:
-	if player_health_bar:
-		player_health_bar.value = current_player_health
-	
-	if boss_health_bar:
-		boss_health_bar.value = current_boss_health
-	
-	if boss_guard_bar:
-		boss_guard_bar.max_value = max_boss_energy
-		boss_guard_bar.value = current_boss_energy
+	_emit_health_update()
 
 
 ## 重置游戏
@@ -234,117 +208,90 @@ func _on_boss_energy_depleted() -> void:
 	
 	is_paused_for_attack = true
 	
-	# 获取 BeatManager 计算攻击阶段时长（第2-5小节，共16拍 + 第6小节倒计时4拍）
-	var beat_manager: Node = get_node("../BeatManager")
-	if beat_manager:
-		# 第1小节：倒计时准备阶段（4拍）
-		var countdown_duration: float = beat_manager.beat_interval * 4.0
-		# 第2-5小节：攻击阶段（4小节 * 4拍 = 16拍）
-		var attack_duration: float = beat_manager.beat_interval * 16.0
-		# 第6小节：返回倒计时（4拍）
-		var return_countdown_duration: float = beat_manager.beat_interval * 4.0
-		# 总暂停时长（6小节 = 24拍）
-		var pause_duration: float = beat_manager.beat_interval * 24.0
-		
-		print("\n========== 攻击阶段开始（共6小节24拍） ==========")
-		
-		# 为准备阶段添加节拍log（拍1-4）
-		for i in range(1, 5):
-			get_tree().create_timer(beat_manager.beat_interval * (i - 1)).timeout.connect(func():
-				var beat_num: int = i
-				print("[总拍", beat_num, "/24] 准备阶段 - 拍", beat_num, "/4"))
-				
-		
-		# 暂停节拍检测
-		beat_manager.pause_beat_detection()
-		
-		# 暂停音符生成和清理已生成的音符
-		var track_manager: Node = get_node("../TrackManager")
-		if track_manager:
-			if track_manager.has_method("pause_note_spawning"):
-				track_manager.pause_note_spawning()
-			track_manager.clear_all_notes()
-		
-		# 暂停输入检测
-		var input_manager: Node = get_node("../InputManager")
-		if input_manager and input_manager.has_method("pause_input"):
-			input_manager.pause_input()
-		
-		# 启动暂停阶段视觉效果
-		var game_ui: Node = get_node("../../GameUI")
-		if game_ui:
-			# 立即显示迷你音轨
-			if game_ui.has_method("show_beat_track"):
-				game_ui.show_beat_track()
+	# 使用 @onready 兄弟节点引用 + EventBus 常量
+	var bi: float = beat_manager.beat_interval
+	var countdown_duration: float = bi * GameConstants.COUNTDOWN_BEATS
+	var attack_duration: float = bi * GameConstants.INPUT_BEATS
+	var return_countdown_duration: float = bi * GameConstants.EXIT_BEATS
+	var pause_duration: float = bi * GameConstants.TOTAL_ATTACK_BEATS
+	
+	print("\n========== 攻击阶段开始（共6小节", GameConstants.TOTAL_ATTACK_BEATS, "拍） ==========")
+	
+	# 为准备阶段添加节拍log
+	for i in range(1, GameConstants.COUNTDOWN_BEATS + 1):
+		var beat_num: int = i
+		get_tree().create_timer(bi * (i - 1)).timeout.connect(func():
+			print("[总拍", beat_num, "/", GameConstants.TOTAL_ATTACK_BEATS, "] 准备阶段 - 拍", beat_num, "/", GameConstants.COUNTDOWN_BEATS))
 			
-			# 第一个小节：倒计时
-			game_ui.show_pause_countdown(beat_manager)
-			
-			# 在准备阶段第3拍开始时生成第一个音符（让它移动2拍到达判定线）
-			var beat_interval_value: float = beat_manager.beat_interval
-			get_tree().create_timer(beat_interval_value * 2.0).timeout.connect(func():
-				if game_ui and game_ui.has_method("spawn_beat_note"):
-					game_ui.spawn_beat_note(beat_interval_value * 2.0)  # 2倍时间，速度减半
-			)
-			# 在准备阶段第4拍开始时生成第二个音符
-			get_tree().create_timer(beat_interval_value * 3.0).timeout.connect(func():
-				if game_ui and game_ui.has_method("spawn_beat_note"):
-					game_ui.spawn_beat_note(beat_interval_value * 2.0)
-			)
-			# 后四个小节：节拍闪光效果（延迟一个小节后开始）
-			get_tree().create_timer(beat_manager.beat_interval * 4.0).timeout.connect(func():
-				if game_ui and game_ui.has_method("play_beat_flash_effects"):
-					game_ui.play_beat_flash_effects(beat_manager, 16)
-			)
-			# 提前半拍启动攻击阶段，使输入系统能接受引入第四拍后半的预输入
-			get_tree().create_timer(countdown_duration - beat_interval_value * 0.5).timeout.connect(func():
-				_start_attack_phase(attack_duration + return_countdown_duration, beat_manager.beat_interval)
-			)
+	
+	# 暂停节拍检测
+	beat_manager.pause_beat_detection()
+	
+	# 暂停音符生成和清理已生成的音符
+	if track_manager:
+		if track_manager.has_method("pause_note_spawning"):
+			track_manager.pause_note_spawning()
+		track_manager.clear_all_notes()
+	
+	# 暂停输入检测
+	if input_manager and input_manager.has_method("pause_input"):
+		input_manager.pause_input()
+	
+	# 通过 EventBus 通知 UI 层（替代 get_node GameUI）
+	EventBus.show_beat_track_requested.emit()
+	EventBus.show_pause_countdown_requested.emit(bi)
+	
+	# 在准备阶段第3拍开始时生成第一个音符
+	get_tree().create_timer(bi * 2.0).timeout.connect(func():
+		EventBus.spawn_beat_note_requested.emit(bi * 2.0)
+	)
+	# 在准备阶段第4拍开始时生成第二个音符
+	get_tree().create_timer(bi * 3.0).timeout.connect(func():
+		EventBus.spawn_beat_note_requested.emit(bi * 2.0)
+	)
+	# 后四个小节：节拍闪光效果
+	get_tree().create_timer(countdown_duration).timeout.connect(func():
+		EventBus.play_beat_flash_requested.emit(bi, GameConstants.INPUT_BEATS)
+	)
+	# 提前半拍启动攻击阶段
+	get_tree().create_timer(countdown_duration - bi * GameConstants.FIRST_BEAT_DELAY_RATIO).timeout.connect(func():
+		_start_attack_phase(attack_duration + return_countdown_duration, bi)
+	)
+	
+	# 暂停音乐（保留鼓点，让drum跳到指定小节）
+	if music_player:
+		if music_player.has_method("pause_music_keep_drum"):
+			var measure_time: float = beat_manager.offset + GameConstants.DRUM_START_BEAT * bi
+			music_player.pause_music_keep_drum(measure_time)
+		else:
+			music_player.pause_music()
 		
-		# 暂停音乐（保留鼓点，并让drum跳到第9小节）
-		var music_player: Node = get_node("../MusicPlayer")
-		if music_player:
-			if music_player.has_method("pause_music_keep_drum"):
-				# 第9小节开始 = beat 32 (8小节 * 4拍)
-				var measure_9_time: float = beat_manager.offset + 32.0 * beat_manager.beat_interval
-				music_player.pause_music_keep_drum(measure_9_time)
-			else:
-				music_player.pause_music()
-			
-			# 提前0.5秒调用resume_music开始淡入
-			get_tree().create_timer(pause_duration - 0.5).timeout.connect(func():
-				if music_player and music_player.has_method("resume_music"):
-					music_player.resume_music()
-			)
-		
-		# 启动计时器（完整时长）
-		pause_timer.start(pause_duration)
-		print("游戏已暂停 ", pause_duration, " 秒（5 个小节），drum播放第9-13小节")
+		# 提前淡入恢复音乐
+		get_tree().create_timer(pause_duration - GameConstants.MUSIC_RESUME_LEAD_TIME).timeout.connect(func():
+			if music_player and music_player.has_method("resume_music"):
+				music_player.resume_music()
+		)
+	
+	# 启动计时器（完整时长）
+	pause_timer.start(pause_duration)
+	print("游戏已暂停 ", pause_duration, " 秒（", GameConstants.TOTAL_ATTACK_BEATS, " 拍），drum播放第9-13小节")
 
 
 ## 暂停结束的回调
 func _on_pause_timeout() -> void:
 	is_paused_for_attack = false
 	
-	# 隐藏暂停视觉效果
-	var game_ui: Node = get_node("../../GameUI")
-	if game_ui and game_ui.has_method("hide_pause_effects"):
-		game_ui.hide_pause_effects()
+	# 通知 UI 隐藏暂停效果
+	EventBus.hide_pause_effects_requested.emit()
 	
 	# 恢复节拍检测
-	var beat_manager: Node = get_node("../BeatManager")
-	if beat_manager:
-		beat_manager.resume_beat_detection()
+	beat_manager.resume_beat_detection()
 	
 	# 恢复输入检测
-	var input_manager: Node = get_node("../InputManager")
 	if input_manager and input_manager.has_method("resume_input"):
 		input_manager.resume_input()
 	
-	# 音乐恢复已在0.5秒前开始淡入，这里不需要再调用
-	
 	# 恢复音符生成
-	var track_manager: Node = get_node("../TrackManager")
 	if track_manager and track_manager.has_method("resume_note_spawning"):
 		track_manager.resume_note_spawning()
 	
@@ -352,13 +299,13 @@ func _on_pause_timeout() -> void:
 	var recovery_amount: float = max_boss_energy - temporary_energy_reduce
 	recovery_amount = max(recovery_amount, 10.0)  # 最小保留10点
 	current_boss_energy = recovery_amount
-	_update_health_bars()
+	_emit_health_update()
 	
 	print("暂停结束，游戏继续 - BOSS精力恢复到:", recovery_amount, " (临时削减:", temporary_energy_reduce, ")")
 
 
-## 开始攻击阶段（第2-5小节，共16拍）
-func _start_attack_phase(duration: float, beat_interval: float) -> void:
+## 开始攻击阶段
+func _start_attack_phase(duration: float, bi: float) -> void:
 	print("攻击阶段开始！")
 	
 	# 重置蓄力状态和临时精力削减量
@@ -366,14 +313,11 @@ func _start_attack_phase(duration: float, beat_interval: float) -> void:
 	temporary_energy_reduce = 0.0
 	
 	# 启用攻击输入监听
-	var input_manager: Node = get_node("../InputManager")
 	if input_manager and input_manager.has_method("start_attack_phase"):
-		input_manager.start_attack_phase(duration, beat_interval)
+		input_manager.start_attack_phase(duration, bi)
 	
-	# 显示攻击UI
-	var game_ui: Node = get_node("../../GameUI")
-	if game_ui and game_ui.has_method("show_attack_ui"):
-		game_ui.show_attack_ui()
+	# 通过 EventBus 通知 UI 显示攻击界面
+	EventBus.show_attack_ui_requested.emit()
 
 
 ## 处理攻击效果
@@ -446,17 +390,15 @@ func _on_attack_performed(attack_type: int) -> void:
 	current_player_health = clampf(current_player_health, 0.0, max_player_health)
 	current_boss_health = clampf(current_boss_health, 0.0, max_boss_health)
 	
-	# 更新显示
-	_update_health_bars()
-	
-	# 发送信号
-	player_health_changed.emit(current_player_health)
-	boss_health_changed.emit(current_boss_health)
+	# 通过 EventBus 广播血量变化
+	_emit_health_update()
 	
 	# 检查胜负
 	if current_player_health <= 0.0:
 		player_died.emit()
+		EventBus.player_died.emit()
 		print("玩家失败！")
 	elif current_boss_health <= 0.0:
 		boss_defeated.emit()
+		EventBus.boss_defeated.emit()
 		print("Boss被击败！")

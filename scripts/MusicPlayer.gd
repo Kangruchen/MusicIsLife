@@ -1,8 +1,6 @@
 extends Node
 ## 音乐播放器 - 负责加载和播放多轨道音乐
 
-signal music_started
-
 # 音乐配置
 @export var music_config: MusicConfig = null  # 音乐配置资源
 @export_file("*.mp3", "*.ogg", "*.wav") var music_path: String = ""  # 单轨音乐文件路径（兼容旧系统）
@@ -98,7 +96,7 @@ func load_and_play_music(custom_path: String = "") -> void:
 	
 	# 同步播放所有轨道
 	_play_all_tracks()
-	music_started.emit()
+	EventBus.music_started.emit()
 	print("音乐开始播放")
 
 

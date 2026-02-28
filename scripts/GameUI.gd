@@ -29,13 +29,24 @@ var active_beat_notes: Array[ColorRect] = []  # 当前活动的节拍标记
 
 
 func _ready() -> void:
-	# 连接输入管理器信号（InputManager 在 Main/GameManager/ 下）
-	var input_manager: Node = get_node("../GameManager/InputManager")
-	if input_manager:
-		input_manager.judgment_made.connect(_on_judgment_made)
-		# 连接攻击信号
-		if input_manager.has_signal("attack_performed"):
-			input_manager.attack_performed.connect(_on_attack_performed)
+	# 通过 EventBus 连接所有信号（替代 get_node 硬编码路径）
+	EventBus.judgment_made.connect(_on_judgment_made)
+	EventBus.attack_performed.connect(_on_attack_performed)
+	
+	# 血量/精力更新
+	EventBus.player_health_updated.connect(_on_player_health_updated)
+	EventBus.boss_health_updated.connect(_on_boss_health_updated)
+	EventBus.boss_energy_updated.connect(_on_boss_energy_updated)
+	
+	# UI 指令信号
+	EventBus.show_attack_ui_requested.connect(show_attack_ui)
+	EventBus.hide_attack_ui_requested.connect(hide_attack_ui)
+	EventBus.show_beat_track_requested.connect(show_beat_track)
+	EventBus.spawn_beat_note_requested.connect(spawn_beat_note)
+	EventBus.show_return_countdown_requested.connect(show_return_countdown)
+	EventBus.show_pause_countdown_requested.connect(_on_show_pause_countdown)
+	EventBus.play_beat_flash_requested.connect(_on_play_beat_flash)
+	EventBus.hide_pause_effects_requested.connect(hide_pause_effects)
 
 	show() # 游戏开始时将UI设为可见
 	
@@ -94,17 +105,40 @@ func _on_judgment_made(_track: Note.NoteType, _judgment: int, _timing_diff: floa
 	pass
 
 
+## 血量更新回调
+func _on_player_health_updated(current: float, maximum: float) -> void:
+	if player_health_bar:
+		player_health_bar.max_value = maximum
+		player_health_bar.value = current
+
+
+func _on_boss_health_updated(current: float, maximum: float) -> void:
+	if boss_health_bar:
+		boss_health_bar.max_value = maximum
+		boss_health_bar.value = current
+
+
+func _on_boss_energy_updated(current: float, maximum: float) -> void:
+	if boss_guard_bar:
+		boss_guard_bar.max_value = maximum
+		boss_guard_bar.value = current
+
+
+## EventBus 包装：接收 beat_interval 参数
+func _on_show_pause_countdown(bi: float) -> void:
+	_show_pause_countdown_impl(bi)
+
+
 ## 显示暂停倒计时（第一个小节，倒计时4-3-2-1）
-func show_pause_countdown(beat_manager: Node) -> void:
-	if not countdown_label or not beat_manager:
+func _show_pause_countdown_impl(bi: float) -> void:
+	if not countdown_label:
 		return
 	
 	countdown_label.visible = true
-	var beat_interval: float = beat_manager.beat_interval
 	
 	# 倒计时序列：4 -> 3 -> 2 -> 1
-	for i in range(4):
-		var count_num: int = 4 - i
+	for i in range(GameConstants.COUNTDOWN_BEATS):
+		var count_num: int = GameConstants.COUNTDOWN_BEATS - i
 		countdown_label.text = str(count_num)
 		
 		# 缩放动画：从大到小
@@ -112,27 +146,30 @@ func show_pause_countdown(beat_manager: Node) -> void:
 		scale_tween.set_ease(Tween.EASE_OUT)
 		scale_tween.set_trans(Tween.TRANS_BACK)
 		countdown_label.scale = Vector2(1.5, 1.5)
-		scale_tween.tween_property(countdown_label, "scale", Vector2(1.0, 1.0), beat_interval * 0.3)
+		scale_tween.tween_property(countdown_label, "scale", Vector2(1.0, 1.0), bi * 0.3)
 		
 		# 透明度动画：从不透明到半透明
 		var alpha_tween: Tween = create_tween()
 		alpha_tween.set_ease(Tween.EASE_OUT)
 		countdown_label.modulate.a = 1.0
-		alpha_tween.tween_property(countdown_label, "modulate:a", 0.5, beat_interval * 0.8)
+		alpha_tween.tween_property(countdown_label, "modulate:a", 0.5, bi * 0.8)
 		
 		# 等待一拍
-		await get_tree().create_timer(beat_interval).timeout
+		await get_tree().create_timer(bi).timeout
 	
 	# 倒计时结束，隐藏标签
 	countdown_label.visible = false
 
 
-## 播放节拍闪光效果（后四个小节，每拍闪一次）
-func play_beat_flash_effects(beat_manager: Node, beat_count: int = 16) -> void:
-	if not beat_flash_effect or not beat_manager:
+## EventBus 包装：接收 beat_interval 和 beat_count 参数
+func _on_play_beat_flash(bi: float, beat_count: int) -> void:
+	_play_beat_flash_impl(bi, beat_count)
+
+
+## 播放节拍闪光效果
+func _play_beat_flash_impl(bi: float, beat_count: int = 16) -> void:
+	if not beat_flash_effect:
 		return
-	
-	var beat_interval: float = beat_manager.beat_interval
 	
 	for i in range(beat_count):
 		# 创建边框闪光效果
@@ -142,10 +179,10 @@ func play_beat_flash_effects(beat_manager: Node, beat_count: int = 16) -> void:
 		
 		# 颜色从白色到透明
 		beat_flash_effect.color = Color(1.0, 1.0, 0.8, 0.3)
-		flash_tween.tween_property(beat_flash_effect, "color:a", 0.0, beat_interval * 0.6)
+		flash_tween.tween_property(beat_flash_effect, "color:a", 0.0, bi * 0.6)
 		
 		# 等待一拍
-		await get_tree().create_timer(beat_interval).timeout
+		await get_tree().create_timer(bi).timeout
 
 
 ## 隐藏所有暂停视觉效果

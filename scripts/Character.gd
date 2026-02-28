@@ -1,6 +1,6 @@
 extends Node2D
 class_name Character
-## 主角控制器 - 根据 InputManager 信号播放角色动画
+## 主角控制器 - 通过 EventBus 信号播放角色动画
 ## 防御阶段：通过 defense_key_pressed 信号播放格挡/攻击/闪避动画
 ## 攻击阶段：通过 attack_performed 信号播放轻攻击/重攻击/蓄力/恢复动画
 
@@ -11,36 +11,21 @@ class_name Character
 
 ## AnimationPlayer 引用（可选，若场景中存在则自动获取）
 var _animation_player: AnimationPlayer = null
-## InputManager 引用
-var _input_manager: Node = null
-## BeatManager 引用（用于节拍同步）
-var _beat_manager: Node = null
 
 
 func _ready() -> void:
 	# 获取 AnimationPlayer（如果存在）
 	_animation_player = get_node_or_null("AnimationPlayer") as AnimationPlayer
 
-	# 获取 InputManager 并连接信号
-	_input_manager = get_node_or_null("../GameManager/InputManager")
-	if _input_manager:
-		if _input_manager.has_signal("defense_key_pressed"):
-			_input_manager.defense_key_pressed.connect(_on_defense_action)
-		if _input_manager.has_signal("attack_performed"):
-			_input_manager.attack_performed.connect(_on_attack_action)
-	else:
-		push_warning("[Character] 未找到 InputManager 节点")
-
-	# 获取 BeatManager（用于节拍同步播放速度）
-	_beat_manager = get_node_or_null("../GameManager/BeatManager")
+	# 通过 EventBus 连接信号（无需硬编码节点路径）
+	EventBus.defense_key_pressed.connect(_on_defense_action)
+	EventBus.attack_performed.connect(_on_attack_action)
 
 	# 动画播完后回到 idle
 	if animated_sprite:
 		animated_sprite.animation_finished.connect(_on_animation_finished)
 
-	print("[Character] 初始化完成 | InputManager: ", _input_manager != null,
-		" | BeatManager: ", _beat_manager != null,
-		" | AnimationPlayer: ", _animation_player != null)
+	print("[Character] 初始化完成 | AnimationPlayer: ", _animation_player != null)
 
 
 ## 防御阶段按键回调
@@ -78,10 +63,10 @@ func _play_anim(anim_name: String, beat_sync: bool) -> void:
 
 	# 回退到 AnimationPlayer
 	if _animation_player and _animation_player.has_animation(anim_name):
-		if beat_sync and _beat_manager and _beat_manager.get("beat_interval") != null:
+		if beat_sync and EventBus.beat_interval > 0.0:
 			var anim_length: float = _animation_player.get_animation(anim_name).length
 			if anim_length > 0.0:
-				_animation_player.speed_scale = anim_length / _beat_manager.beat_interval
+				_animation_player.speed_scale = anim_length / EventBus.beat_interval
 			else:
 				_animation_player.speed_scale = 1.0
 		else:
@@ -94,12 +79,8 @@ func _play_anim(anim_name: String, beat_sync: bool) -> void:
 
 ## 将 AnimatedSprite2D 播放速度同步到一个节拍间隔
 func _apply_beat_sync_speed(anim_name: String) -> void:
-	if not _beat_manager or _beat_manager.get("beat_interval") == null:
-		animated_sprite.speed_scale = 1.0
-		return
-
-	var beat_interval: float = _beat_manager.beat_interval
-	if beat_interval <= 0.0:
+	var bi: float = EventBus.beat_interval
+	if bi <= 0.0:
 		animated_sprite.speed_scale = 1.0
 		return
 
@@ -115,7 +96,7 @@ func _apply_beat_sync_speed(anim_name: String) -> void:
 	for i in range(frame_count):
 		total_duration_weight += sprite_frames.get_frame_duration(anim_name, i)
 	var original_duration: float = total_duration_weight / base_fps
-	animated_sprite.speed_scale = clampf(original_duration / beat_interval, 0.1, 10.0)
+	animated_sprite.speed_scale = clampf(original_duration / bi, 0.1, 10.0)
 
 
 ## 动画播放完毕后恢复 idle

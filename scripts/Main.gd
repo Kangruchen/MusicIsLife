@@ -1,7 +1,7 @@
 extends Node
 ## 主场景 - 处理场景切换和游戏流程
 
-@onready var music_player: Node = $MusicPlayer
+@onready var music_player: Node = $GameManager/MusicPlayer
 
 
 func _input(event: InputEvent) -> void:

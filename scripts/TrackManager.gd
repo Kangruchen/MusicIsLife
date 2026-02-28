@@ -2,6 +2,7 @@ extends Node
 class_name TrackManager
 ## 轨道管理器 - 负责生成和管理音符的可视化
 
+
 # 预制场景
 const NOTE_VISUAL_SCENE := preload("res://scenes/NoteVisual.tscn")
 const BLING_SCENE := preload("res://scenes/bling.tscn")
@@ -33,8 +34,8 @@ const SPAWN_ADVANCE := {
 # 音符生成位置X坐标（动态计算，在 _ready 中初始化）
 var spawn_x: float = 900.0
 
-# MISS 判定窗口（超过判定线后多久算 MISS）
-const MISS_THRESHOLD: float = 0.200  # 200ms
+# MISS 判定窗口 — 值与 GameConstants.MISS_THRESHOLD 同步
+const MISS_THRESHOLD: float = 0.200
 
 # 音符视觉生成开关（暂时停用）
 var note_visual_enabled: bool = false
@@ -62,9 +63,12 @@ var tracked_notes: Array[Note] = []
 @export var dodge_warn_position_nodes: Array[Node2D] = []
 @export_group("")
 
-var game_ui: Node = null
-var beat_manager: Node = null
-var input_manager: Node = null
+# CanvasLayer 引用（用于添加动画实例，在场景编辑器中设置指向 GameUI）
+@export var game_ui: CanvasLayer = null
+
+# 同级兄弟节点引用
+@onready var music_player: Node = get_node("../MusicPlayer")
+
 var current_chart: Chart = null
 var active_notes: Array[NoteVisual] = []
 var scheduled_notes: Array[Note] = []  # 待生成的音符
@@ -92,13 +96,12 @@ func _ready() -> void:
 	# 根据实际视口宽度动态计算音符生成X坐标（屏幕右侧外100px）
 	spawn_x = get_viewport().get_visible_rect().size.x + 100.0
 	
-	# 获取引用
-	game_ui = get_node("../../GameUI")
-	beat_manager = get_node("../BeatManager")
-	input_manager = get_node("../InputManager")
+	# 通过 EventBus 连接信号（替代 get_node 硬编码路径）
+	EventBus.beat_hit.connect(_on_beat_hit)
+	EventBus.chart_loaded.connect(set_chart)
 	
-	if beat_manager:
-		beat_manager.beat_hit.connect(_on_beat_hit)
+	if not game_ui:
+		push_warning("[TrackManager] game_ui 未设置，请在编辑器中拖拽 GameUI 节点到 @export")
 	
 	# 创建音符生成音效播放器
 	spawn_audio_player_hit = AudioStreamPlayer.new()
@@ -136,7 +139,6 @@ func _process(_delta: float) -> void:
 		return
 	
 	# 获取当前音乐时间
-	var music_player: Node = get_node("../MusicPlayer")
 	if music_player and music_player.playing:
 		current_time = music_player.get_playback_position() + AudioServer.get_time_to_next_mix()
 		
@@ -150,7 +152,7 @@ func _process(_delta: float) -> void:
 				
 				# 检查是否到达判定线前两拍，播放音符音效
 				var time_before_target: float = note_visual.target_time - current_time
-				var two_beats_duration: float = 2.0 * beat_manager.beat_interval
+				var two_beats_duration: float = 2.0 * EventBus.beat_interval
 				if not note_visual.spawn_sound_played and time_before_target <= two_beats_duration:
 					_play_spawn_sound(note_visual.note_data.type)
 					note_visual.spawn_sound_played = true
@@ -158,9 +160,7 @@ func _process(_delta: float) -> void:
 				# 检查是否超过判定窗口（自动 MISS）
 				var time_past_target: float = current_time - note_visual.target_time
 				if time_past_target > MISS_THRESHOLD:
-					# 触发 MISS 判定
-					if input_manager:
-						input_manager.trigger_miss(note_visual.note_data.type)
+					EventBus.miss_triggered.emit(note_visual.note_data.type)
 					note_visual.is_active = false
 					note_visual.destroy()
 			elif note_visual:
@@ -175,8 +175,7 @@ func _process(_delta: float) -> void:
 			var note: Note = tracked_notes[i]
 			var time_past: float = current_time - note.beat_time
 			if time_past > MISS_THRESHOLD:
-				if input_manager:
-					input_manager.trigger_miss(note.type)
+				EventBus.miss_triggered.emit(note.type)
 				tracked_notes.remove_at(i)
 
 
@@ -200,7 +199,7 @@ func _on_beat_hit(beat_number: float, _note: Note) -> void:
 func _check_and_spawn_notes_by_time(current_time: float) -> void:
 	for note in scheduled_notes.duplicate():
 		var advance_beats: int = SPAWN_ADVANCE[note.type]
-		var spawn_time: float = note.beat_time - advance_beats * beat_manager.beat_interval
+		var spawn_time: float = note.beat_time - advance_beats * EventBus.beat_interval
 		
 		# 如果当前时间已经到达或超过音符的生成时间
 		if current_time >= spawn_time:
@@ -235,8 +234,8 @@ func _spawn_note(note: Note) -> void:
 		var target_pos := Vector2(judgment_x, track_y)
 		
 		var advance_beats: int = SPAWN_ADVANCE[note.type]
-		var spawn_time: float = note.beat_time - advance_beats * beat_manager.beat_interval
-		var move_start_time: float = spawn_time + beat_manager.beat_interval
+		var spawn_time: float = note.beat_time - advance_beats * EventBus.beat_interval
+		var move_start_time: float = spawn_time + EventBus.beat_interval
 		var target_time: float = note.beat_time
 		
 		note_visual.initialize(note, spawn_pos, target_pos, move_start_time, target_time)
@@ -277,7 +276,6 @@ func pause_note_spawning() -> void:
 ## 恢复音符生成
 func resume_note_spawning() -> void:
 	# 先更新当前时间到最新值（避免使用暂停前的旧时间）
-	var music_player: Node = get_node("../MusicPlayer")
 	if music_player and music_player.playing:
 		current_time = music_player.get_playback_position() + AudioServer.get_time_to_next_mix()
 	
@@ -327,7 +325,7 @@ func _spawn_track_animation(note: Note) -> void:
 	if warn_scene and advance_beats > 1:
 		# 先播放预警特效（持续1拍），然后延迟1拍播放主动画
 		_spawn_warn(note, warn_scene, counter)
-		get_tree().create_timer(beat_manager.beat_interval).timeout.connect(func() -> void:
+		get_tree().create_timer(EventBus.beat_interval).timeout.connect(func() -> void:
 			_spawn_main_animation(note, advance_beats - 1, counter)
 		)
 	else:
@@ -365,7 +363,7 @@ func _spawn_warn(note: Note, warn_scene: PackedScene, counter: int) -> void:
 			game_ui.add_child(instance)
 	
 	# 1拍后自动销毁
-	var warn_duration: float = beat_manager.beat_interval
+	var warn_duration: float = EventBus.beat_interval
 	get_tree().create_timer(warn_duration).timeout.connect(func() -> void:
 		if instance and is_instance_valid(instance):
 			instance.queue_free()
@@ -403,7 +401,7 @@ func _spawn_main_animation(note: Note, target_beats: int, counter: int) -> void:
 	
 	# === 计算播放延迟 ===
 	# 动画保持原始速度播放，通过延迟开始时间使 attack_end_frame 对齐判定时刻
-	var target_duration: float = target_beats * beat_manager.beat_interval
+	var target_duration: float = target_beats * EventBus.beat_interval
 	var start_delay: float = 0.0
 	
 	var sprite_frames: SpriteFrames = anim_sprite.sprite_frames
