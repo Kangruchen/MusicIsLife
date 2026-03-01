@@ -25,8 +25,8 @@ var total_pause_duration: float = 0.0  # 累计暂停时长
 @onready var music_player: Node = get_node("../MusicPlayer")
 
 
+## 加载用户校准的音频延迟设置
 func load_user_offset() -> void:
-	"""加载用户校准的音频延迟设置"""
 	# 如果在编辑器中已设置user_offset，优先使用编辑器的值（便于测试）
 	if user_offset != 0.0:
 		print("使用编辑器设置的用户延迟: ", user_offset, " 秒 (", user_offset * 1000.0, " ms)")

@@ -1,5 +1,4 @@
 extends Node
-class_name TrackManager
 ## 轨道管理器 - 负责生成和管理音符的可视化
 
 
@@ -83,6 +82,9 @@ var spawn_audio_player_dodge: AudioStreamPlayer = null
 
 # 活跃的 Bling 特效追踪（按轨道分组，用于避免重叠）
 var _active_blings: Dictionary = {}
+
+# 活跃的预警特效追踪
+var _active_warns: Array[Node2D] = []
 
 # 轨道动画轮换计数器（用于循环使用不同位置，避免连续动画重叠）
 var _spawn_counters: Dictionary = {
@@ -260,6 +262,11 @@ func clear_all_notes() -> void:
 			if bling and is_instance_valid(bling):
 				bling.queue_free()
 	_active_blings.clear()
+	# 清除所有活跃的预警特效
+	for warn in _active_warns:
+		if warn and is_instance_valid(warn):
+			warn.queue_free()
+	_active_warns.clear()
 	# 重置轮换计数器
 	for key in _spawn_counters:
 		_spawn_counters[key] = 0
@@ -362,11 +369,15 @@ func _spawn_warn(note: Note, warn_scene: PackedScene, counter: int) -> void:
 		else:
 			game_ui.add_child(instance)
 	
+	# 追踪预警实例（用于攻击阶段强制清除）
+	_active_warns.append(instance)
+
 	# 1拍后自动销毁
 	var warn_duration: float = EventBus.beat_interval
 	get_tree().create_timer(warn_duration).timeout.connect(func() -> void:
 		if instance and is_instance_valid(instance):
 			instance.queue_free()
+		_active_warns.erase(instance)
 	)
 	
 	print("[Warn] %s | counter=%d | duration=%.4fs" % [note.get_type_string(), counter, warn_duration])

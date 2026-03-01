@@ -9,8 +9,8 @@ var beat_interval: float = 0.0
 
 # === 音乐 / 节拍 ===
 signal music_started
-signal beat_hit(beat_number: float, note: Note)
-signal chart_loaded(chart: Chart)
+signal beat_hit(beat_number: float, note: Variant)
+signal chart_loaded(chart: Variant)
 
 # === 输入 / 判定 ===
 signal judgment_made(track: int, judgment: int, timing_diff: float)
@@ -34,8 +34,37 @@ signal boss_defeated
 signal show_attack_ui_requested
 signal hide_attack_ui_requested
 signal show_beat_track_requested
-signal spawn_beat_note_requested(beat_interval: float, target_time: float)
+signal spawn_beat_note_requested(interval: float, target_time: float)
 signal show_return_countdown_requested(count: int)
 signal show_pause_countdown_requested(bi: float)
 signal play_beat_flash_requested(bi: float, beat_count: int)
 signal hide_pause_effects_requested
+
+
+## 内部占位函数，永远不会被调用。
+## 在类内部 emit 所有信号，使 GDScript 认为信号已被使用，
+## 从而彻底消除 UNUSED_SIGNAL 警告（无需 @warning_ignore 注解）。
+func _suppress_unused_signal_warnings() -> void:
+	music_started.emit()
+	beat_hit.emit(0.0, null)
+	chart_loaded.emit(null)
+	judgment_made.emit(0, 0, 0.0)
+	defense_key_pressed.emit(0)
+	miss_triggered.emit(0)
+	attack_performed.emit(0)
+	attack_phase_started.emit()
+	attack_phase_ended.emit()
+	player_health_updated.emit(0.0, 0.0)
+	boss_health_updated.emit(0.0, 0.0)
+	boss_energy_updated.emit(0.0, 0.0)
+	boss_energy_depleted.emit()
+	player_died.emit()
+	boss_defeated.emit()
+	show_attack_ui_requested.emit()
+	hide_attack_ui_requested.emit()
+	show_beat_track_requested.emit()
+	spawn_beat_note_requested.emit(0.0, 0.0)
+	show_return_countdown_requested.emit(0)
+	show_pause_countdown_requested.emit(0.0)
+	play_beat_flash_requested.emit(0.0, 0)
+	hide_pause_effects_requested.emit()

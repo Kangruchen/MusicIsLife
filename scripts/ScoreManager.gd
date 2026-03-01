@@ -1,8 +1,7 @@
 extends Node
 ## 分数管理器 - 管理玩家分数、血量、Boss体力
 
-# 预加载资源类型
-const AttackConfig = preload("res://scripts/AttackConfig.gd")
+# AttackConfig 已通过 class_name 注册为全局类型，无需 preload
 
 # 信号（保留用于本地监听）
 signal player_died()

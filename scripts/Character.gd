@@ -1,5 +1,4 @@
 extends Node2D
-class_name Character
 ## 主角控制器 - 通过 EventBus 信号播放角色动画
 ## 防御阶段：通过 defense_key_pressed 信号播放格挡/攻击/闪避动画
 ## 攻击阶段：通过 attack_performed 信号播放轻攻击/重攻击/蓄力/恢复动画

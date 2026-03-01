@@ -23,6 +23,11 @@ offset=200.0
 [autoload]
 
 EventBus="*res://scripts/EventBus.gd"
+WindowManager="*res://scripts/WindowManager.gd"
+
+[debug]
+
+gdscript/warnings/unused_signal=0
 
 [display]
 

@@ -77,8 +77,8 @@ texture = SubResource("GradientTexture2D_qmy6f")
 
 [node name="Character" parent="." instance=ExtResource("13_qmy6f")]
 light_mask = 2
-position = Vector2(220, 107)
-scale = Vector2(0.4, 0.4)
+position = Vector2(209, 103)
+scale = Vector2(0.5, 0.5)
 anim_config = ExtResource("17_charanim")
 
 [node name="CanvasModulate" type="CanvasModulate" parent="."]
@@ -179,12 +179,9 @@ hit_player_health_perfect = 2.0
 hit_player_health_great = 1.0
 hit_player_health_good = 0.0
 hit_player_health_miss = -10.0
-dodge_boss_damage_perfect = 2.0
-dodge_boss_damage_great = 0.0
-dodge_boss_damage_good = -3.0
-dodge_boss_damage_miss = -5.0
-dodge_player_health_perfect = 6.0
-dodge_player_health_great = 4.0
+dodge_boss_damage_perfect = 10.0
+dodge_player_health_perfect = 0.0
+dodge_player_health_great = 0.0
 dodge_player_health_good = 0.0
 dodge_player_health_miss = -20.0
 max_boss_health = 2000.0

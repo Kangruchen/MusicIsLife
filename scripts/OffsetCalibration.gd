@@ -73,8 +73,8 @@ func _input(event: InputEvent) -> void:
 			_return_to_main()
 
 
+## 生成一个新音符
 func _spawn_note() -> void:
-	"""生成一个新音符"""
 	var note_visual := ColorRect.new()
 	note_visual.size = Vector2(20, 80)
 	note_visual.color = Color(1.0, 1.0, 0.0, 0.8)  # 黄色
@@ -82,21 +82,21 @@ func _spawn_note() -> void:
 	notes_container.add_child(note_visual)
 
 
+## 播放节拍音效
 func _play_metronome() -> void:
-	"""播放节拍音效"""
 	audio_player.play()
 	_flash_metronome()
 
 
+## 节拍视觉反馈
 func _flash_metronome() -> void:
-	"""节拍视觉反馈"""
 	metronome_label.modulate = Color(1.0, 1.0, 0.0, 1.0)
 	await get_tree().create_timer(0.1).timeout
 	metronome_label.modulate = Color(1.0, 1.0, 1.0, 1.0)
 
 
+## 更新所有音符位置并清理超出屏幕的音符
 func _update_notes(delta: float) -> void:
-	"""更新所有音符位置并清理超出屏幕的音符"""
 	for note in notes_container.get_children():
 		if note is ColorRect:
 			# 移动音符
@@ -111,41 +111,41 @@ func _update_notes(delta: float) -> void:
 				note.queue_free()
 
 
+## 判定线闪烁效果
 func _flash_judgment_line() -> void:
-	"""判定线闪烁效果"""
 	judgment_line.color = Color(0.0, 1.0, 0.0, 1.0)
 	await get_tree().create_timer(0.05).timeout
 	judgment_line.color = Color(1.0, 1.0, 1.0, 0.8)
 
 
+## 减小延迟
 func _on_decrease_pressed() -> void:
-	"""减小延迟"""
 	current_offset -= OFFSET_STEP
 	update_offset_display()
 	update_judgment_line_position()
 
 
+## 增大延迟
 func _on_increase_pressed() -> void:
-	"""增大延迟"""
 	current_offset += OFFSET_STEP
 	update_offset_display()
 	update_judgment_line_position()
 
 
+## 更新延迟显示
 func update_offset_display() -> void:
-	"""更新延迟显示"""
 	offset_label.text = "当前延迟: %.0f ms" % current_offset
 
 
+## 根据延迟更新判定线位置
 func update_judgment_line_position() -> void:
-	"""根据延迟更新判定线位置"""
 	var offset_pixels: float = (current_offset / 1000.0) * NOTE_SPEED
 	current_judgment_x = DEFAULT_JUDGMENT_LINE_X + offset_pixels
 	judgment_line.position.x = current_judgment_x - judgment_line.size.x / 2.0
 
 
+## 加载保存的延迟配置
 func load_offset_config() -> void:
-	"""加载保存的延迟配置"""
 	var config := ConfigFile.new()
 	var err := config.load("user://settings.cfg")
 	if err == OK:
@@ -153,8 +153,8 @@ func load_offset_config() -> void:
 		print("已加载延迟设置: ", current_offset, " ms")
 
 
+## 保存延迟配置到用户数据目录
 func save_offset_config() -> void:
-	"""保存延迟配置到用户数据目录"""
 	var config := ConfigFile.new()
 	# 尝试加载现有配置
 	config.load("user://settings.cfg")
@@ -169,7 +169,7 @@ func save_offset_config() -> void:
 		push_error("保存延迟设置失败: ", err)
 
 
+## 返回主场景
 func _return_to_main() -> void:
-	"""返回主场景"""
 	save_offset_config()
 	get_tree().change_scene_to_file("res://scenes/Main.tscn")
