@@ -1,0 +1,32 @@
+[
+    {
+        "id": 1,
+        "role_type": "NPC",
+        "role_name": "小明",
+        "text": "你好，欢迎来到节奏世界！",
+        "artwork": "res://assets/portraits/hero.png",
+        "next_id": 2,
+        "trigger_scene": "StartScene",
+        "voice_id": "voice_001"
+    },
+    {
+        "id": 2,
+        "role_type": "PLAYER",
+        "role_name": "玩家",
+        "text": "让我们开始吧！",
+        "artwork": "null",
+        "next_id": 3,
+        "trigger_scene": "Level1",
+        "voice_id": ""
+    },
+    {
+        "id": 3,
+        "role_type": "NPC",
+        "role_name": "小明",
+        "text": "祝你好运！",
+        "artwork": "null",
+        "next_id": null,
+        "trigger_scene": "",
+        "voice_id": "voice_003"
+    }
+]
