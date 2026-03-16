@@ -1,0 +1,29 @@
+[gd_scene load_steps=7 format=3 uid="uid://by008rhs347u5"]
+
+[ext_resource type="Texture2D" uid="uid://bml0iy0jr34ur" path="res://assets/environment/background.png" id="1_eaqaa"]
+[ext_resource type="Texture2D" uid="uid://bplv8ttjaikm" path="res://assets/environment/back_light.png" id="2_xxsej"]
+[ext_resource type="Texture2D" uid="uid://dm03vrkwr6tay" path="res://assets/environment/side_machine.png" id="3_l562q"]
+[ext_resource type="Texture2D" uid="uid://c5p1wv46jjav0" path="res://assets/environment/side_ball.png" id="4_ukr0n"]
+[ext_resource type="Texture2D" uid="uid://dr5n1lto02v1k" path="res://assets/environment/mid_ball.png" id="5_rn7d6"]
+[ext_resource type="Texture2D" uid="uid://g5embtiwej7x" path="res://assets/environment/ground.png" id="6_rwpvo"]
+
+[node name="scene_boss" type="Node2D"]
+scale = Vector2(0.333, 0.333)
+
+[node name="Background" type="Sprite2D" parent="."]
+texture = ExtResource("1_eaqaa")
+
+[node name="BackLight" type="Sprite2D" parent="."]
+texture = ExtResource("2_xxsej")
+
+[node name="SideMachine" type="Sprite2D" parent="."]
+texture = ExtResource("3_l562q")
+
+[node name="SideBall" type="Sprite2D" parent="."]
+texture = ExtResource("4_ukr0n")
+
+[node name="MidBall" type="Sprite2D" parent="."]
+texture = ExtResource("5_rn7d6")
+
+[node name="Ground" type="Sprite2D" parent="."]
+texture = ExtResource("6_rwpvo")

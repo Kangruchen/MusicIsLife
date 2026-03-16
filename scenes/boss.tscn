@@ -1,0 +1,130 @@
+[gd_scene load_steps=21 format=3 uid="uid://pmk3seuwqaru"]
+
+[ext_resource type="Texture2D" uid="uid://b58668r1g842j" path="res://assets/enemy/right_sound.png" id="1_u0duv"]
+[ext_resource type="Texture2D" uid="uid://od3kah1y8c0a" path="res://assets/enemy/bottom_light.png" id="2_lc4na"]
+[ext_resource type="Texture2D" uid="uid://bgn2nuny1gy6d" path="res://assets/enemy/bottom_steam.png" id="3_8arul"]
+[ext_resource type="Texture2D" uid="uid://djjddhe2w3o5i" path="res://assets/enemy/left_jet.png" id="4_3d2wm"]
+[ext_resource type="Texture2D" uid="uid://ynnnqlio2k5" path="res://assets/enemy/left_missile.png" id="5_rrd6h"]
+[ext_resource type="Texture2D" uid="uid://cufgrv0lyyag7" path="res://assets/enemy/left_sound.png" id="6_7g8a4"]
+[ext_resource type="Texture2D" uid="uid://btf64n6b8rtpp" path="res://assets/enemy/middle_body.png" id="7_r8fku"]
+[ext_resource type="Texture2D" uid="uid://ceio0xgdxg1qe" path="res://assets/enemy/middle_light.png" id="8_jruke"]
+[ext_resource type="Texture2D" uid="uid://cmox0ak808sxl" path="res://assets/enemy/middle_pad.png" id="9_ysc7m"]
+[ext_resource type="Texture2D" uid="uid://dn53wbyy4x3mf" path="res://assets/enemy/middle_wire.png" id="10_7ke2s"]
+[ext_resource type="Texture2D" uid="uid://byidtjnkkw84o" path="res://assets/enemy/right_jet.png" id="11_ppmbc"]
+[ext_resource type="Texture2D" uid="uid://dl0k7uj2q20j7" path="res://assets/enemy/right_missile.png" id="12_kw08n"]
+[ext_resource type="Texture2D" uid="uid://c0rkrxgydrfdo" path="res://assets/enemy/charge_gun.png" id="13_rdfxm"]
+[ext_resource type="Texture2D" uid="uid://b6dr0iu88bflc" path="res://assets/enemy/charge_light.png" id="14_cm1kr"]
+[ext_resource type="Texture2D" uid="uid://ciu8g0idaobkr" path="res://assets/enemy/charge_middle.png" id="15_akhi5"]
+[ext_resource type="Script" uid="uid://mcbe4csqt24y" path="res://scripts/Boss.gd" id="16_7xk3q"]
+
+[sub_resource type="Gradient" id="Gradient_bjd11"]
+offsets = PackedFloat32Array(0.034632035, 0.5194805, 0.987013)
+colors = PackedColorArray(1, 1, 1, 1, 0.509804, 0.509804, 0.509804, 1, 0, 0, 0, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_gqd3i"]
+gradient = SubResource("Gradient_bjd11")
+width = 400
+height = 300
+fill = 2
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(0, 0)
+
+[sub_resource type="Gradient" id="Gradient_qmy6f"]
+offsets = PackedFloat32Array(0, 0.22943723, 0.38528138)
+colors = PackedColorArray(1, 1, 1, 1, 0.36796537, 0.36796537, 0.36796537, 1, 0, 0, 0, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_mautr"]
+gradient = SubResource("Gradient_qmy6f")
+width = 256
+height = 512
+fill = 1
+fill_from = Vector2(0.5, 1)
+fill_to = Vector2(0.5, 0)
+
+[node name="Boss" type="Node2D"]
+light_mask = 4
+scale = Vector2(0.333, 0.333)
+script = ExtResource("16_7xk3q")
+move_speed = 75.0
+max_move_left = 400.0
+max_move_right = 400.0
+max_move_up = 0.0
+max_move_down = 150.0
+
+[node name="RightSound" type="Sprite2D" parent="."]
+light_mask = 4
+texture = ExtResource("1_u0duv")
+
+[node name="BottomLight" type="Sprite2D" parent="."]
+light_mask = 4
+texture = ExtResource("2_lc4na")
+
+[node name="BottomSteam" type="Sprite2D" parent="."]
+light_mask = 4
+texture = ExtResource("3_8arul")
+
+[node name="LeftJet" type="Sprite2D" parent="."]
+light_mask = 4
+texture = ExtResource("4_3d2wm")
+
+[node name="LeftMissile" type="Sprite2D" parent="."]
+light_mask = 4
+texture = ExtResource("5_rrd6h")
+
+[node name="LeftSound" type="Sprite2D" parent="."]
+light_mask = 4
+texture = ExtResource("6_7g8a4")
+
+[node name="MiddleBody" type="Sprite2D" parent="."]
+light_mask = 4
+texture = ExtResource("7_r8fku")
+
+[node name="MiddleLight" type="Sprite2D" parent="."]
+light_mask = 4
+texture = ExtResource("8_jruke")
+
+[node name="MiddlePad" type="Sprite2D" parent="."]
+light_mask = 4
+texture = ExtResource("9_ysc7m")
+
+[node name="MiddleWire" type="Sprite2D" parent="."]
+light_mask = 4
+texture = ExtResource("10_7ke2s")
+
+[node name="RightJet" type="Sprite2D" parent="."]
+light_mask = 4
+texture = ExtResource("11_ppmbc")
+
+[node name="RightMissile" type="Sprite2D" parent="."]
+light_mask = 4
+texture = ExtResource("12_kw08n")
+
+[node name="Charge" type="Node2D" parent="."]
+light_mask = 4
+
+[node name="ChargeGun" type="Sprite2D" parent="Charge"]
+light_mask = 4
+texture = ExtResource("13_rdfxm")
+
+[node name="ChargeLight" type="Sprite2D" parent="Charge"]
+light_mask = 4
+texture = ExtResource("14_cm1kr")
+
+[node name="ChargeMiddle" type="Sprite2D" parent="Charge"]
+light_mask = 4
+texture = ExtResource("15_akhi5")
+
+[node name="BossLight" type="PointLight2D" parent="."]
+visible = false
+position = Vector2(19.999996, -135)
+scale = Vector2(4.9999995, 4.9999995)
+color = Color(1.8247963, 1.8247963, 1.8247963, 0.78431374)
+range_item_cull_mask = 4
+texture = SubResource("GradientTexture2D_gqd3i")
+
+[node name="PointLight2D7" type="PointLight2D" parent="."]
+visible = false
+position = Vector2(24.999996, -165)
+scale = Vector2(4.9999995, 4.9999995)
+energy = 1.5
+texture = SubResource("GradientTexture2D_mautr")

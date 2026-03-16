@@ -1,4 +1,4 @@
-[gd_scene load_steps=22 format=3 uid="uid://b4ymn7qwvj5hq"]
+[gd_scene load_steps=20 format=3 uid="uid://b4ymn7qwvj5hq"]
 
 [ext_resource type="Script" uid="uid://hla1t03lkrwg" path="res://scripts/MusicPlayer.gd" id="1_h5v3q"]
 [ext_resource type="Script" uid="uid://dnajos3fm0bkl" path="res://scripts/Main.gd" id="1_main"]
@@ -13,16 +13,16 @@
 [ext_resource type="Resource" uid="uid://cmtg6v8fmuctn" path="res://config/track_animation_config.tres" id="8_mwfav"]
 [ext_resource type="Resource" uid="uid://c1vhiqdiogunj" path="res://config/attack_config.tres" id="12_qmy6f"]
 [ext_resource type="PackedScene" uid="uid://da8ttcx4kdymg" path="res://scenes/character.tscn" id="13_qmy6f"]
-[ext_resource type="Texture2D" uid="uid://30fmm367b0px" path="res://assets/environment/scene_smaller.png" id="14_mwfav"]
-[ext_resource type="Texture2D" uid="uid://b6da62fifqgh1" path="res://assets/enemy/boss形象设计.png" id="16_cvmbd"]
+[ext_resource type="PackedScene" uid="uid://pmk3seuwqaru" path="res://scenes/boss.tscn" id="16_cvmbd"]
 [ext_resource type="Resource" path="res://config/character_anim_config.tres" id="17_charanim"]
+[ext_resource type="PackedScene" uid="uid://by008rhs347u5" path="res://scenes/scene_boss.tscn" id="17_ft6cd"]
 
-[sub_resource type="Gradient" id="Gradient_bjd11"]
+[sub_resource type="Gradient" id="Gradient_ft6cd"]
 offsets = PackedFloat32Array(0.034632035, 0.5194805, 0.987013)
 colors = PackedColorArray(1, 1, 1, 1, 0.509804, 0.509804, 0.509804, 1, 0, 0, 0, 1)
 
 [sub_resource type="GradientTexture2D" id="GradientTexture2D_qmy6f"]
-gradient = SubResource("Gradient_bjd11")
+gradient = SubResource("Gradient_ft6cd")
 width = 400
 height = 300
 fill = 2
@@ -32,18 +32,6 @@ fill_to = Vector2(0, 0)
 [sub_resource type="Environment" id="Environment_cvmbd"]
 glow_enabled = true
 
-[sub_resource type="Gradient" id="Gradient_qmy6f"]
-offsets = PackedFloat32Array(0, 0.22943723, 0.38528138)
-colors = PackedColorArray(1, 1, 1, 1, 0.36796537, 0.36796537, 0.36796537, 1, 0, 0, 0, 1)
-
-[sub_resource type="GradientTexture2D" id="GradientTexture2D_mwfav"]
-gradient = SubResource("Gradient_qmy6f")
-width = 256
-height = 512
-fill = 1
-fill_from = Vector2(0.5, 1)
-fill_to = Vector2(0.5, 0)
-
 [node name="Main" type="Node"]
 script = ExtResource("1_main")
 
@@ -52,24 +40,23 @@ visible = false
 
 [node name="Camera2D" type="Camera2D" parent="."]
 
-[node name="SceneSmaller" type="Sprite2D" parent="."]
-modulate = Color(0.68503374, 0.68503374, 0.68503374, 1)
-scale = Vector2(0.333, 0.333)
-texture = ExtResource("14_mwfav")
-
 [node name="Lights" type="Node2D" parent="."]
+visible = false
 
 [node name="PointLight2D6" type="PointLight2D" parent="Lights"]
+visible = false
 position = Vector2(-251, -59)
 scale = Vector2(0.8, 0.8)
 texture = SubResource("GradientTexture2D_qmy6f")
 
 [node name="PointLight2D7" type="PointLight2D" parent="Lights"]
+visible = false
 position = Vector2(-3, -56)
 color = Color(2.454227, 1.7546934, 1.0644869, 0.78431374)
 texture = SubResource("GradientTexture2D_qmy6f")
 
 [node name="PointLight2D8" type="PointLight2D" parent="Lights"]
+visible = false
 position = Vector2(240, -60)
 scale = Vector2(0.8, 0.8)
 color = Color(2.454227, 1.7546934, 1.0644869, 0.78431374)
@@ -82,6 +69,7 @@ scale = Vector2(0.5, 0.5)
 anim_config = ExtResource("17_charanim")
 
 [node name="CanvasModulate" type="CanvasModulate" parent="."]
+visible = false
 color = Color(0.61474454, 0.6147446, 0.61474454, 1)
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
@@ -115,26 +103,6 @@ position = Vector2(228, -40)
 
 [node name="Missile2" type="Node2D" parent="PositionNodes"]
 position = Vector2(-235, -102)
-
-[node name="Boss形象设计" type="Sprite2D" parent="."]
-light_mask = 4
-z_index = 1
-position = Vector2(-6, -125.99999)
-scale = Vector2(0.333, 0.333)
-texture = ExtResource("16_cvmbd")
-
-[node name="BossLight" type="PointLight2D" parent="Boss形象设计"]
-position = Vector2(19.999996, -135)
-scale = Vector2(4.9999995, 4.9999995)
-color = Color(1.8247963, 1.8247963, 1.8247963, 0.78431374)
-range_item_cull_mask = 4
-texture = SubResource("GradientTexture2D_qmy6f")
-
-[node name="PointLight2D7" type="PointLight2D" parent="Boss形象设计"]
-position = Vector2(24.999996, -165)
-scale = Vector2(4.9999995, 4.9999995)
-energy = 1.5
-texture = SubResource("GradientTexture2D_mwfav")
 
 [node name="GameManager" type="Node" parent="."]
 
@@ -186,3 +154,10 @@ dodge_player_health_good = 0.0
 dodge_player_health_miss = -20.0
 max_boss_health = 2000.0
 attack_config = ExtResource("12_qmy6f")
+
+[node name="Boss" parent="." instance=ExtResource("16_cvmbd")]
+light_mask = 0
+position = Vector2(-5, -125.99999)
+
+[node name="scene_boss" parent="." instance=ExtResource("17_ft6cd")]
+z_index = -10
