@@ -214,7 +214,8 @@ func _create_attack_ui() -> void:
 	
 	# 创建背景面板
 	var bg_panel: ColorRect = ColorRect.new()
-	bg_panel.color = Color(0.1, 0.1, 0.1, 0.8)
+	# 攻击阶段不再涂黑下半屏，保留容器仅承载提示文字。
+	bg_panel.color = Color(0.0, 0.0, 0.0, 0.0)
 	bg_panel.anchor_right = 1.0
 	bg_panel.anchor_bottom = 1.0
 	attack_ui_container.add_child(bg_panel)

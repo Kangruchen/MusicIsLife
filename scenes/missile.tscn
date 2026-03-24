@@ -1,0 +1,13 @@
+[gd_scene load_steps=2 format=3 uid="uid://cyll18b7kum6p"]
+
+[ext_resource type="Texture2D" uid="uid://cahranbae4lby" path="res://assets/VFX/missile.png" id="1_np454"]
+
+[node name="Missile" type="Node2D"]
+
+[node name="Missile" type="Sprite2D" parent="."]
+modulate = Color(2.454227, 2.454227, 2.454227, 1)
+z_index = 1
+position = Vector2(0, -1)
+rotation = 0.6373632
+scale = Vector2(0.333, 0.333)
+texture = ExtResource("1_np454")

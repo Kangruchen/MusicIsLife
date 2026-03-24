@@ -1,14 +1,12 @@
-[gd_resource type="Resource" script_class="CharacterAnimConfig" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="CharacterAnimConfig" load_steps=2 format=3 uid="uid://cfen4ocwo62iw"]
 
-[ext_resource type="Script" path="res://scripts/CharacterAnimConfig.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://cmkbb6kxktox6" path="res://scripts/CharacterAnimConfig.gd" id="1_script"]
 
 [resource]
 script = ExtResource("1_script")
-guard_anim = "attack1"
+guard_anim = "guard"
 hit_anim = "attack1"
-dodge_anim = "attack1"
 light_attack_anim = "attack1"
-heavy_attack_anim = "attack1"
-charge_anim = "attack1"
-heal_anim = "attack1"
-idle_anim = "idle"
+heavy_attack_anim = "attack2"
+charged_light_attack_anim = "attack1"
+charged_heavy_attack_anim = "attack2"

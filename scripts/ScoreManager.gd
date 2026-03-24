@@ -99,6 +99,11 @@ func _emit_health_update() -> void:
 
 ## 判定触发回调
 func _on_judgment_made(track: int, judgment: int, _timing_diff: float) -> void:
+	# 攻击阶段整段暂停窗口内（含退出倒计时到真正恢复前），忽略防御判定，
+	# 避免提前扣盾后被 _on_pause_timeout 的精力恢复覆盖。
+	if is_paused_for_attack:
+		return
+
 	# 如果是 MISS 判定，触发对应轨道的音效衰减
 	if judgment == 3:  # MISS
 		if music_player and music_player.has_method("apply_track_miss_effect"):

@@ -9,11 +9,10 @@
 script = ExtResource("1_anim")
 guard_warn_scene = ExtResource("2_warn")
 guard_scene = ExtResource("1_hd6f2")
-guard_animation_name = "laser"
-guard_attack_end_frame = 6
+guard_animation_name = "laser_re"
+guard_attack_end_frame = 12
 hit_scene = ExtResource("1_4oan4")
 hit_animation_name = "bling_blue"
 hit_attack_end_frame = 3
-dodge_scene = ExtResource("1_4oan4")
-dodge_animation_name = "bling_green"
-dodge_attack_end_frame = 4
+dodge_animation_name = "charge"
+dodge_attack_end_frame = 15

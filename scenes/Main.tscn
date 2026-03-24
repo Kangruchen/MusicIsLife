@@ -14,7 +14,7 @@
 [ext_resource type="Resource" uid="uid://c1vhiqdiogunj" path="res://config/attack_config.tres" id="12_qmy6f"]
 [ext_resource type="PackedScene" uid="uid://da8ttcx4kdymg" path="res://scenes/character.tscn" id="13_qmy6f"]
 [ext_resource type="PackedScene" uid="uid://pmk3seuwqaru" path="res://scenes/boss.tscn" id="16_cvmbd"]
-[ext_resource type="Resource" path="res://config/character_anim_config.tres" id="17_charanim"]
+[ext_resource type="Resource" uid="uid://cfen4ocwo62iw" path="res://config/character_anim_config.tres" id="17_charanim"]
 [ext_resource type="PackedScene" uid="uid://by008rhs347u5" path="res://scenes/scene_boss.tscn" id="17_ft6cd"]
 
 [sub_resource type="Gradient" id="Gradient_ft6cd"]
@@ -64,7 +64,8 @@ texture = SubResource("GradientTexture2D_qmy6f")
 
 [node name="Character" parent="." instance=ExtResource("13_qmy6f")]
 light_mask = 2
-position = Vector2(209, 103)
+z_index = 1
+position = Vector2(210, 105)
 scale = Vector2(0.5, 0.5)
 anim_config = ExtResource("17_charanim")
 
@@ -104,27 +105,33 @@ position = Vector2(228, -40)
 [node name="Missile2" type="Node2D" parent="PositionNodes"]
 position = Vector2(-235, -102)
 
+[node name="BossFall" type="Node2D" parent="PositionNodes"]
+position = Vector2(-79, 131)
+rotation = 0.7853982
+
+[node name="PlayerDash" type="Node2D" parent="PositionNodes"]
+position = Vector2(52, 103)
+
 [node name="GameManager" type="Node" parent="."]
 
 [node name="MusicPlayer" type="Node" parent="GameManager"]
 script = ExtResource("1_h5v3q")
-music_path = "uid://dgmmnbruepxvh"
+music_path = "uid://dxab1vst4q675"
 miss_sound = ExtResource("5_wp0k4")
 
 [node name="BeatManager" type="Node" parent="GameManager"]
 script = ExtResource("2_b4ymn")
 bpm = 0.0
 generate_test_chart = false
-chart_sm_path = "res://assets/charts/demo2.sm"
+chart_sm_path = "res://assets/charts/Factory Fever.sm"
 
-[node name="TrackManager" type="Node" parent="GameManager" node_paths=PackedStringArray("guard_position_nodes", "hit_position_nodes", "dodge_position_nodes", "guard_warn_position_nodes", "game_ui")]
+[node name="TrackManager" type="Node" parent="GameManager" node_paths=PackedStringArray("guard_position_nodes", "hit_position_nodes", "dodge_position_nodes", "game_ui")]
 script = ExtResource("4_track_mgr")
 key_sound_config = ExtResource("8_bjd11")
 track_animation_config = ExtResource("8_mwfav")
 guard_position_nodes = [NodePath("../../PositionNodes/Laser1"), NodePath("../../PositionNodes/Laser2"), NodePath("../../PositionNodes/Laser3")]
 hit_position_nodes = [NodePath("../../PositionNodes/Missile1"), NodePath("../../PositionNodes/Missile2")]
 dodge_position_nodes = [NodePath("../../PositionNodes/Charge1")]
-guard_warn_position_nodes = [NodePath("../../PositionNodes/WarnLaser1"), NodePath("../../PositionNodes/WarnLaser2"), NodePath("../../PositionNodes/WarnLaser3")]
 game_ui = NodePath("../../GameUI")
 
 [node name="InputManager" type="Node" parent="GameManager"]
@@ -151,13 +158,23 @@ dodge_boss_damage_perfect = 10.0
 dodge_player_health_perfect = 0.0
 dodge_player_health_great = 0.0
 dodge_player_health_good = 0.0
-dodge_player_health_miss = -20.0
+dodge_player_health_miss = 1.0
 max_boss_health = 2000.0
+max_boss_energy = 1.0
 attack_config = ExtResource("12_qmy6f")
 
 [node name="Boss" parent="." instance=ExtResource("16_cvmbd")]
 light_mask = 0
-position = Vector2(-5, -125.99999)
+position = Vector2(-5, -1)
+max_move_left = 150.0
+max_move_right = 150.0
+max_move_up = 80.0
+max_move_down = 0.0
+move_pick_min_distance = 50.0
+move_pick_max_distance = 300.0
+idle_between_moves_range = Vector2(0.25, 1)
+charge_rotation_offset_degrees = -90.0
+pre_charge_distance_from_player = 250.0
 
 [node name="scene_boss" parent="." instance=ExtResource("17_ft6cd")]
 z_index = -10

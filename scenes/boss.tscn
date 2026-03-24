@@ -1,4 +1,4 @@
-[gd_scene load_steps=21 format=3 uid="uid://pmk3seuwqaru"]
+[gd_scene load_steps=42 format=3 uid="uid://pmk3seuwqaru"]
 
 [ext_resource type="Texture2D" uid="uid://b58668r1g842j" path="res://assets/enemy/right_sound.png" id="1_u0duv"]
 [ext_resource type="Texture2D" uid="uid://od3kah1y8c0a" path="res://assets/enemy/bottom_light.png" id="2_lc4na"]
@@ -16,6 +16,148 @@
 [ext_resource type="Texture2D" uid="uid://b6dr0iu88bflc" path="res://assets/enemy/charge_light.png" id="14_cm1kr"]
 [ext_resource type="Texture2D" uid="uid://ciu8g0idaobkr" path="res://assets/enemy/charge_middle.png" id="15_akhi5"]
 [ext_resource type="Script" uid="uid://mcbe4csqt24y" path="res://scripts/Boss.gd" id="16_7xk3q"]
+[ext_resource type="Texture2D" uid="uid://thxho4xtab31" path="res://assets/VFX/charge.png" id="17_ho3mf"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ho3mf"]
+atlas = ExtResource("17_ho3mf")
+region = Rect2(0, 0, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_7apjh"]
+atlas = ExtResource("17_ho3mf")
+region = Rect2(1920, 0, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_qh5fr"]
+atlas = ExtResource("17_ho3mf")
+region = Rect2(3840, 0, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_4dlq0"]
+atlas = ExtResource("17_ho3mf")
+region = Rect2(5760, 0, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_25au8"]
+atlas = ExtResource("17_ho3mf")
+region = Rect2(7680, 0, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_nk50o"]
+atlas = ExtResource("17_ho3mf")
+region = Rect2(0, 1080, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_325t2"]
+atlas = ExtResource("17_ho3mf")
+region = Rect2(1920, 1080, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_bagrn"]
+atlas = ExtResource("17_ho3mf")
+region = Rect2(3840, 1080, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_p3gxo"]
+atlas = ExtResource("17_ho3mf")
+region = Rect2(5760, 1080, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_0dd2w"]
+atlas = ExtResource("17_ho3mf")
+region = Rect2(7680, 1080, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_tj5kv"]
+atlas = ExtResource("17_ho3mf")
+region = Rect2(0, 2160, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_e1yhm"]
+atlas = ExtResource("17_ho3mf")
+region = Rect2(1920, 2160, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_pbxxu"]
+atlas = ExtResource("17_ho3mf")
+region = Rect2(3840, 2160, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_eyxkr"]
+atlas = ExtResource("17_ho3mf")
+region = Rect2(5760, 2160, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_hhysf"]
+atlas = ExtResource("17_ho3mf")
+region = Rect2(7680, 2160, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_g25uh"]
+atlas = ExtResource("17_ho3mf")
+region = Rect2(0, 3240, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_o4ffm"]
+atlas = ExtResource("17_ho3mf")
+region = Rect2(1920, 3240, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_lngmi"]
+atlas = ExtResource("17_ho3mf")
+region = Rect2(3840, 3240, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_q24ql"]
+atlas = ExtResource("17_ho3mf")
+region = Rect2(5760, 3240, 1920, 1080)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_giyuy"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_ho3mf")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_7apjh")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_qh5fr")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_4dlq0")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_25au8")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_nk50o")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_325t2")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_bagrn")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_p3gxo")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_0dd2w")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_tj5kv")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_e1yhm")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_pbxxu")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_eyxkr")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_hhysf")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_g25uh")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_o4ffm")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_lngmi")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_q24ql")
+}],
+"loop": true,
+"name": &"charge",
+"speed": 10.0
+}]
 
 [sub_resource type="Gradient" id="Gradient_bjd11"]
 offsets = PackedFloat32Array(0.034632035, 0.5194805, 0.987013)
@@ -63,12 +205,9 @@ texture = ExtResource("2_lc4na")
 light_mask = 4
 texture = ExtResource("3_8arul")
 
-[node name="LeftJet" type="Sprite2D" parent="."]
-light_mask = 4
-texture = ExtResource("4_3d2wm")
-
 [node name="LeftMissile" type="Sprite2D" parent="."]
 light_mask = 4
+position = Vector2(3.003003, 0)
 texture = ExtResource("5_rrd6h")
 
 [node name="LeftSound" type="Sprite2D" parent="."]
@@ -91,6 +230,10 @@ texture = ExtResource("9_ysc7m")
 light_mask = 4
 texture = ExtResource("10_7ke2s")
 
+[node name="LeftJet" type="Sprite2D" parent="."]
+light_mask = 4
+texture = ExtResource("4_3d2wm")
+
 [node name="RightJet" type="Sprite2D" parent="."]
 light_mask = 4
 texture = ExtResource("11_ppmbc")
@@ -103,16 +246,25 @@ texture = ExtResource("12_kw08n")
 light_mask = 4
 
 [node name="ChargeGun" type="Sprite2D" parent="Charge"]
+visible = false
 light_mask = 4
 texture = ExtResource("13_rdfxm")
 
 [node name="ChargeLight" type="Sprite2D" parent="Charge"]
+visible = false
 light_mask = 4
 texture = ExtResource("14_cm1kr")
 
 [node name="ChargeMiddle" type="Sprite2D" parent="Charge"]
+visible = false
 light_mask = 4
 texture = ExtResource("15_akhi5")
+
+[node name="ChargeAnim" type="AnimatedSprite2D" parent="Charge"]
+position = Vector2(15.015016, 408.4084)
+sprite_frames = SubResource("SpriteFrames_giyuy")
+animation = &"charge"
+frame_progress = 0.15471746
 
 [node name="BossLight" type="PointLight2D" parent="."]
 visible = false
@@ -128,3 +280,9 @@ position = Vector2(24.999996, -165)
 scale = Vector2(4.9999995, 4.9999995)
 energy = 1.5
 texture = SubResource("GradientTexture2D_mautr")
+
+[node name="MissileLeft" type="Node2D" parent="."]
+position = Vector2(-723.7237, -309.3093)
+
+[node name="MissileRight" type="Node2D" parent="."]
+position = Vector2(714.71466, -309.3093)
