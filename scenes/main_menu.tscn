@@ -1,0 +1,10 @@
+[gd_scene load_steps=3 format=3 uid="uid://bax6icm3f52fe"]
+
+[ext_resource type="Script" uid="uid://dlu3ahejwko8f" path="res://scenes/main_menu.gd" id="1_ekxnf"]
+[ext_resource type="Texture2D" uid="uid://6gl6sdjlyboh" path="res://scenes/0bb116c02789fc5b0854eab691c92b2f.jpg" id="2_bqqt6"]
+
+[node name="MainMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 0
+script = ExtResource("1_ekxnf")
+background_texture = ExtResource("2_bqqt6")
