@@ -8,7 +8,8 @@ extends Node
 @export_group("Attack Camera")
 @export var enable_attack_camera: bool = true
 @export_range(1.0, 3.0, 0.05) var attack_camera_magnification: float = 1.8
-@export var attack_camera_focus_offset: Vector2 = Vector2(0.0, 75.0)
+@export var attack_camera_focus_offset: Vector2 = Vector2.ZERO
+@export var attack_camera_keep_player_centered: bool = true
 @export_range(0.0, 1.0, 0.01) var attack_camera_focus_weight: float = 0.35
 @export_range(0.05, 1.0, 0.01) var attack_camera_enter_duration: float = 0.28
 @export_range(0.05, 1.5, 0.01) var attack_camera_restore_duration: float = 0.35
@@ -18,15 +19,7 @@ var _camera_default_global_position: Vector2 = Vector2.ZERO
 var _camera_default_zoom: Vector2 = Vector2.ONE
 var _camera_tween: Tween = null
 var _attack_camera_active: bool = false
-var _attack_camera_armed: bool = false
 var _attack_zoom_target: Vector2 = Vector2.ONE
-var _player_last_position: Vector2 = Vector2.ZERO
-var _player_was_moving: bool = false
-var _player_still_frames: int = 0
-var _attack_camera_settling: bool = false
-
-const PLAYER_MOVE_EPSILON: float = 0.1
-const PLAYER_STILL_CONFIRM_FRAMES: int = 2
 const CAMERA_POSITION_DEADZONE: float = 0.35
 
 
@@ -45,45 +38,14 @@ func _process(delta: float) -> void:
 	if camera == null or player == null:
 		return
 
-	if _attack_camera_armed:
-		var moving_now: bool = player.global_position.distance_to(_player_last_position) > PLAYER_MOVE_EPSILON
-		if moving_now:
-			_player_still_frames = 0
-		else:
-			_player_still_frames += 1
-
-		# 玩家开始移动：镜头开始缩放，并在位移时持续跟随。
-		if moving_now and not _player_was_moving:
-			var enter_duration: float = _get_player_move_sync_duration()
-			var start_target_pos: Vector2 = _get_attack_camera_target_pos(_attack_zoom_target)
-			_start_camera_tween(start_target_pos, _attack_zoom_target, enter_duration)
-			_attack_camera_active = true
-			_attack_camera_settling = false
-
-		# 玩家停止移动：确保镜头在停止瞬间完成缩放。
-		if not moving_now and _player_was_moving and _attack_camera_active and _player_still_frames >= PLAYER_STILL_CONFIRM_FRAMES:
-			var finish_target_pos: Vector2 = _get_attack_camera_target_pos(_attack_zoom_target)
-			_start_camera_tween(finish_target_pos, _attack_zoom_target, 0.06)
-			_attack_camera_settling = true
-			if _camera_tween != null:
-				_camera_tween.finished.connect(func() -> void:
-					_attack_camera_settling = false
-				)
-
-		_player_was_moving = moving_now
-		_player_last_position = player.global_position
-
 	if not _attack_camera_active:
-		return
-	if _attack_camera_settling:
 		return
 
 	var safe_zoom: Vector2 = _clamp_zoom_to_default(camera.zoom)
 	camera.zoom = safe_zoom
 
-	var raw_focus_target: Vector2 = player.global_position + attack_camera_focus_offset
-	var weighted_target: Vector2 = _camera_default_global_position.lerp(raw_focus_target, clampf(attack_camera_focus_weight, 0.0, 1.0))
-	var target_pos: Vector2 = _clamp_camera_position(weighted_target, safe_zoom)
+	var focus_target: Vector2 = _get_attack_camera_focus_target()
+	var target_pos: Vector2 = _clamp_camera_position(focus_target, safe_zoom)
 	var weight: float = clampf(delta * attack_camera_follow_speed, 0.0, 1.0)
 	var blended_pos: Vector2 = camera.global_position.lerp(target_pos, weight)
 	if blended_pos.distance_to(target_pos) <= CAMERA_POSITION_DEADZONE:
@@ -97,25 +59,18 @@ func _on_attack_phase_started() -> void:
 	if camera == null or player == null:
 		return
 
-	# 攻击阶段开始仅做就绪，等待玩家实际位移时再启动缩放。
-	_attack_camera_armed = true
-	_attack_camera_active = false
-	_attack_camera_settling = false
+	# 攻击阶段开始立即启用镜头缩放和跟随。
+	_attack_camera_active = true
 	_attack_zoom_target = _get_attack_camera_zoom()
-	_player_last_position = player.global_position
-	_player_was_moving = false
-	_player_still_frames = 0
+	var start_target_pos: Vector2 = _get_attack_camera_target_pos(_attack_zoom_target)
+	_start_camera_tween(start_target_pos, _attack_zoom_target, attack_camera_enter_duration)
 
 
 func _on_attack_phase_ended() -> void:
 	if camera == null:
 		return
 
-	_attack_camera_armed = false
 	_attack_camera_active = false
-	_attack_camera_settling = false
-	_player_was_moving = false
-	_player_still_frames = 0
 	_start_camera_tween(_camera_default_global_position, _camera_default_zoom, attack_camera_restore_duration)
 
 
@@ -154,24 +109,15 @@ func _get_attack_camera_zoom() -> Vector2:
 
 
 func _get_attack_camera_target_pos(zoom_value: Vector2) -> Vector2:
+	var focus_target: Vector2 = _get_attack_camera_focus_target()
+	return _clamp_camera_position(focus_target, zoom_value)
+
+
+func _get_attack_camera_focus_target() -> Vector2:
 	var raw_focus_target: Vector2 = player.global_position + attack_camera_focus_offset
-	var weighted_target: Vector2 = _camera_default_global_position.lerp(raw_focus_target, clampf(attack_camera_focus_weight, 0.0, 1.0))
-	return _clamp_camera_position(weighted_target, zoom_value)
-
-
-func _get_player_move_sync_duration() -> float:
-	var bi: float = EventBus.beat_interval
-	if bi <= 0.0:
-		bi = 0.5
-
-	var duration_beats: int = 0
-	if player != null:
-		duration_beats = int(player.get("attack_return_duration_beats"))
-
-	if duration_beats <= 0:
-		return maxf(0.01, attack_camera_enter_duration)
-
-	return maxf(0.01, float(duration_beats) * bi)
+	if attack_camera_keep_player_centered:
+		return raw_focus_target
+	return _camera_default_global_position.lerp(raw_focus_target, clampf(attack_camera_focus_weight, 0.0, 1.0))
 
 
 func _clamp_camera_position(target_pos: Vector2, zoom_value: Vector2) -> Vector2:

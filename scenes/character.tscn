@@ -1,4 +1,4 @@
-[gd_scene load_steps=22 format=3 uid="uid://da8ttcx4kdymg"]
+[gd_scene load_steps=25 format=3 uid="uid://da8ttcx4kdymg"]
 
 [ext_resource type="Texture2D" uid="uid://btvrak0yochju" path="res://assets/character/character_sheet.png" id="1_agfs1"]
 [ext_resource type="Script" uid="uid://dd8mqw121l5g0" path="res://scripts/Character.gd" id="2_char"]
@@ -87,7 +87,7 @@ animations = [{
 }],
 "loop": false,
 "name": &"attack1",
-"speed": 8.0
+"speed": 12.0
 }, {
 "frames": [{
 "duration": 1.0,
@@ -110,7 +110,7 @@ animations = [{
 }],
 "loop": false,
 "name": &"attack2",
-"speed": 5.0
+"speed": 10.0
 }, {
 "frames": [{
 "duration": 1.0,
@@ -127,7 +127,7 @@ animations = [{
 }],
 "loop": false,
 "name": &"guard",
-"speed": 5.0
+"speed": 10.0
 }, {
 "frames": [{
 "duration": 1.0,
@@ -137,6 +137,15 @@ animations = [{
 "name": &"idle",
 "speed": 5.0
 }]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_attack_hitbox"]
+size = Vector2(120, 90)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_hitbox_preset_light"]
+size = Vector2(120, 169)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_hitbox_preset_heavy"]
+size = Vector2(180, 120)
 
 [sub_resource type="Gradient" id="Gradient_mwfav"]
 offsets = PackedFloat32Array(0.24675325, 0.73593074)
@@ -156,8 +165,35 @@ script = ExtResource("2_char")
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
 light_mask = 2
 sprite_frames = SubResource("SpriteFrames_0dpix")
-animation = &"idle"
+animation = &"guard"
 autoplay = "idle"
+
+[node name="AttackHitbox" type="Area2D" parent="."]
+collision_mask = 32
+monitoring = false
+monitorable = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="AttackHitbox"]
+shape = SubResource("RectangleShape2D_attack_hitbox")
+disabled = true
+
+[node name="HitboxPresets" type="Node2D" parent="."]
+
+[node name="Light" type="Node2D" parent="HitboxPresets"]
+position = Vector2(90, 0)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HitboxPresets/Light"]
+position = Vector2(-151.00002, -8)
+scale = Vector2(1.0516958, 0.99648285)
+shape = SubResource("RectangleShape2D_hitbox_preset_light")
+
+[node name="Heavy" type="Node2D" parent="HitboxPresets"]
+position = Vector2(105, 0)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HitboxPresets/Heavy"]
+position = Vector2(-186.00002, -21)
+scale = Vector2(0.9262309, 1.1607282)
+shape = SubResource("RectangleShape2D_hitbox_preset_heavy")
 
 [node name="CharacterLight" type="PointLight2D" parent="."]
 visible = false

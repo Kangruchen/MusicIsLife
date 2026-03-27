@@ -1,4 +1,4 @@
-[gd_scene load_steps=42 format=3 uid="uid://pmk3seuwqaru"]
+[gd_scene load_steps=45 format=3 uid="uid://pmk3seuwqaru"]
 
 [ext_resource type="Texture2D" uid="uid://b58668r1g842j" path="res://assets/enemy/right_sound.png" id="1_u0duv"]
 [ext_resource type="Texture2D" uid="uid://od3kah1y8c0a" path="res://assets/enemy/bottom_light.png" id="2_lc4na"]
@@ -17,6 +17,13 @@
 [ext_resource type="Texture2D" uid="uid://ciu8g0idaobkr" path="res://assets/enemy/charge_middle.png" id="15_akhi5"]
 [ext_resource type="Script" uid="uid://mcbe4csqt24y" path="res://scripts/Boss.gd" id="16_7xk3q"]
 [ext_resource type="Texture2D" uid="uid://thxho4xtab31" path="res://assets/VFX/charge.png" id="17_ho3mf"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_boss_hurtbox"]
+size = Vector2(900, 520)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_ho3mf"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_7apjh"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_ho3mf"]
 atlas = ExtResource("17_ho3mf")
@@ -192,6 +199,17 @@ max_move_left = 400.0
 max_move_right = 400.0
 max_move_up = 0.0
 max_move_down = 150.0
+broken_fall_target_y = 160.0
+broken_right_tilt_degrees = 5.0
+
+[node name="BossHurtbox" type="Area2D" parent="."]
+collision_layer = 0
+monitoring = false
+monitorable = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BossHurtbox"]
+shape = SubResource("RectangleShape2D_boss_hurtbox")
+disabled = true
 
 [node name="RightSound" type="Sprite2D" parent="."]
 light_mask = 4
@@ -210,6 +228,14 @@ light_mask = 4
 position = Vector2(3.003003, 0)
 texture = ExtResource("5_rrd6h")
 
+[node name="LeftMissileHitbox" type="Area2D" parent="LeftMissile" groups=["enemy_hurtbox"]]
+collision_layer = 32
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="LeftMissile/LeftMissileHitbox"]
+position = Vector2(-666.6667, -255.25525)
+scale = Vector2(9.999999, 9.999999)
+shape = SubResource("RectangleShape2D_ho3mf")
+
 [node name="LeftSound" type="Sprite2D" parent="."]
 light_mask = 4
 texture = ExtResource("6_7g8a4")
@@ -226,6 +252,14 @@ texture = ExtResource("8_jruke")
 light_mask = 4
 texture = ExtResource("9_ysc7m")
 
+[node name="MiddlePadHitbox" type="Area2D" parent="MiddlePad" groups=["enemy_hurtbox"]]
+collision_layer = 32
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="MiddlePad/MiddlePadHitbox"]
+position = Vector2(9.009009, -153.15317)
+scale = Vector2(40, 25)
+shape = SubResource("RectangleShape2D_7apjh")
+
 [node name="MiddleWire" type="Sprite2D" parent="."]
 light_mask = 4
 texture = ExtResource("10_7ke2s")
@@ -241,6 +275,14 @@ texture = ExtResource("11_ppmbc")
 [node name="RightMissile" type="Sprite2D" parent="."]
 light_mask = 4
 texture = ExtResource("12_kw08n")
+
+[node name="RightMissileHitbox" type="Area2D" parent="RightMissile" groups=["enemy_hurtbox"]]
+collision_layer = 32
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="RightMissile/RightMissileHitbox"]
+position = Vector2(657.65765, -252.25226)
+scale = Vector2(10, 10)
+shape = SubResource("RectangleShape2D_ho3mf")
 
 [node name="Charge" type="Node2D" parent="."]
 light_mask = 4

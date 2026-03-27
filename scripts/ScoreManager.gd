@@ -58,6 +58,10 @@ var current_boss_health: float = 0.0
 var current_boss_energy: float = 0.0
 var temporary_energy_reduce: float = 0.0  # 本次攻击阶段的临时精力削减量
 var is_next_attack_charged: bool = false  # 下次攻击是否为蓄力版本
+var pending_attack_hits: Array[Dictionary] = []
+var attack_sfx_player: AudioStreamPlayer = null
+
+const PENDING_ATTACK_TIMEOUT: float = 0.6
 
 # 同级兄弟节点引用（GameManager 内部）
 @onready var beat_manager: Node = get_node("../BeatManager")
@@ -75,6 +79,10 @@ func _ready() -> void:
 	current_player_health = max_player_health
 	current_boss_health = max_boss_health
 	current_boss_energy = max_boss_energy
+
+	attack_sfx_player = AudioStreamPlayer.new()
+	attack_sfx_player.bus = "Master"
+	add_child(attack_sfx_player)
 	
 	# 创建暂停计时器
 	pause_timer = Timer.new()
@@ -85,6 +93,7 @@ func _ready() -> void:
 	# 通过 EventBus 连接信号（替代 get_node + signal connect）
 	EventBus.judgment_made.connect(_on_judgment_made)
 	EventBus.attack_performed.connect(_on_attack_performed)
+	EventBus.attack_hit_confirmed.connect(_on_attack_hit_confirmed)
 	
 	# 延迟一帧广播初始血量（确保 GameUI 已连接 EventBus）
 	call_deferred("_emit_health_update")
@@ -220,6 +229,7 @@ func _on_boss_energy_depleted() -> void:
 	var pause_duration: float = bi * GameConstants.TOTAL_ATTACK_BEATS
 	
 	print("\n========== 攻击阶段开始（共6小节", GameConstants.TOTAL_ATTACK_BEATS, "拍） ==========")
+	EventBus.attack_movement_enabled_changed.emit(true)
 	
 	# 为准备阶段添加节拍log
 	for i in range(1, GameConstants.COUNTDOWN_BEATS + 1):
@@ -321,6 +331,7 @@ func _start_attack_phase(duration: float, bi: float, first_beat_abs_time: float)
 	# 重置蓄力状态和临时精力削减量
 	is_next_attack_charged = false
 	temporary_energy_reduce = 0.0
+	pending_attack_hits.clear()
 	
 	# 启用攻击输入监听（传入 first_beat_abs_time 统一时间基准）
 	if input_manager and input_manager.has_method("start_attack_phase"):
@@ -335,6 +346,8 @@ func _on_attack_performed(attack_type: int) -> void:
 	if not attack_config:
 		print("警告：未配置攻击数据 (attack_config)")
 		return
+
+	_cleanup_pending_attack_hits()
 	
 	var player_cost: float = 0.0
 	var boss_damage: float = 0.0
@@ -345,6 +358,7 @@ func _on_attack_performed(attack_type: int) -> void:
 		0:  # LIGHT
 			if is_next_attack_charged:
 				# 蓄力轻攻击
+				_play_attack_action_sfx(attack_type, true)
 				player_cost = attack_config.charged_light_player_health_cost
 				boss_damage = attack_config.charged_light_boss_damage
 				energy_max_reduce = attack_config.charged_light_boss_energy_max_reduce
@@ -352,19 +366,25 @@ func _on_attack_performed(attack_type: int) -> void:
 				is_next_attack_charged = false  # 消耗蓄力状态
 			else:
 				# 普通轻攻击
+				_play_attack_action_sfx(attack_type, false)
 				player_cost = attack_config.light_player_health_cost
 				boss_damage = attack_config.light_boss_damage
 				energy_max_reduce = attack_config.light_boss_energy_max_reduce
 				print("发动轻攻击 - 消耗:", player_cost, " 伤害:", boss_damage, " 精力上限减少:", energy_max_reduce)
 			
-			# 应用效果
+			# 消耗在出手时结算，伤害在命中判定框时结算。
 			current_player_health -= player_cost
-			current_boss_health -= boss_damage
 			temporary_energy_reduce += energy_max_reduce  # 累加临时削减量
+			pending_attack_hits.append({
+				"type": attack_type,
+				"damage": boss_damage,
+				"time": Time.get_ticks_msec() / 1000.0
+			})
 		
 		1:  # HEAVY
 			if is_next_attack_charged:
 				# 蓄力重攻击
+				_play_attack_action_sfx(attack_type, true)
 				player_cost = attack_config.charged_heavy_player_health_cost
 				boss_damage = attack_config.charged_heavy_boss_damage
 				energy_max_reduce = attack_config.charged_heavy_boss_energy_max_reduce
@@ -372,18 +392,24 @@ func _on_attack_performed(attack_type: int) -> void:
 				is_next_attack_charged = false  # 消耗蓄力状态
 			else:
 				# 普通重攻击
+				_play_attack_action_sfx(attack_type, false)
 				player_cost = attack_config.heavy_player_health_cost
 				boss_damage = attack_config.heavy_boss_damage
 				energy_max_reduce = attack_config.heavy_boss_energy_max_reduce
 				print("发动重攻击 - 消耗:", player_cost, " 伤害:", boss_damage, " 精力上限减少:", energy_max_reduce)
 			
-			# 应用效果
+			# 消耗在出手时结算，伤害在命中判定框时结算。
 			current_player_health -= player_cost
-			current_boss_health -= boss_damage
 			temporary_energy_reduce += energy_max_reduce  # 累加临时削减量
+			pending_attack_hits.append({
+				"type": attack_type,
+				"damage": boss_damage,
+				"time": Time.get_ticks_msec() / 1000.0
+			})
 		
 		2:  # HEAL
 			# 回复
+			_play_attack_action_sfx(attack_type, false)
 			heal_amount = attack_config.heal_amount
 			current_player_health += heal_amount
 			print("发动回复 - 恢复:", heal_amount)
@@ -391,6 +417,7 @@ func _on_attack_performed(attack_type: int) -> void:
 		3:  # ENHANCE
 			# 蓄力（只在非蓄力状态时生效）
 			if not is_next_attack_charged:
+				_play_attack_action_sfx(attack_type, false)
 				is_next_attack_charged = true
 				print("发动蓄力 - 下次攻击将为蓄力版本")
 			else:
@@ -412,3 +439,55 @@ func _on_attack_performed(attack_type: int) -> void:
 		boss_defeated.emit()
 		EventBus.boss_defeated.emit()
 		print("Boss被击败！")
+
+
+func _on_attack_hit_confirmed(attack_type: int, _target: Variant) -> void:
+	_cleanup_pending_attack_hits()
+
+	var hit_index: int = -1
+	for i in range(pending_attack_hits.size()):
+		var pending: Dictionary = pending_attack_hits[i]
+		if pending.get("type", -1) == attack_type:
+			hit_index = i
+			break
+
+	if hit_index < 0:
+		return
+
+	var damage: float = float(pending_attack_hits[hit_index].get("damage", 0.0))
+	pending_attack_hits.remove_at(hit_index)
+
+	if damage <= 0.0:
+		return
+
+	current_boss_health -= damage
+	current_boss_health = clampf(current_boss_health, 0.0, max_boss_health)
+	_emit_health_update()
+	print("攻击命中 - 造成伤害:", damage)
+
+	if current_boss_health <= 0.0:
+		boss_defeated.emit()
+		EventBus.boss_defeated.emit()
+		print("Boss被击败！")
+
+
+func _cleanup_pending_attack_hits() -> void:
+	var now_time: float = Time.get_ticks_msec() / 1000.0
+	for i in range(pending_attack_hits.size() - 1, -1, -1):
+		var pending_time: float = float(pending_attack_hits[i].get("time", 0.0))
+		if now_time - pending_time > PENDING_ATTACK_TIMEOUT:
+			pending_attack_hits.remove_at(i)
+
+
+func _play_attack_action_sfx(attack_type: int, is_charged: bool) -> void:
+	if attack_config == null or attack_sfx_player == null:
+		return
+
+	var sfx_stream: AudioStream = attack_config.get_attack_sfx(attack_type, is_charged)
+	if sfx_stream == null:
+		return
+
+	attack_sfx_player.stream = sfx_stream
+	attack_sfx_player.volume_db = attack_config.get_attack_sfx_volume_db(attack_type, is_charged)
+	attack_sfx_player.bus = String(attack_config.attack_sfx_bus)
+	attack_sfx_player.play()

@@ -79,6 +79,14 @@ enum BossState {
 @export var broken_animation: StringName = &"stunned"
 @export var dead_animation: StringName = &"dead"
 
+@export_group("Attack Hit Flash")
+@export_node_path("CanvasItem") var middle_body_visual_path: NodePath = NodePath("MiddlePad")
+@export_node_path("CanvasItem") var left_missile_visual_path: NodePath = NodePath("LeftMissile")
+@export_node_path("CanvasItem") var right_missile_visual_path: NodePath = NodePath("RightMissile")
+@export_range(0.1, 8.0, 0.1) var attack_hint_flash_speed: float = 2.6
+@export_range(0.05, 1.5, 0.01) var attack_hint_flash_strength: float = 0.9
+@export_range(0.03, 0.5, 0.01) var hit_red_flash_duration: float = 0.14
+
 var current_state: BossState = BossState.IDLE
 
 # 条件输入（可由外部系统写入，用于状态切换）
@@ -94,6 +102,9 @@ var _idle_timer: float = 0.0
 
 var _animation_player: AnimationPlayer = null
 var _animated_sprite: AnimatedSprite2D = null
+var _middle_body_visual: CanvasItem = null
+var _left_missile_visual: CanvasItem = null
+var _right_missile_visual: CanvasItem = null
 var _charge_node: Node2D = null
 var _charge_anim_sprite: AnimatedSprite2D = null
 var _target_character: Node2D = null
@@ -127,6 +138,11 @@ var _break_start_rotation: float = 0.0
 var _has_break_start_rotation: bool = false
 var _return_to_origin_tween: Tween = null
 var _return_to_origin_active: bool = false
+var _attack_hint_flash_active: bool = false
+var _attack_hint_flash_phase: float = 0.0
+var _middle_red_flash_remaining: float = 0.0
+var _left_red_flash_remaining: float = 0.0
+var _right_red_flash_remaining: float = 0.0
 
 const MISSILE_EFFECT_GROUP: StringName = &"boss_missile_effect"
 const PLAYER_DASH_AFTERIMAGE_GROUP: StringName = &"player_dash_afterimage"
@@ -142,6 +158,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_update_attack_hit_flash(delta)
+
 	if _attack_phase_interrupted:
 		return
 
@@ -181,6 +199,12 @@ func _resolve_animation_nodes() -> void:
 		_animation_player = get_node_or_null(animation_player_path) as AnimationPlayer
 	if not animated_sprite_path.is_empty():
 		_animated_sprite = get_node_or_null(animated_sprite_path) as AnimatedSprite2D
+	if not middle_body_visual_path.is_empty():
+		_middle_body_visual = get_node_or_null(middle_body_visual_path) as CanvasItem
+	if not left_missile_visual_path.is_empty():
+		_left_missile_visual = get_node_or_null(left_missile_visual_path) as CanvasItem
+	if not right_missile_visual_path.is_empty():
+		_right_missile_visual = get_node_or_null(right_missile_visual_path) as CanvasItem
 
 
 func _resolve_aim_nodes() -> void:
@@ -221,6 +245,8 @@ func _connect_global_signals() -> void:
 		EventBus.attack_phase_started.connect(_on_attack_phase_started)
 	if not EventBus.attack_phase_ended.is_connected(_on_attack_phase_ended):
 		EventBus.attack_phase_ended.connect(_on_attack_phase_ended)
+	if not EventBus.attack_hit_confirmed.is_connected(_on_attack_hit_confirmed):
+		EventBus.attack_hit_confirmed.connect(_on_attack_hit_confirmed)
 	if not EventBus.show_return_countdown_requested.is_connected(_on_show_return_countdown_requested):
 		EventBus.show_return_countdown_requested.connect(_on_show_return_countdown_requested)
 
@@ -567,6 +593,8 @@ func _play_state_animation(anim_name: StringName) -> void:
 
 func _on_boss_defeated() -> void:
 	is_dead = true
+	_set_attack_hint_flash_active(false)
+	_reset_attack_hit_visuals()
 	_stop_break_transition()
 	_attack_phase_interrupted = false
 	_is_preparing_missile = false
@@ -582,6 +610,7 @@ func _on_boss_defeated() -> void:
 
 
 func _on_attack_phase_started() -> void:
+	_set_attack_hint_flash_active(true)
 	_stop_return_to_origin_transition()
 	_interrupt_for_attack_phase(BossState.BROKEN)
 
@@ -616,6 +645,9 @@ func _on_attack_phase_ended() -> void:
 	if is_dead:
 		return
 
+	_set_attack_hint_flash_active(false)
+	_reset_attack_hit_visuals()
+
 	_stop_break_transition()
 	_stop_return_to_origin_transition()
 	_attack_phase_interrupted = false
@@ -636,16 +668,98 @@ func _on_attack_phase_ended() -> void:
 	_pick_next_move_target()
 
 
-func _on_show_return_countdown_requested(count: int) -> void:
-	if is_dead:
-		return
-	if not _attack_phase_interrupted:
+func _on_show_return_countdown_requested(_count: int) -> void:
+	# 需求变更：取消转阶段后撤。
+	return
+
+
+func _on_attack_hit_confirmed(_attack_type: int, target: Variant) -> void:
+	if target == null:
 		return
 
-	# 退出倒计时共 4 拍，InputManager 依次发 3/2/1/0。
-	# 在第一拍（count=3）启动：1 拍回正 + 3 拍回原点。
-	if count == (GameConstants.EXIT_BEATS - 1):
-		_start_return_to_origin_transition()
+	var target_node: Node = target as Node
+	if target_node == null:
+		return
+
+	var hit_visual: CanvasItem = _resolve_hit_visual_target(target_node)
+	if hit_visual == null:
+		return
+
+	if hit_visual == _middle_body_visual:
+		_middle_red_flash_remaining = maxf(_middle_red_flash_remaining, hit_red_flash_duration)
+	elif hit_visual == _left_missile_visual:
+		_left_red_flash_remaining = maxf(_left_red_flash_remaining, hit_red_flash_duration)
+	elif hit_visual == _right_missile_visual:
+		_right_red_flash_remaining = maxf(_right_red_flash_remaining, hit_red_flash_duration)
+
+
+func _set_attack_hint_flash_active(enabled: bool) -> void:
+	_attack_hint_flash_active = enabled
+	if not enabled:
+		_attack_hint_flash_phase = 0.0
+
+
+func _update_attack_hit_flash(delta: float) -> void:
+	if _middle_body_visual == null and _left_missile_visual == null and _right_missile_visual == null:
+		return
+
+	_middle_red_flash_remaining = maxf(0.0, _middle_red_flash_remaining - delta)
+	_left_red_flash_remaining = maxf(0.0, _left_red_flash_remaining - delta)
+	_right_red_flash_remaining = maxf(0.0, _right_red_flash_remaining - delta)
+
+	var normal_color: Color = Color(1.0, 1.0, 1.0, 1.0)
+	if _attack_hint_flash_active:
+		_attack_hint_flash_phase += delta * maxf(0.1, attack_hint_flash_speed)
+		var pulse: float = (sin(_attack_hint_flash_phase * TAU) + 1.0) * 0.5
+		var strength: float = clampf(attack_hint_flash_strength, 0.0, 1.5)
+		var boost: float = 0.18 + pulse * strength
+		normal_color = Color(1.0 + boost, 1.0 + boost, 1.0 + boost, 1.0)
+
+	var hit_red_color: Color = Color(1.75, 0.30, 0.30, 1.0)
+	_apply_single_visual_color(_middle_body_visual, hit_red_color if _middle_red_flash_remaining > 0.0 else normal_color)
+	_apply_single_visual_color(_left_missile_visual, hit_red_color if _left_red_flash_remaining > 0.0 else normal_color)
+	_apply_single_visual_color(_right_missile_visual, hit_red_color if _right_red_flash_remaining > 0.0 else normal_color)
+
+
+func _apply_attack_hit_visual_color(color_value: Color) -> void:
+	for visual in _get_attack_hit_visuals():
+		visual.self_modulate = color_value
+
+
+func _apply_single_visual_color(visual: CanvasItem, color_value: Color) -> void:
+	if visual == null:
+		return
+	visual.self_modulate = color_value
+
+
+func _reset_attack_hit_visuals() -> void:
+	_middle_red_flash_remaining = 0.0
+	_left_red_flash_remaining = 0.0
+	_right_red_flash_remaining = 0.0
+	_apply_attack_hit_visual_color(Color(1.0, 1.0, 1.0, 1.0))
+
+
+func _get_attack_hit_visuals() -> Array[CanvasItem]:
+	var visuals: Array[CanvasItem] = []
+	if _middle_body_visual != null:
+		visuals.append(_middle_body_visual)
+	if _left_missile_visual != null:
+		visuals.append(_left_missile_visual)
+	if _right_missile_visual != null:
+		visuals.append(_right_missile_visual)
+	return visuals
+
+
+func _resolve_hit_visual_target(target_node: Node) -> CanvasItem:
+	if target_node == null:
+		return null
+	if target_node == _middle_body_visual or (_middle_body_visual != null and _middle_body_visual.is_ancestor_of(target_node)):
+		return _middle_body_visual
+	if target_node == _left_missile_visual or (_left_missile_visual != null and _left_missile_visual.is_ancestor_of(target_node)):
+		return _left_missile_visual
+	if target_node == _right_missile_visual or (_right_missile_visual != null and _right_missile_visual.is_ancestor_of(target_node)):
+		return _right_missile_visual
+	return null
 
 
 func _on_boss_charge_requested(duration_beats: int) -> void:
@@ -698,6 +812,14 @@ func _on_boss_missile_requested(duration_beats: int) -> void:
 	# 发射到命中耗时 = phase1 + phase2，确保第二轨到判定线时导弹命中玩家。
 	var flight_beats: int = maxi(1, missile_phase1_beats) + maxi(1, missile_phase2_beats)
 	var launch_lead_beats: int = maxi(0, beats - flight_beats)
+
+	# 命中提前量不足时直接发射，避免依赖 _process 调度导致漏发。
+	if launch_lead_beats <= 0:
+		_has_pending_missile_launch = false
+		_pending_missile_launch_time = 0.0
+		_is_preparing_missile = false
+		_launch_missile_attack_now()
+		return
 
 	# 预约“下一次导弹发射时间”，不再做发射前归位。
 	_has_pending_missile_launch = true
@@ -1093,22 +1215,7 @@ func _start_shield_break_transition() -> void:
 	if fall_duration > 0.0:
 		_break_transition_tween.tween_property(self, "global_position:y", broken_fall_target_y, fall_duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 
-	# 玩家：前三拍不动，最后一拍冲到 boss_x + 50（Y 保持原值）。
-	if _player_node != null:
-		var dash_duration: float = bi
-		var wait_duration: float = maxf(0.0, duration - dash_duration)
-		var player_start_y: float = _player_node.global_position.y
-		var player_target: Vector2 = Vector2(global_position.x + broken_player_dash_offset_x, player_start_y)
-
-		_player_dash_tween = create_tween()
-		_player_dash_tween.tween_interval(wait_duration)
-		_player_dash_tween.tween_callback(func() -> void:
-			_start_player_dash_afterimage(dash_duration)
-		)
-		_player_dash_tween.tween_property(_player_node, "global_position", player_target, dash_duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-		_player_dash_tween.tween_callback(func() -> void:
-			_stop_player_dash_afterimage()
-		)
+	# 需求变更：取消转阶段冲刺，玩家位置保持不变。
 
 
 func _stop_break_transition() -> void:

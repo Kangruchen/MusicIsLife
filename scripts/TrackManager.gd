@@ -81,6 +81,7 @@ var tracked_notes: Array[Note] = []
 
 @export_group("判定前按键提示")
 @export var enable_prejudge_key_hint: bool = true
+@export_range(0, 10, 1) var defense_hint_max_per_attack_type: int = 2
 @export_node_path("Node2D") var hint_player_node_path: NodePath = NodePath("../../Character")
 @export var hint_guard_offset: Vector2 = Vector2(-70.0, -110.0)  # J: 左上
 @export var hint_hit_offset: Vector2 = Vector2(0.0, -120.0)      # I: 正上
@@ -127,9 +128,16 @@ var _external_anim_tokens: Dictionary = {
 var _effect_runtime_token: int = 0
 var _hint_runtime_token: int = 0
 var _active_key_hints: Array[Node2D] = []
+var _defense_hint_shown_counts: Dictionary = {
+	Note.NoteType.GUARD: 0,
+	Note.NoteType.HIT: 0,
+	Note.NoteType.DODGE: 0
+}
 
 
 func _ready() -> void:
+	_reset_defense_hint_counts()
+
 	# 根据实际视口宽度动态计算音符生成X坐标（屏幕右侧外100px）
 	spawn_x = get_viewport().get_visible_rect().size.x + 100.0
 	
@@ -252,19 +260,19 @@ func _on_beat_hit(beat_number: float, _note: Note) -> void:
 
 
 ## 检查并生成需要提前生成的音符（基于时间）
-func _check_and_spawn_notes_by_time(current_time: float) -> void:
+func _check_and_spawn_notes_by_time(now_time: float) -> void:
 	for note in scheduled_notes.duplicate():
 		var advance_beats: int = SPAWN_ADVANCE[note.type]
 		var spawn_time: float = note.beat_time - advance_beats * EventBus.beat_interval
 		
 		# 如果当前时间已经到达或超过音符的生成时间
-		if current_time >= spawn_time:
+		if now_time >= spawn_time:
 			_spawn_note(note)
 			scheduled_notes.erase(note)
 
 
 ## 检查并生成需要提前生成的音符（已废弃，保留用于节拍信号触发）
-func _check_and_spawn_notes(current_beat: float) -> void:
+func _check_and_spawn_notes(_current_beat: float) -> void:
 	# 此方法已被 _check_and_spawn_notes_by_time 替代
 	# 但保留用于兼容 beat_hit 信号的调用
 	pass
@@ -351,6 +359,8 @@ func _spawn_prejudge_key_hint(note_type: Note.NoteType) -> void:
 		return
 	if not game_ui:
 		return
+	if not _can_show_prejudge_hint(note_type):
+		return
 
 	var hint := PREJUDGE_KEY_HINT_SCRIPT.new() as PrejudgeKeyHint
 	if hint == null:
@@ -373,6 +383,7 @@ func _spawn_prejudge_key_hint(note_type: Note.NoteType) -> void:
 	game_ui.add_child(hint)
 	hint.position = _get_hint_screen_position(note_type)
 	_active_key_hints.append(hint)
+	_increment_prejudge_hint_count(note_type)
 
 
 func _get_hint_screen_position(note_type: Note.NoteType) -> Vector2:
@@ -493,6 +504,24 @@ func _on_attack_phase_ended() -> void:
 	_attack_phase_blocked = false
 	# 由 ScoreManager 的 _on_pause_timeout 统一恢复生成，
 	# 避免 attack_phase_ended（提前半拍）导致过早恢复。
+
+
+func _can_show_prejudge_hint(note_type: Note.NoteType) -> bool:
+	if defense_hint_max_per_attack_type <= 0:
+		return false
+	var shown_count: int = int(_defense_hint_shown_counts.get(note_type, 0))
+	return shown_count < defense_hint_max_per_attack_type
+
+
+func _increment_prejudge_hint_count(note_type: Note.NoteType) -> void:
+	var shown_count: int = int(_defense_hint_shown_counts.get(note_type, 0))
+	_defense_hint_shown_counts[note_type] = shown_count + 1
+
+
+func _reset_defense_hint_counts() -> void:
+	_defense_hint_shown_counts[Note.NoteType.GUARD] = 0
+	_defense_hint_shown_counts[Note.NoteType.HIT] = 0
+	_defense_hint_shown_counts[Note.NoteType.DODGE] = 0
 
 
 ## 生成轨道动画（音符生成时自动播放，attack_end_frame 对齐判定时刻）

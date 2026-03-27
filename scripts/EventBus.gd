@@ -19,8 +19,10 @@ signal miss_triggered(track: int)
 
 # === 攻击阶段 ===
 signal attack_performed(attack_type: int)
+signal attack_hit_confirmed(attack_type: int, target: Variant)
 signal attack_phase_started
 signal attack_phase_ended
+signal attack_movement_enabled_changed(enabled: bool)
 
 # === 血量 / 状态 ===
 signal player_health_updated(current: float, maximum: float)
@@ -54,8 +56,10 @@ func _suppress_unused_signal_warnings() -> void:
 	defense_key_pressed.emit(0)
 	miss_triggered.emit(0)
 	attack_performed.emit(0)
+	attack_hit_confirmed.emit(0, null)
 	attack_phase_started.emit()
 	attack_phase_ended.emit()
+	attack_movement_enabled_changed.emit(false)
 	player_health_updated.emit(0.0, 0.0)
 	boss_health_updated.emit(0.0, 0.0)
 	boss_energy_updated.emit(0.0, 0.0)

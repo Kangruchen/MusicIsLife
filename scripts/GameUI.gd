@@ -29,6 +29,12 @@ var active_beat_notes: Array[ColorRect] = []  # 当前活动的节拍标记
 var _beat_note_speed: float = 0.0  # 所有节拍音符的统一移动速度（px/秒）
 var _beat_note_width: float = 0.0  # 所有节拍音符的统一宽度（px）
 
+const BEAT_TRACK_WIDTH: float = 560.0
+const BEAT_TRACK_HEIGHT: float = 40.0
+const BEAT_TRACK_TOP_OFFSET: float = 28.0
+const BEAT_NOTE_TRAVEL_DISTANCE: float = BEAT_TRACK_WIDTH * 0.5
+const BEAT_TRACK_CENTER_X: float = BEAT_TRACK_WIDTH * 0.5
+
 
 func _ready() -> void:
 	# 通过 EventBus 连接所有信号（替代 get_node 硬编码路径）
@@ -222,7 +228,7 @@ func _create_attack_ui() -> void:
 	
 	# 创建提示标签
 	attack_hint_label = Label.new()
-	attack_hint_label.text = "攻击阶段！跟随节拍按键发动攻击"
+	attack_hint_label.text = ""
 	attack_hint_label.add_theme_font_size_override("font_size", 20)
 	attack_hint_label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.3))
 	attack_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -230,6 +236,7 @@ func _create_attack_ui() -> void:
 	attack_hint_label.anchor_right = 1.0
 	attack_hint_label.offset_top = 10.0
 	attack_hint_label.offset_bottom = 35.0
+	attack_hint_label.visible = false
 	attack_ui_container.add_child(attack_hint_label)
 	
 	# 创建节拍提示音轨（作为GameUI的直接子节点，不是attack_ui_container的子节点）
@@ -237,12 +244,12 @@ func _create_attack_ui() -> void:
 	beat_track_container.name = "BeatTrackContainer"
 	beat_track_container.anchor_left = 0.5
 	beat_track_container.anchor_right = 0.5
-	beat_track_container.anchor_top = 1.0  # 在屏幕底部
-	beat_track_container.anchor_bottom = 1.0
-	beat_track_container.offset_left = -400.0
-	beat_track_container.offset_right = 400.0
-	beat_track_container.offset_top = -230.0  # 在屏幕底部上方
-	beat_track_container.offset_bottom = -160.0
+	beat_track_container.anchor_top = 0.0
+	beat_track_container.anchor_bottom = 0.0
+	beat_track_container.offset_left = -BEAT_TRACK_WIDTH * 0.5
+	beat_track_container.offset_right = BEAT_TRACK_WIDTH * 0.5
+	beat_track_container.offset_top = BEAT_TRACK_TOP_OFFSET
+	beat_track_container.offset_bottom = BEAT_TRACK_TOP_OFFSET + BEAT_TRACK_HEIGHT
 	beat_track_container.visible = false  # 默认隐藏
 	add_child(beat_track_container)  # 添加到GameUI而非attack_ui_container
 	
@@ -258,8 +265,8 @@ func _create_attack_ui() -> void:
 	beat_judgment_line.color = Color(1.0, 1.0, 0.3, 0.9)
 	beat_judgment_line.anchor_top = 0.0
 	beat_judgment_line.anchor_bottom = 1.0
-	beat_judgment_line.offset_left = 397.5  # 容器中间（800px/2 - 2.5px）
-	beat_judgment_line.offset_right = 402.5  # 5px宽
+	beat_judgment_line.offset_left = BEAT_TRACK_CENTER_X - 1.5
+	beat_judgment_line.offset_right = BEAT_TRACK_CENTER_X + 1.5
 	beat_track_container.add_child(beat_judgment_line)
 
 
@@ -313,17 +320,17 @@ func spawn_beat_note(beat_interval: float, target_time: float) -> void:
 		return
 	
 	# 计算统一速度和宽度（400px 对应 2 拍移动距离）
-	_beat_note_speed = 400.0 / (2.0 * beat_interval)
+	_beat_note_speed = BEAT_NOTE_TRAVEL_DISTANCE / (2.0 * beat_interval)
 	_beat_note_width = _beat_note_speed * beat_interval  # 一拍宽度
 	
 	# 创建节拍标记
 	var beat_note: ColorRect = ColorRect.new()
 	beat_note.color = Color(1.0, 1.0, 1.0, 0.8)  # 白色（未输入状态）
-	beat_note.custom_minimum_size = Vector2(_beat_note_width, 40)
+	beat_note.custom_minimum_size = Vector2(_beat_note_width, BEAT_TRACK_HEIGHT * 0.6)
 	beat_note.anchor_top = 0.5
 	beat_note.anchor_bottom = 0.5
-	beat_note.offset_top = -20.0
-	beat_note.offset_bottom = 20.0
+	beat_note.offset_top = -BEAT_TRACK_HEIGHT * 0.3
+	beat_note.offset_bottom = BEAT_TRACK_HEIGHT * 0.3
 	# 存储目标时间，由 _process 基于绝对时间计算位置
 	beat_note.set_meta("target_time", target_time)
 	beat_track_container.add_child(beat_note)
@@ -343,7 +350,7 @@ func _update_beat_note_positions() -> void:
 		if not is_instance_valid(note):
 			continue
 		var target_time: float = note.get_meta("target_time", 0.0)
-		var center_x: float = 400.0 + (target_time - now) * _beat_note_speed
+		var center_x: float = BEAT_TRACK_CENTER_X + (target_time - now) * _beat_note_speed
 		note.offset_left = center_x - hw
 		note.offset_right = center_x + hw
 		# 完全移出屏幕左侧后销毁（不从数组移除，保持索引稳定）
@@ -358,7 +365,7 @@ func _position_single_beat_note(note: ColorRect) -> void:
 	var hw: float = _beat_note_width / 2.0
 	var now: float = Time.get_ticks_msec() / 1000.0
 	var target_time: float = note.get_meta("target_time", 0.0)
-	var center_x: float = 400.0 + (target_time - now) * _beat_note_speed
+	var center_x: float = BEAT_TRACK_CENTER_X + (target_time - now) * _beat_note_speed
 	note.offset_left = center_x - hw
 	note.offset_right = center_x + hw
 
@@ -384,10 +391,7 @@ func show_return_countdown(count: int) -> void:
 		countdown_label.modulate.a = 1.0
 		alpha_tween.tween_property(countdown_label, "modulate:a", 0.5, 0.6)
 	
-	# 同时更新攻击面板UI的提示文字
-	if attack_hint_label:
-		attack_hint_label.text = "返回防御阶段: " + str(count)
-		attack_hint_label.add_theme_color_override("font_color", Color(1.0, 0.5, 0.0))
+	# 按需求移除文字提示，仅保留倒计时数字。
 
 
 ## 攻击发动时的回调
@@ -397,14 +401,14 @@ func _on_attack_performed(attack_type: int) -> void:
 	if not attack_ui_container or not attack_ui_container.visible:
 		print("警告：攻击UI未显示！")
 		return
-	
-	# 使用独立的计数器
+
+	# 每次行动消耗的拍数：重击2拍，其余1拍。
+	var beat_cost: int = 2 if attack_type == 1 else 1
 	var beat_index: int = attack_count
-	attack_count += 1  # 递增计数器
-	
 	if beat_index < 0 or beat_index >= active_beat_notes.size():
 		print("错误：节拍索引超出范围: ", beat_index, "/", active_beat_notes.size())
 		return
+	attack_count += beat_cost
 	
 	# 根据攻击类型选择颜色
 	var fill_color: Color = Color.GRAY
@@ -422,34 +426,29 @@ func _on_attack_performed(attack_type: int) -> void:
 		3:  # ENHANCE - 红色
 			fill_color = Color(1.0, 0.2, 0.2, 0.9)
 			attack_name = "蓄力"
-	
-	# 将对应的音符变色
-	var beat_note: ColorRect = active_beat_notes[beat_index]
-	if is_instance_valid(beat_note):
+
+	# 将被本次行动占用的拍子全部上色。
+	for i in range(beat_cost):
+		var fill_index: int = beat_index + i
+		if fill_index < 0 or fill_index >= active_beat_notes.size():
+			break
+		var beat_note: ColorRect = active_beat_notes[fill_index]
+		if not is_instance_valid(beat_note):
+			continue
 		beat_note.color = fill_color
-		print("拍", beat_index + 1, ": ", attack_name, " - 音符已变色")
-		
-		# 处理蓄力逻辑
-		if attack_type == 3:  # ENHANCE - 设置蓄力标志
-			is_next_attack_charged = true
-			print("蓄力激活 - 下次轻/重攻击将显示特效")
-		elif attack_type == 0 or attack_type == 1:  # LIGHT 或 HEAVY - 检查是否蓄力
-			if is_next_attack_charged:
-				_add_charge_visual_effect(beat_note)
-				print("蓄力攻击！- 音符", beat_index + 1, "已添加发光效果")
-				
-				# 重击消耗2拍，给下一个音符也添加特效
-				if attack_type == 1:  # HEAVY
-					var next_index: int = beat_index + 1
-					if next_index < active_beat_notes.size():
-						var next_note: ColorRect = active_beat_notes[next_index]
-						if is_instance_valid(next_note):
-							_add_charge_visual_effect(next_note)
-							print("蓄力重击第二拍 - 音符", next_index + 1, "已添加发光效果")
-				
-				is_next_attack_charged = false  # 消耗蓄力状态
-	else:
-		print("错误：音符已被销毁")
+		print("拍", fill_index + 1, ": ", attack_name, " - 音符已变色")
+
+		# 蓄力视觉：下一次轻/重攻击时，给本次占用的所有拍添加特效。
+		if (attack_type == 0 or attack_type == 1) and is_next_attack_charged:
+			_add_charge_visual_effect(beat_note)
+			print("蓄力攻击！- 音符", fill_index + 1, "已添加发光效果")
+
+	# 处理蓄力状态机
+	if attack_type == 3:
+		is_next_attack_charged = true
+		print("蓄力激活 - 下次轻/重攻击将显示特效")
+	elif (attack_type == 0 or attack_type == 1) and is_next_attack_charged:
+		is_next_attack_charged = false
 
 
 ## 为蓄力政击音符添加发光边框效果

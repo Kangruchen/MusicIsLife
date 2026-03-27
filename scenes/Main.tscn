@@ -105,13 +105,6 @@ position = Vector2(228, -40)
 [node name="Missile2" type="Node2D" parent="PositionNodes"]
 position = Vector2(-235, -102)
 
-[node name="BossFall" type="Node2D" parent="PositionNodes"]
-position = Vector2(-79, 131)
-rotation = 0.7853982
-
-[node name="PlayerDash" type="Node2D" parent="PositionNodes"]
-position = Vector2(52, 103)
-
 [node name="GameManager" type="Node" parent="."]
 
 [node name="MusicPlayer" type="Node" parent="GameManager"]
@@ -158,9 +151,8 @@ dodge_boss_damage_perfect = 10.0
 dodge_player_health_perfect = 0.0
 dodge_player_health_great = 0.0
 dodge_player_health_good = 0.0
-dodge_player_health_miss = 1.0
+dodge_player_health_miss = -20.0
 max_boss_health = 2000.0
-max_boss_energy = 1.0
 attack_config = ExtResource("12_qmy6f")
 
 [node name="Boss" parent="." instance=ExtResource("16_cvmbd")]
@@ -173,6 +165,8 @@ max_move_down = 0.0
 move_pick_min_distance = 50.0
 move_pick_max_distance = 300.0
 idle_between_moves_range = Vector2(0.25, 1)
+boss_fall_target_path = NodePath("")
+player_dash_target_path = NodePath("")
 charge_rotation_offset_degrees = -90.0
 pre_charge_distance_from_player = 250.0
 
