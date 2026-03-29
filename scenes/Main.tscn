@@ -39,6 +39,10 @@ script = ExtResource("1_main")
 visible = false
 
 [node name="Camera2D" type="Camera2D" parent="."]
+limit_left = -320
+limit_top = -180
+limit_right = 320
+limit_bottom = 180
 
 [node name="Lights" type="Node2D" parent="."]
 visible = false
@@ -82,28 +86,7 @@ environment = SubResource("Environment_cvmbd")
 position = Vector2(0, 100)
 
 [node name="Laser2" type="Node2D" parent="PositionNodes"]
-position = Vector2(0, 115)
-
-[node name="Laser3" type="Node2D" parent="PositionNodes"]
 position = Vector2(0, 130)
-
-[node name="WarnLaser1" type="Node2D" parent="PositionNodes"]
-position = Vector2(-300, 100)
-
-[node name="WarnLaser2" type="Node2D" parent="PositionNodes"]
-position = Vector2(-300, 115)
-
-[node name="WarnLaser3" type="Node2D" parent="PositionNodes"]
-position = Vector2(-300, 130)
-
-[node name="Missile1" type="Node2D" parent="PositionNodes"]
-position = Vector2(-272, -65)
-
-[node name="Charge1" type="Node2D" parent="PositionNodes"]
-position = Vector2(228, -40)
-
-[node name="Missile2" type="Node2D" parent="PositionNodes"]
-position = Vector2(-235, -102)
 
 [node name="GameManager" type="Node" parent="."]
 
@@ -118,13 +101,12 @@ bpm = 0.0
 generate_test_chart = false
 chart_sm_path = "res://assets/charts/Factory Fever.sm"
 
-[node name="TrackManager" type="Node" parent="GameManager" node_paths=PackedStringArray("guard_position_nodes", "hit_position_nodes", "dodge_position_nodes", "game_ui")]
+[node name="TrackManager" type="Node" parent="GameManager" node_paths=PackedStringArray("guard_position_nodes", "game_ui")]
 script = ExtResource("4_track_mgr")
 key_sound_config = ExtResource("8_bjd11")
+boss_laser_sound = null
 track_animation_config = ExtResource("8_mwfav")
-guard_position_nodes = [NodePath("../../PositionNodes/Laser1"), NodePath("../../PositionNodes/Laser2"), NodePath("../../PositionNodes/Laser3")]
-hit_position_nodes = [NodePath("../../PositionNodes/Missile1"), NodePath("../../PositionNodes/Missile2")]
-dodge_position_nodes = [NodePath("../../PositionNodes/Charge1")]
+guard_position_nodes = [NodePath("../../PositionNodes/Laser1"), NodePath("../../PositionNodes/Laser2")]
 game_ui = NodePath("../../GameUI")
 
 [node name="InputManager" type="Node" parent="GameManager"]
@@ -153,6 +135,7 @@ dodge_player_health_great = 0.0
 dodge_player_health_good = 0.0
 dodge_player_health_miss = -20.0
 max_boss_health = 2000.0
+max_boss_energy = 1.0
 attack_config = ExtResource("12_qmy6f")
 
 [node name="Boss" parent="." instance=ExtResource("16_cvmbd")]

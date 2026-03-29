@@ -54,7 +54,7 @@ enum BossState {
 @export var player_dash_afterimage_color: Color = Color(0.65, 0.95, 1.0, 1.0)
 
 @export_group("Charge State")
-@export var charge_duration_beats: int = 4
+@export var charge_duration_beats: int = 3
 @export var charge_animation_name: StringName = &"charge"
 @export var track_animation_config: TrackAnimationConfig = null
 @export var pre_charge_distance_from_player: float = 150.0
@@ -249,6 +249,8 @@ func _connect_global_signals() -> void:
 		EventBus.attack_hit_confirmed.connect(_on_attack_hit_confirmed)
 	if not EventBus.show_return_countdown_requested.is_connected(_on_show_return_countdown_requested):
 		EventBus.show_return_countdown_requested.connect(_on_show_return_countdown_requested)
+	if not EventBus.player_died.is_connected(_on_player_died):
+		EventBus.player_died.connect(_on_player_died)
 
 
 func _evaluate_state_by_conditions() -> void:
@@ -671,6 +673,25 @@ func _on_attack_phase_ended() -> void:
 func _on_show_return_countdown_requested(_count: int) -> void:
 	# 需求变更：取消转阶段后撤。
 	return
+
+
+func _on_player_died() -> void:
+	# 玩家死亡后，Boss 逻辑完全冻结（不再移动/攻击/调度）。
+	is_dead = true
+	_attack_phase_interrupted = true
+	_has_move_target = false
+	_is_preparing_missile = false
+	_is_preparing_charge = false
+	_has_pending_missile_launch = false
+	_has_pending_charge_fire = false
+	_pending_charge_fire_time = 0.0
+	_pending_missile_beats = 0
+	_pending_charge_beats = 0
+	_charge_state_remaining_time = 0.0
+	_missile_state_remaining_time = 0.0
+	_stop_charge_animation()
+	_clear_active_missiles()
+	set_process(false)
 
 
 func _on_attack_hit_confirmed(_attack_type: int, target: Variant) -> void:

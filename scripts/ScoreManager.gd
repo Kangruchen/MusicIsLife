@@ -60,6 +60,7 @@ var temporary_energy_reduce: float = 0.0  # 本次攻击阶段的临时精力削
 var is_next_attack_charged: bool = false  # 下次攻击是否为蓄力版本
 var pending_attack_hits: Array[Dictionary] = []
 var attack_sfx_player: AudioStreamPlayer = null
+var is_game_over: bool = false
 
 const PENDING_ATTACK_TIMEOUT: float = 0.6
 
@@ -108,6 +109,9 @@ func _emit_health_update() -> void:
 
 ## 判定触发回调
 func _on_judgment_made(track: int, judgment: int, _timing_diff: float) -> void:
+	if is_game_over:
+		return
+
 	# 攻击阶段整段暂停窗口内（含退出倒计时到真正恢复前），忽略防御判定，
 	# 避免提前扣盾后被 _on_pause_timeout 的精力恢复覆盖。
 	if is_paused_for_attack:
@@ -142,8 +146,7 @@ func _on_judgment_made(track: int, judgment: int, _timing_diff: float) -> void:
 	
 	# 检查胜负条件
 	if current_player_health <= 0.0:
-		player_died.emit()
-		EventBus.player_died.emit()
+		_trigger_player_game_over()
 		print("玩家失败！")
 	elif current_boss_health <= 0.0:
 		boss_defeated.emit()
@@ -235,6 +238,8 @@ func _on_boss_energy_depleted() -> void:
 	for i in range(1, GameConstants.COUNTDOWN_BEATS + 1):
 		var beat_num: int = i
 		get_tree().create_timer(bi * (i - 1)).timeout.connect(func():
+			if is_game_over:
+				return
 			print("[总拍", beat_num, "/", GameConstants.TOTAL_ATTACK_BEATS, "] 准备阶段 - 拍", beat_num, "/", GameConstants.COUNTDOWN_BEATS))
 			
 	
@@ -262,19 +267,27 @@ func _on_boss_energy_depleted() -> void:
 	var note2_target: float = first_beat_abs_time + bi
 	# 在准备阶段第3拍开始时生成第一个音符
 	get_tree().create_timer(bi * 2.0).timeout.connect(func():
+		if is_game_over:
+			return
 		EventBus.spawn_beat_note_requested.emit(bi, note1_target)
 	)
 	# 在准备阶段第4拍开始时生成第二个音符
 	get_tree().create_timer(bi * 3.0).timeout.connect(func():
+		if is_game_over:
+			return
 		EventBus.spawn_beat_note_requested.emit(bi, note2_target)
 	)
 	# 后四个小节：节拍闪光效果
 	get_tree().create_timer(countdown_duration).timeout.connect(func():
+		if is_game_over:
+			return
 		EventBus.play_beat_flash_requested.emit(bi, GameConstants.INPUT_BEATS)
 	)
 	# 提前半拍启动攻击阶段（传入 first_beat_abs_time 保证时间网格一证）
 	var _fba := first_beat_abs_time
 	get_tree().create_timer(countdown_duration - bi * GameConstants.FIRST_BEAT_DELAY_RATIO).timeout.connect(func():
+		if is_game_over:
+			return
 		_start_attack_phase(attack_duration + return_countdown_duration, bi, _fba)
 	)
 	
@@ -288,6 +301,8 @@ func _on_boss_energy_depleted() -> void:
 		
 		# 提前淡入恢复音乐
 		get_tree().create_timer(pause_duration - GameConstants.MUSIC_RESUME_LEAD_TIME).timeout.connect(func():
+			if is_game_over:
+				return
 			if music_player and music_player.has_method("resume_music"):
 				music_player.resume_music()
 		)
@@ -299,6 +314,9 @@ func _on_boss_energy_depleted() -> void:
 
 ## 暂停结束的回调
 func _on_pause_timeout() -> void:
+	if is_game_over:
+		return
+
 	is_paused_for_attack = false
 	
 	# 通知 UI 隐藏暂停效果
@@ -326,6 +344,9 @@ func _on_pause_timeout() -> void:
 
 ## 开始攻击阶段
 func _start_attack_phase(duration: float, bi: float, first_beat_abs_time: float) -> void:
+	if is_game_over:
+		return
+
 	print("攻击阶段开始！")
 	
 	# 重置蓄力状态和临时精力削减量
@@ -343,6 +364,9 @@ func _start_attack_phase(duration: float, bi: float, first_beat_abs_time: float)
 
 ## 处理攻击效果
 func _on_attack_performed(attack_type: int) -> void:
+	if is_game_over:
+		return
+
 	if not attack_config:
 		print("警告：未配置攻击数据 (attack_config)")
 		return
@@ -432,8 +456,7 @@ func _on_attack_performed(attack_type: int) -> void:
 	
 	# 检查胜负
 	if current_player_health <= 0.0:
-		player_died.emit()
-		EventBus.player_died.emit()
+		_trigger_player_game_over()
 		print("玩家失败！")
 	elif current_boss_health <= 0.0:
 		boss_defeated.emit()
@@ -442,6 +465,9 @@ func _on_attack_performed(attack_type: int) -> void:
 
 
 func _on_attack_hit_confirmed(attack_type: int, _target: Variant) -> void:
+	if is_game_over:
+		return
+
 	_cleanup_pending_attack_hits()
 
 	var hit_index: int = -1
@@ -491,3 +517,31 @@ func _play_attack_action_sfx(attack_type: int, is_charged: bool) -> void:
 	attack_sfx_player.volume_db = attack_config.get_attack_sfx_volume_db(attack_type, is_charged)
 	attack_sfx_player.bus = String(attack_config.attack_sfx_bus)
 	attack_sfx_player.play()
+
+
+func _trigger_player_game_over() -> void:
+	if is_game_over:
+		return
+
+	is_game_over = true
+	is_paused_for_attack = false
+	pending_attack_hits.clear()
+	is_next_attack_charged = false
+
+	if pause_timer != null:
+		pause_timer.stop()
+
+	if beat_manager != null and beat_manager.has_method("pause_beat_detection"):
+		beat_manager.pause_beat_detection()
+
+	if track_manager != null:
+		if track_manager.has_method("pause_note_spawning"):
+			track_manager.pause_note_spawning()
+		if track_manager.has_method("clear_all_notes"):
+			track_manager.clear_all_notes()
+
+	if input_manager != null and input_manager.has_method("pause_input"):
+		input_manager.pause_input()
+
+	player_died.emit()
+	EventBus.player_died.emit()

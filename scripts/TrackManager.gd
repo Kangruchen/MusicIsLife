@@ -28,7 +28,7 @@ const BLING_ROW_ORDER: Dictionary = {
 const SPAWN_ADVANCE := {
 	Note.NoteType.GUARD: 2,  # 提前2拍（生成后1拍不动，1拍移动）(J键，第一轨道)
 	Note.NoteType.HIT: 3,    # 提前3拍（生成后1拍不动，2拍移动）(I键，第二轨道)
-	Note.NoteType.DODGE: 4   # 提前4拍（生成后1拍不动，3拍移动）(L键，第三轨道)
+	Note.NoteType.DODGE: 3   # 提前3拍（生成后1拍不动，2拍移动）(L键，第三轨道)
 }
 
 # 音符生成位置X坐标（动态计算，在 _ready 中初始化）
@@ -537,7 +537,7 @@ func _spawn_track_animation(note: Note) -> void:
 	var main_target_beats: int = advance_beats
 
 	# GUARD 激光不再播放预警：从第一拍开始直接播放。
-	# 对齐窗口使用完整提前量（GUARD=2拍），使 guard_attack_end_frame 在第二拍结束时到达。
+	# 关键帧对齐改为 1 拍窗口：attack_end_frame 在播放后第 1 拍到达，随后保持同速播完剩余帧。
 
 	# 第一拍直接播放主动画
 	_spawn_main_animation(note, main_target_beats, counter)
@@ -657,11 +657,24 @@ func _spawn_main_animation(note: Note, target_beats: int, counter: int) -> void:
 		return
 	
 	# === 计算播放速度 ===
-	# 优先使用“当前时刻到该音符判定时刻”的真实剩余时间，避免节拍估算误差导致错位。
+	# 默认使用“当前时刻到判定时刻”的真实剩余时间；
+	# GUARD 轨道额外采用“延迟开播 + 1拍对齐关键帧”：
+	# 在判定前1拍开始播放，并在1拍末尾到达 attack_end_frame。
 	var target_duration: float = target_beats * EventBus.beat_interval
 	var remaining_to_judge: float = note.beat_time - current_time
 	if remaining_to_judge > 0.0:
 		target_duration = remaining_to_judge
+	var play_start_delay: float = 0.0
+	if note.type == Note.NoteType.GUARD and EventBus.beat_interval > 0.0:
+		var one_beat: float = EventBus.beat_interval
+		if remaining_to_judge > one_beat:
+			play_start_delay = remaining_to_judge - one_beat
+			target_duration = one_beat
+		elif remaining_to_judge > 0.0:
+			# 若生成已晚于“判定前1拍”，则退化为尽量在判定时刻对齐。
+			target_duration = remaining_to_judge
+		else:
+			target_duration = one_beat
 	var anim_speed_scale: float = 1.0
 	var attack_end_delay: float = -1.0
 	
@@ -714,11 +727,27 @@ func _spawn_main_animation(note: Note, target_beats: int, counter: int) -> void:
 		game_ui.add_child(instance)
 		instance.position = Vector2(BLING_BASE_X + x_offset, row_y)
 	
-	# === 立即播放动画，并应用速度缩放 ===
-	anim_sprite.speed_scale = anim_speed_scale
-	anim_sprite.play(resolved_anim_name)
+	# === 播放动画，并应用速度缩放 ===
+	if play_start_delay > 0.01:
+		anim_sprite.visible = false
+		var delayed_play_token: int = _effect_runtime_token
+		get_tree().create_timer(play_start_delay).timeout.connect(func() -> void:
+			if delayed_play_token != _effect_runtime_token or _attack_phase_blocked:
+				if instance and is_instance_valid(instance):
+					instance.queue_free()
+				return
+			if not is_instance_valid(anim_sprite):
+				return
+			anim_sprite.visible = true
+			anim_sprite.speed_scale = anim_speed_scale
+			anim_sprite.play(resolved_anim_name)
+		)
+	else:
+		anim_sprite.speed_scale = anim_speed_scale
+		anim_sprite.play(resolved_anim_name)
 	if note.type == Note.NoteType.GUARD:
-		_schedule_guard_laser_sound(attack_end_delay)
+		var guard_sound_delay: float = play_start_delay + maxf(0.0, attack_end_delay)
+		_schedule_guard_laser_sound(guard_sound_delay)
 	
 	# 追踪活跃特效（用于默认 Bling 槽位避重）
 	if not _active_blings.has(note.type):

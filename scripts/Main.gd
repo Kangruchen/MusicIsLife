@@ -32,6 +32,8 @@ func _ready() -> void:
 		EventBus.attack_phase_started.connect(_on_attack_phase_started)
 	if not EventBus.attack_phase_ended.is_connected(_on_attack_phase_ended):
 		EventBus.attack_phase_ended.connect(_on_attack_phase_ended)
+	if not EventBus.player_died.is_connected(_on_player_died):
+		EventBus.player_died.connect(_on_player_died)
 
 
 func _process(delta: float) -> void:
@@ -72,6 +74,14 @@ func _on_attack_phase_ended() -> void:
 
 	_attack_camera_active = false
 	_start_camera_tween(_camera_default_global_position, _camera_default_zoom, attack_camera_restore_duration)
+
+
+func _on_player_died() -> void:
+	# 死亡演出期间关闭攻击镜头跟随，避免覆盖 Character 的死亡镜头控制。
+	_attack_camera_active = false
+	if _camera_tween != null:
+		_camera_tween.kill()
+		_camera_tween = null
 
 
 func _start_camera_tween(target_pos: Vector2, target_zoom: Vector2, duration: float) -> void:

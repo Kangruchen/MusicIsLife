@@ -51,6 +51,7 @@ const ATTACK_TYPE_ENHANCE: int = 3
 
 var _state: PlayerState = PlayerState.DEFENSE
 var _action_state: ActionState = ActionState.IDLE
+var _is_dead: bool = false
 
 var _is_next_attack_charged: bool = false
 var _is_attack_anim_playing: bool = false
@@ -68,6 +69,12 @@ var _current_hitbox_open_frame: int = 0
 var _current_hitbox_close_frame: int = 0
 var _current_hitbox_size: Vector2 = Vector2(120.0, 90.0)
 var _current_hitbox_offset: Vector2 = Vector2(90.0, 0.0)
+var _death_anim_token: int = 0
+var _death_blackout_active: bool = false
+var _death_fx_layer: CanvasLayer = null
+var _death_black_rect: ColorRect = null
+@onready var music_player_node: Node = get_node_or_null("../GameManager/MusicPlayer")
+@onready var main_camera: Camera2D = get_node_or_null("../Camera2D") as Camera2D
 
 var velocity: Vector2 = Vector2.ZERO
 
@@ -83,6 +90,8 @@ func _ready() -> void:
 		EventBus.attack_phase_ended.connect(_on_attack_phase_ended)
 	if not EventBus.attack_movement_enabled_changed.is_connected(_on_attack_movement_enabled_changed):
 		EventBus.attack_movement_enabled_changed.connect(_on_attack_movement_enabled_changed)
+	if not EventBus.player_died.is_connected(_on_player_died):
+		EventBus.player_died.connect(_on_player_died)
 
 	if attack_hitbox != null and not attack_hitbox.area_entered.is_connected(_on_attack_hitbox_area_entered):
 		attack_hitbox.area_entered.connect(_on_attack_hitbox_area_entered)
@@ -97,11 +106,15 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if _is_dead:
+		return
 	if _state == PlayerState.ATTACK or _prep_movement_enabled:
 		_update_attack_movement(delta)
 
 
 func _on_defense_action(track: Note.NoteType) -> void:
+	if _is_dead:
+		return
 	if _state != PlayerState.DEFENSE:
 		return
 	if anim_config == null:
@@ -112,6 +125,8 @@ func _on_defense_action(track: Note.NoteType) -> void:
 
 
 func _on_attack_action(attack_type: int) -> void:
+	if _is_dead:
+		return
 	if _state != PlayerState.ATTACK:
 		return
 
@@ -129,6 +144,8 @@ func _on_attack_action(attack_type: int) -> void:
 
 
 func _on_attack_phase_started() -> void:
+	if _is_dead:
+		return
 	_is_next_attack_charged = false
 	_prep_movement_enabled = false
 	_attack_movement_enabled = true
@@ -137,6 +154,8 @@ func _on_attack_phase_started() -> void:
 
 
 func _on_attack_phase_ended() -> void:
+	if _is_dead:
+		return
 	_is_next_attack_charged = false
 	_prep_movement_enabled = false
 	_attack_movement_enabled = false
@@ -183,6 +202,7 @@ func _update_attack_movement(delta: float) -> void:
 	if _state == PlayerState.ATTACK and not _attack_movement_enabled:
 		velocity = Vector2.ZERO
 		_action_state = ActionState.IDLE
+		_play_idle()
 		return
 
 	if _is_attack_anim_playing and lock_movement_during_attack:
@@ -203,8 +223,10 @@ func _update_attack_movement(delta: float) -> void:
 		_action_state = ActionState.ATTACK
 	elif input_dir.length_squared() > 0.0001:
 		_action_state = ActionState.MOVE
+		_play_move()
 	else:
 		_action_state = ActionState.IDLE
+		_play_idle()
 
 
 func _start_attack_action(attack_type: int, is_charged: bool) -> void:
@@ -431,7 +453,28 @@ func _play_idle() -> void:
 		return
 	if anim_config.idle_anim.is_empty():
 		return
-	_play_anim(anim_config.idle_anim, false)
+	_play_anim_if_needed(anim_config.idle_anim, false)
+
+
+func _play_move() -> void:
+	if anim_config == null:
+		return
+	var move_anim_name: String = anim_config.move_anim
+	if move_anim_name.is_empty():
+		move_anim_name = anim_config.idle_anim
+	if move_anim_name.is_empty():
+		return
+	_play_anim_if_needed(move_anim_name, false)
+
+
+func _play_anim_if_needed(anim_name: String, beat_sync: bool) -> void:
+	if anim_name.is_empty():
+		return
+	if animated_sprite == null:
+		return
+	if String(animated_sprite.animation) == anim_name and animated_sprite.is_playing():
+		return
+	_play_anim(anim_name, beat_sync)
 
 
 func _has_anim(anim_name: String) -> bool:
@@ -485,6 +528,9 @@ func _apply_beat_sync_speed(anim_name: String) -> void:
 
 
 func _on_animation_finished() -> void:
+	if _is_dead:
+		return
+
 	if _state == PlayerState.DEFENSE:
 		_play_idle()
 		return
@@ -516,6 +562,242 @@ func _on_animation_frame_changed() -> void:
 
 func _try_open_hitbox_at_current_frame() -> void:
 	_on_animation_frame_changed()
+
+
+func _on_player_died() -> void:
+	if _is_dead:
+		return
+
+	_is_dead = true
+	velocity = Vector2.ZERO
+	_is_next_attack_charged = false
+	_prep_movement_enabled = false
+	_attack_movement_enabled = false
+	_clear_attack_action_runtime()
+	_state = PlayerState.DEFENSE
+	_action_state = ActionState.IDLE
+	_start_death_music_fadeout()
+
+	_play_dead_fail_sequence()
+
+
+func _play_dead_fail_sequence() -> void:
+	if anim_config == null:
+		return
+
+	var dead_anim: String = anim_config.fail_anim
+	if dead_anim.is_empty():
+		dead_anim = anim_config.guard_anim
+	if not _has_anim(dead_anim):
+		return
+
+	_death_anim_token += 1
+	var token: int = _death_anim_token
+	_start_death_camera_focus_intro(token, dead_anim)
+
+
+func _start_death_camera_focus_intro(token: int, dead_anim: String) -> void:
+	if main_camera == null:
+		_play_fail_after_camera_focus(token, dead_anim)
+		return
+
+	var target_zoom: Vector2 = Vector2(1.28, 1.28)
+	var target_position: Vector2 = _get_clamped_camera_focus_position(global_position, target_zoom)
+
+	var focus_tween: Tween = create_tween()
+	focus_tween.set_parallel(true)
+	focus_tween.set_trans(Tween.TRANS_SINE)
+	focus_tween.set_ease(Tween.EASE_OUT)
+	focus_tween.tween_property(main_camera, "global_position", target_position, 0.45)
+	focus_tween.tween_property(main_camera, "zoom", target_zoom, 0.45)
+	focus_tween.finished.connect(func() -> void:
+		if token != _death_anim_token:
+			return
+		_play_fail_after_camera_focus(token, dead_anim)
+	)
+
+
+func _play_fail_after_camera_focus(token: int, dead_anim: String) -> void:
+	if animated_sprite == null or animated_sprite.sprite_frames == null:
+		return
+	if not animated_sprite.sprite_frames.has_animation(dead_anim):
+		return
+
+	animated_sprite.visible = true
+	_play_anim(dead_anim, false)
+
+	var fail_duration: float = _get_animation_duration_seconds(dead_anim)
+	if fail_duration <= 0.0:
+		_freeze_current_animation_last_frame()
+		_fade_to_black_after_fail(token)
+		return
+
+	get_tree().create_timer(fail_duration).timeout.connect(func() -> void:
+		if token != _death_anim_token:
+			return
+		_freeze_current_animation_last_frame()
+		_fade_to_black_after_fail(token)
+	)
+
+
+func _fade_to_black_after_fail(token: int) -> void:
+	if _death_black_rect == null or not is_instance_valid(_death_black_rect):
+		var host: Node = get_tree().current_scene
+		if host == null:
+			host = get_tree().root
+		if host == null:
+			return
+
+		if _death_fx_layer == null or not is_instance_valid(_death_fx_layer):
+			_death_fx_layer = CanvasLayer.new()
+			_death_fx_layer.layer = 100
+			host.add_child(_death_fx_layer)
+
+		_death_black_rect = ColorRect.new()
+		_death_black_rect.color = Color(0.0, 0.0, 0.0, 0.0)
+		_death_black_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_death_fx_layer.add_child(_death_black_rect)
+
+	_configure_blackout_hole_for_player()
+
+	_death_blackout_active = true
+	var fade_tween: Tween = create_tween()
+	fade_tween.set_trans(Tween.TRANS_SINE)
+	fade_tween.set_ease(Tween.EASE_IN_OUT)
+	if _death_black_rect.material is ShaderMaterial:
+		fade_tween.tween_property(_death_black_rect.material, "shader_parameter/blackout_alpha", 1.0, 0.55)
+	else:
+		fade_tween.tween_property(_death_black_rect, "color:a", 1.0, 0.55)
+	fade_tween.tween_callback(func() -> void:
+		if token != _death_anim_token:
+			return
+	)
+
+
+func _freeze_current_animation_last_frame() -> void:
+	if animated_sprite == null or animated_sprite.sprite_frames == null:
+		return
+
+	var current_anim: String = String(animated_sprite.animation)
+	if current_anim.is_empty() or not animated_sprite.sprite_frames.has_animation(current_anim):
+		return
+
+	var frame_count: int = animated_sprite.sprite_frames.get_frame_count(current_anim)
+	if frame_count <= 0:
+		return
+
+	animated_sprite.stop()
+	animated_sprite.frame = frame_count - 1
+	animated_sprite.frame_progress = 0.0
+
+
+func _get_animation_duration_seconds(anim_name: String) -> float:
+	if animated_sprite == null or animated_sprite.sprite_frames == null:
+		return 0.0
+
+	var sprite_frames: SpriteFrames = animated_sprite.sprite_frames
+	if not sprite_frames.has_animation(anim_name):
+		return 0.0
+
+	var frame_count: int = sprite_frames.get_frame_count(anim_name)
+	var base_fps: float = sprite_frames.get_animation_speed(anim_name)
+	if frame_count <= 0 or base_fps <= 0.0:
+		return 0.0
+
+	var total_units: float = 0.0
+	for i in range(frame_count):
+		total_units += sprite_frames.get_frame_duration(anim_name, i)
+
+	return total_units / base_fps
+
+
+func _start_death_music_fadeout() -> void:
+	if music_player_node != null and music_player_node.has_method("fade_out_all_for_death"):
+		music_player_node.call("fade_out_all_for_death", 1.25, -40.0)
+
+
+func _get_clamped_camera_focus_position(desired_position: Vector2, target_zoom: Vector2) -> Vector2:
+	if main_camera == null:
+		return desired_position
+
+	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
+		return desired_position
+
+	var safe_zoom: Vector2 = Vector2(maxf(0.001, target_zoom.x), maxf(0.001, target_zoom.y))
+	var half_world_size: Vector2 = Vector2(viewport_size.x * safe_zoom.x * 0.5, viewport_size.y * safe_zoom.y * 0.5)
+
+	var min_x: float = float(main_camera.limit_left) + half_world_size.x
+	var max_x: float = float(main_camera.limit_right) - half_world_size.x
+	var min_y: float = float(main_camera.limit_top) + half_world_size.y
+	var max_y: float = float(main_camera.limit_bottom) - half_world_size.y
+
+	var clamped: Vector2 = desired_position
+	if min_x <= max_x:
+		clamped.x = clampf(clamped.x, min_x, max_x)
+	if min_y <= max_y:
+		clamped.y = clampf(clamped.y, min_y, max_y)
+
+	return clamped
+
+
+func _configure_blackout_hole_for_player() -> void:
+	if _death_black_rect == null or not is_instance_valid(_death_black_rect):
+		return
+	if animated_sprite == null or animated_sprite.sprite_frames == null:
+		return
+
+	var anim_name: String = String(animated_sprite.animation)
+	if anim_name.is_empty() or not animated_sprite.sprite_frames.has_animation(anim_name):
+		return
+
+	var frame_texture: Texture2D = animated_sprite.sprite_frames.get_frame_texture(anim_name, animated_sprite.frame)
+	if frame_texture == null:
+		return
+
+	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
+		return
+
+	var texture_size: Vector2 = frame_texture.get_size()
+	var scale_abs: Vector2 = Vector2(absf(animated_sprite.global_scale.x), absf(animated_sprite.global_scale.y))
+	var radius_px: float = maxf(texture_size.x * scale_abs.x, texture_size.y * scale_abs.y) * 0.35
+	var softness_px: float = maxf(20.0, radius_px * 0.18)
+	var min_side: float = minf(viewport_size.x, viewport_size.y)
+
+	var hole_center_screen: Vector2 = get_viewport().get_canvas_transform() * animated_sprite.global_position
+	var hole_center_uv: Vector2 = Vector2(hole_center_screen.x / viewport_size.x, hole_center_screen.y / viewport_size.y)
+	var hole_radius_uv: float = radius_px / viewport_size.y
+	var hole_softness_uv: float = softness_px / viewport_size.y
+	var viewport_aspect: float = viewport_size.x / viewport_size.y
+
+	var shader: Shader = Shader.new()
+	shader.code = """
+shader_type canvas_item;
+
+uniform vec2 hole_center = vec2(0.5, 0.5);
+uniform float hole_radius = 0.2;
+uniform float hole_softness = 0.05;
+uniform float blackout_alpha = 1.0;
+uniform float viewport_aspect = 1.0;
+
+void fragment() {
+	vec2 delta = SCREEN_UV - hole_center;
+	delta.x *= viewport_aspect;
+	float d = length(delta);
+	float mask = smoothstep(hole_radius, hole_radius + hole_softness, d);
+	COLOR = vec4(0.0, 0.0, 0.0, blackout_alpha * mask);
+}
+"""
+
+	var mat: ShaderMaterial = ShaderMaterial.new()
+	mat.shader = shader
+	mat.set_shader_parameter("hole_center", hole_center_uv)
+	mat.set_shader_parameter("hole_radius", hole_radius_uv)
+	mat.set_shader_parameter("hole_softness", hole_softness_uv)
+	mat.set_shader_parameter("blackout_alpha", 0.0)
+	mat.set_shader_parameter("viewport_aspect", viewport_aspect)
+	_death_black_rect.material = mat
 
 
 func _attack_type_uses_hitbox(attack_type: int) -> bool:

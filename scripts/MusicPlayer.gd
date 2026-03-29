@@ -155,6 +155,27 @@ func stop_music() -> void:
 	bass_player.stop()
 
 
+## 死亡演出：平滑淡出所有音乐轨道
+func fade_out_all_for_death(duration: float = 1.2, target_volume_db: float = -40.0) -> void:
+	var fade_duration: float = maxf(0.05, duration)
+	var target_db: float = clampf(target_volume_db, -80.0, 0.0)
+
+	if volume_tween != null:
+		volume_tween.kill()
+
+	volume_tween = create_tween()
+	volume_tween.set_parallel(true)
+	volume_tween.set_ease(Tween.EASE_OUT)
+	volume_tween.set_trans(Tween.TRANS_SINE)
+
+	if main_player != null:
+		volume_tween.tween_property(main_player, "volume_db", target_db, fade_duration)
+	if drum_player != null:
+		volume_tween.tween_property(drum_player, "volume_db", target_db, fade_duration)
+	if bass_player != null:
+		volume_tween.tween_property(bass_player, "volume_db", target_db, fade_duration)
+
+
 ## 暂停音乐播放（保留播放位置）
 func pause_music() -> void:
 	main_player.stream_paused = true

@@ -146,11 +146,7 @@ func _process(_delta: float) -> void:
 		return
 	
 	var now: float = Time.get_ticks_msec() / 1000.0
-	
-	# 检查节拍推进
-	while _next_beat_idx < _attack_beat_abs_times.size() and now >= _attack_beat_abs_times[_next_beat_idx]:
-		_on_attack_beat_timed(_next_beat_idx)
-		_next_beat_idx += 1
+	_advance_attack_beats_to_time(now)
 
 
 func _input(event: InputEvent) -> void:
@@ -327,6 +323,12 @@ func _on_miss_triggered(track_type: int) -> void:
 ## 暂停输入检测
 func pause_input() -> void:
 	current_phase = PhaseState.PAUSED
+	_attack_beat_abs_times.clear()
+	_next_beat_idx = 0
+	if attack_phase_timer != null:
+		attack_phase_timer.stop()
+	if attack_beat_timer != null:
+		attack_beat_timer.stop()
 	print("输入检测已暂停")
 
 
@@ -371,6 +373,10 @@ func start_attack_phase(duration: float, bi: float, first_beat_abs_time: float) 
 
 ## 攻击阶段的输入处理
 func _handle_attack_phase_input(event: InputEvent) -> void:
+	# 先将攻击拍状态追到当前时刻，避免输入事件先于 _process 导致落在旧拍状态。
+	var synced_now: float = Time.get_ticks_msec() / 1000.0
+	_advance_attack_beats_to_time(synced_now)
+
 	# 检测按键动作
 	for action in ACTION_MAPPING:
 		if event.is_action_pressed(action):
@@ -379,20 +385,8 @@ func _handle_attack_phase_input(event: InputEvent) -> void:
 				print("当前不在可输入拍，忽略攻击输入")
 				return
 
-			if current_beat_has_input:
-				print("当前拍已被占用，等待下一次未占用拍")
-				return
-
-			var current_time: float = Time.get_ticks_msec() / 1000.0
-			var time_since_beat: float = current_time - current_beat_start_time
-			var next_beat_time: float = current_beat_start_time + attack_beat_interval
-			if current_time < current_beat_start_time or current_time >= next_beat_time:
-				print("输入不在当前拍窗口内，忽略")
-				return
-			
 			var track: Note.NoteType = ACTION_MAPPING[action]
 			var attack_type: AttackType = AttackType.ENHANCE
-			
 			match track:
 				Note.NoteType.GUARD:
 					attack_type = AttackType.LIGHT
@@ -401,6 +395,23 @@ func _handle_attack_phase_input(event: InputEvent) -> void:
 				Note.NoteType.DODGE:
 					attack_type = AttackType.HEAL
 
+			if current_beat_has_input:
+				# 重击占用拍允许用回复覆盖，避免“重击后无法及时回血”。
+				if _current_beat_forced_occupied and attack_type == AttackType.HEAL:
+					current_beat_has_input = false
+					_current_beat_forced_occupied = false
+					print("回复覆盖重击占用拍")
+				else:
+					print("当前拍已被占用，等待下一次未占用拍")
+					return
+
+			var current_time: float = synced_now
+			var time_since_beat: float = current_time - current_beat_start_time
+			var next_beat_time: float = current_beat_start_time + attack_beat_interval
+			if current_time < current_beat_start_time or current_time >= next_beat_time:
+				print("输入不在当前拍窗口内，忽略")
+				return
+			
 			current_beat_has_input = true
 			
 			# 发送攻击信号
@@ -413,6 +424,14 @@ func _handle_attack_phase_input(event: InputEvent) -> void:
 				print("重击占用下一拍")
 			
 			return
+
+
+func _advance_attack_beats_to_time(now: float) -> void:
+	if current_phase != PhaseState.ATTACK:
+		return
+	while _next_beat_idx < _attack_beat_abs_times.size() and now >= _attack_beat_abs_times[_next_beat_idx]:
+		_on_attack_beat_timed(_next_beat_idx)
+		_next_beat_idx += 1
 
 
 ## 攻击节拍触发（基于绝对时间，由 _process 调用）
@@ -465,10 +484,15 @@ func _on_attack_beat_timed(beat_idx: int) -> void:
 
 ## 攻击阶段结束
 func _on_attack_phase_end() -> void:
+	if current_phase != PhaseState.ATTACK:
+		return
+
 	current_phase = PhaseState.DEFENSE
 	_beat_generation += 1  # 使所有残留回调失效
 	_attack_beat_abs_times.clear()
 	_current_beat_forced_occupied = false
+	if attack_phase_timer != null:
+		attack_phase_timer.stop()
 	attack_beat_timer.stop()
 	
 	print("[总拍", GameConstants.TOTAL_ATTACK_BEATS, "/", GameConstants.TOTAL_ATTACK_BEATS, "] 攻击阶段结束")

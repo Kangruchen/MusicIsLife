@@ -283,7 +283,7 @@ animations = [{
 }]
 
 [node name="Laser" type="Node2D"]
-scale = Vector2(0.4, 0.4)
+scale = Vector2(0.333, 0.333)
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
 modulate = Color(1.8247963, 1.8247963, 1.8247963, 1)

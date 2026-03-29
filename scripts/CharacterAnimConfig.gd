@@ -31,6 +31,10 @@ class_name CharacterAnimConfig
 @export_group("基础")
 ## 待机动画名称
 @export var idle_anim: String = "idle"
+## 移动动画名称
+@export var move_anim: String = ""
+## 失败/死亡动画名称
+@export var fail_anim: String = ""
 
 
 ## 获取防御阶段动画名称
