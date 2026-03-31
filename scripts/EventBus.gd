@@ -20,6 +20,7 @@ signal miss_triggered(track: int)
 # === 攻击阶段 ===
 signal attack_performed(attack_type: int)
 signal attack_hit_confirmed(attack_type: int, target: Variant)
+signal attack_hit_resolved(applied_damage: float, target: Variant)
 signal attack_phase_started
 signal attack_phase_ended
 signal attack_movement_enabled_changed(enabled: bool)
@@ -29,8 +30,8 @@ signal player_health_updated(current: float, maximum: float)
 signal boss_health_updated(current: float, maximum: float)
 signal boss_energy_updated(current: float, maximum: float)
 signal boss_energy_depleted
-signal boss_charge_requested(duration_beats: int)
-signal boss_missile_requested(duration_beats: int)
+signal boss_charge_requested(duration_beats: float)
+signal boss_missile_requested(duration_beats: float)
 signal player_died
 signal boss_defeated
 
@@ -57,6 +58,7 @@ func _suppress_unused_signal_warnings() -> void:
 	miss_triggered.emit(0)
 	attack_performed.emit(0)
 	attack_hit_confirmed.emit(0, null)
+	attack_hit_resolved.emit(0.0, null)
 	attack_phase_started.emit()
 	attack_phase_ended.emit()
 	attack_movement_enabled_changed.emit(false)
@@ -64,8 +66,8 @@ func _suppress_unused_signal_warnings() -> void:
 	boss_health_updated.emit(0.0, 0.0)
 	boss_energy_updated.emit(0.0, 0.0)
 	boss_energy_depleted.emit()
-	boss_charge_requested.emit(0)
-	boss_missile_requested.emit(0)
+	boss_charge_requested.emit(0.0)
+	boss_missile_requested.emit(0.0)
 	player_died.emit()
 	boss_defeated.emit()
 	show_attack_ui_requested.emit()

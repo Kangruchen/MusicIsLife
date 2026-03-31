@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3 uid="uid://b4ymn7qwvj5hq"]
+[gd_scene load_steps=21 format=3 uid="uid://b4ymn7qwvj5hq"]
 
 [ext_resource type="Script" uid="uid://hla1t03lkrwg" path="res://scripts/MusicPlayer.gd" id="1_h5v3q"]
 [ext_resource type="Script" uid="uid://dnajos3fm0bkl" path="res://scripts/Main.gd" id="1_main"]
@@ -11,6 +11,7 @@
 [ext_resource type="Resource" uid="uid://brd58vvvmh20v" path="res://config/key_sound_config.tres" id="7_key_sound"]
 [ext_resource type="Resource" uid="uid://tka37j3asl60" path="res://config/key_sound_config_boss.tres" id="8_bjd11"]
 [ext_resource type="Resource" uid="uid://cmtg6v8fmuctn" path="res://config/track_animation_config.tres" id="8_mwfav"]
+[ext_resource type="AudioStream" uid="uid://dy7owihsmnyq2" path="res://assets/SFX/laserfull.wav" id="10_ft6cd"]
 [ext_resource type="Resource" uid="uid://c1vhiqdiogunj" path="res://config/attack_config.tres" id="12_qmy6f"]
 [ext_resource type="PackedScene" uid="uid://da8ttcx4kdymg" path="res://scenes/character.tscn" id="13_qmy6f"]
 [ext_resource type="PackedScene" uid="uid://pmk3seuwqaru" path="res://scenes/boss.tscn" id="16_cvmbd"]
@@ -92,7 +93,7 @@ position = Vector2(0, 130)
 
 [node name="MusicPlayer" type="Node" parent="GameManager"]
 script = ExtResource("1_h5v3q")
-music_path = "uid://bxaoaflu31joj"
+music_path = "uid://dxab1vst4q675"
 miss_sound = ExtResource("5_wp0k4")
 
 [node name="BeatManager" type="Node" parent="GameManager"]
@@ -104,6 +105,8 @@ chart_sm_path = "res://assets/charts/Factory Fever.sm"
 [node name="TrackManager" type="Node" parent="GameManager" node_paths=PackedStringArray("guard_position_nodes", "game_ui")]
 script = ExtResource("4_track_mgr")
 key_sound_config = ExtResource("8_bjd11")
+boss_laser_sound = ExtResource("10_ft6cd")
+boss_charge_prepare_lead_beats = 1.0
 track_animation_config = ExtResource("8_mwfav")
 guard_position_nodes = [NodePath("../../PositionNodes/Laser1"), NodePath("../../PositionNodes/Laser2")]
 game_ui = NodePath("../../GameUI")
@@ -135,6 +138,7 @@ dodge_player_health_great = 0.0
 dodge_player_health_good = 0.0
 dodge_player_health_miss = -20.0
 max_boss_health = 2000.0
+max_boss_energy = 1.0
 attack_config = ExtResource("12_qmy6f")
 
 [node name="Boss" parent="." instance=ExtResource("16_cvmbd")]

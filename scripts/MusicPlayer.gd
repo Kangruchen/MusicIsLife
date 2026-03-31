@@ -320,6 +320,13 @@ func set_bass_volume(volume_db: float) -> void:
 	bass_player.volume_db = volume_db
 
 
+## 获取鼓轨当前播放位置（带音频混音提前量）
+func get_drum_playback_position() -> float:
+	if drum_player and drum_player.stream and drum_player.playing:
+		return drum_player.get_playback_position() + AudioServer.get_time_to_next_mix()
+	return -1.0
+
+
 ## 切换主旋律轨道开关
 func toggle_main_track(enabled: bool) -> void:
 	if enabled and main_player.stream and not main_player.playing:

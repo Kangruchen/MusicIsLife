@@ -439,13 +439,13 @@ func _on_attack_performed(attack_type: int) -> void:
 			print("发动回复 - 恢复:", heal_amount)
 		
 		3:  # ENHANCE
-			# 蓄力（只在非蓄力状态时生效）
+			# 蓄力音效每拍都播放；状态仍只在首次蓄力时置为 true。
+			_play_attack_action_sfx(attack_type, false)
 			if not is_next_attack_charged:
-				_play_attack_action_sfx(attack_type, false)
 				is_next_attack_charged = true
 				print("发动蓄力 - 下次攻击将为蓄力版本")
 			else:
-				print("已处于蓄力状态，连续蓄力无效果")
+				print("已处于蓄力状态，连续蓄力仅重复播放音效")
 	
 	# 限制数值范围
 	current_player_health = clampf(current_player_health, 0.0, max_player_health)
@@ -486,10 +486,14 @@ func _on_attack_hit_confirmed(attack_type: int, _target: Variant) -> void:
 	if damage <= 0.0:
 		return
 
+	var old_boss_health: float = current_boss_health
 	current_boss_health -= damage
 	current_boss_health = clampf(current_boss_health, 0.0, max_boss_health)
+	var applied_damage: float = maxf(0.0, old_boss_health - current_boss_health)
 	_emit_health_update()
 	print("攻击命中 - 造成伤害:", damage)
+	if applied_damage > 0.0:
+		EventBus.attack_hit_resolved.emit(applied_damage, _target)
 
 	if current_boss_health <= 0.0:
 		boss_defeated.emit()

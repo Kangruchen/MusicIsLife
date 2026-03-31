@@ -56,9 +56,21 @@ enum BossState {
 @export_group("Charge State")
 @export var charge_duration_beats: int = 3
 @export var charge_animation_name: StringName = &"charge"
+@export_range(0.0, 1.0, 0.01) var charge_request_min_interval_sec: float = 0.12
 @export var track_animation_config: TrackAnimationConfig = null
 @export var pre_charge_distance_from_player: float = 150.0
 @export var pre_charge_pick_attempts: int = 32
+
+@export_group("Charge Bullet")
+@export var charge_bullet_scene: PackedScene = preload("res://scenes/charge_bullet.tscn")
+@export_node_path("Node2D") var charge_bullet_spawn_path: NodePath = NodePath("Charge/BulletPoint")
+@export var charge_bullet_fire_frame: int = 16
+@export var charge_bullet_move_start_frame: int = 16
+@export var charge_bullet_hit_frame: int = 17
+@export var charge_bullet_despawn_frame: int = 18
+@export_range(0.0, 2000.0, 1.0) var charge_bullet_hit_distance_from_player: float = 0.0
+@export var charge_bullet_use_scene_root_scale: bool = true
+@export var charge_bullet_instance_scale: Vector2 = Vector2(0.333, 0.333)
 
 @export_group("Missile Attack State")
 @export var missile_scene: PackedScene = preload("res://scenes/missile.tscn")
@@ -68,6 +80,14 @@ enum BossState {
 @export var missile_phase1_beats: int = 1
 @export var missile_phase2_beats: int = 2
 @export var missile_outward_distance: float = 1200.0
+@export_range(0.0, 200.0, 1.0) var missile_launcher_recoil_distance: float = 24.0
+@export_range(0.01, 0.5, 0.01) var missile_launcher_recoil_out_duration: float = 0.06
+@export_range(0.01, 0.8, 0.01) var missile_launcher_recoil_return_duration: float = 0.14
+@export var debug_missile_timing: bool = false
+@export var debug_charge_timing: bool = false
+
+@export_group("Boss 攻击音效")
+@export var boss_attack_sound_config: BossAttackSoundConfig = preload("res://config/boss_attack_sound_config.tres")
 
 @export_group("Animation")
 @export_node_path("AnimationPlayer") var animation_player_path: NodePath
@@ -86,6 +106,17 @@ enum BossState {
 @export_range(0.1, 8.0, 0.1) var attack_hint_flash_speed: float = 2.6
 @export_range(0.05, 1.5, 0.01) var attack_hint_flash_strength: float = 0.9
 @export_range(0.03, 0.5, 0.01) var hit_red_flash_duration: float = 0.14
+
+@export_group("Part Health")
+@export var middle_part_break_damage_threshold: float = 1000.0
+@export var left_part_break_damage_threshold: float = 500.0
+@export var right_part_break_damage_threshold: float = 500.0
+@export_range(0, 10, 1) var middle_part_normal_frame: int = 0
+@export_range(0, 10, 1) var middle_part_broken_frame: int = 1
+@export_range(0, 10, 1) var left_part_normal_frame: int = 0
+@export_range(0, 10, 1) var left_part_broken_frame: int = 1
+@export_range(0, 10, 1) var right_part_normal_frame: int = 0
+@export_range(0, 10, 1) var right_part_broken_frame: int = 1
 
 var current_state: BossState = BossState.IDLE
 
@@ -107,6 +138,9 @@ var _left_missile_visual: CanvasItem = null
 var _right_missile_visual: CanvasItem = null
 var _charge_node: Node2D = null
 var _charge_anim_sprite: AnimatedSprite2D = null
+var _charge_gun_sprite: AnimatedSprite2D = null
+var _charge_light_sprite: AnimatedSprite2D = null
+var _charge_bullet_spawn_node: Node2D = null
 var _target_character: Node2D = null
 var _player_node: Node2D = null
 var _missile_left_node: Node2D = null
@@ -117,11 +151,13 @@ var _charge_state_remaining_time: float = 0.0
 var _charge_visual_remaining_time: float = 0.0
 var _missile_state_remaining_time: float = 0.0
 var _cached_default_track_anim_config: TrackAnimationConfig = null
-var _pending_charge_beats: int = 0
+var _pending_charge_beats: float = 0.0
+var _charge_animation_started_early: bool = false
 var _is_preparing_charge: bool = false
 var _pre_charge_target_on_ring: bool = false
 var _has_pending_charge_fire: bool = false
 var _pending_charge_fire_time: float = 0.0
+var _last_charge_request_time: float = -INF
 var _pending_missile_beats: int = 0
 var _is_preparing_missile: bool = false
 var _has_pending_missile_launch: bool = false
@@ -130,6 +166,13 @@ var _active_missiles: Array[Node2D] = []
 var _missile_launch_side_index: int = 0
 var _attack_phase_interrupted: bool = false
 var _missile_effect_token: int = 0
+var _missile_left_origin_position: Vector2 = Vector2.ZERO
+var _missile_right_origin_position: Vector2 = Vector2.ZERO
+var _missile_left_origin_node: Node2D = null
+var _missile_right_origin_node: Node2D = null
+var _missile_left_recoil_tween: Tween = null
+var _missile_right_recoil_tween: Tween = null
+var _missile_return_arrived_logged: bool = false
 var _break_transition_tween: Tween = null
 var _break_tilt_tween: Tween = null
 var _player_dash_tween: Tween = null
@@ -143,16 +186,36 @@ var _attack_hint_flash_phase: float = 0.0
 var _middle_red_flash_remaining: float = 0.0
 var _left_red_flash_remaining: float = 0.0
 var _right_red_flash_remaining: float = 0.0
+var _charge_bullet_fired_this_cycle: bool = false
+var _charge_sfx_played_in_cycle: bool = false
+var _active_charge_bullet: Node2D = null
+var _charge_cycle_id: int = 0
+var _charge_play_call_count: int = 0
+var _charge_animation_started_in_cycle: bool = false
+var _middle_part_damage_accumulated: float = 0.0
+var _left_part_damage_accumulated: float = 0.0
+var _right_part_damage_accumulated: float = 0.0
+var _boss_attack_audio_player: AudioStreamPlayer = null
+var _boss_attack_sound_token: int = 0
 
 const MISSILE_EFFECT_GROUP: StringName = &"boss_missile_effect"
 const PLAYER_DASH_AFTERIMAGE_GROUP: StringName = &"player_dash_afterimage"
+const ENEMY_HURTBOX_GROUP: StringName = &"enemy_hurtbox"
+const CHARGE_START_FRAME: int = 2
+const BOSS_PART_NONE: int = -1
+const BOSS_PART_MIDDLE: int = 0
+const BOSS_PART_LEFT: int = 1
+const BOSS_PART_RIGHT: int = 2
+const HURTBOX_RESTORE_META_KEY: StringName = &"boss_part_hurtbox_restore_group"
 
 
 func _ready() -> void:
 	_rng.randomize()
 	_spawn_position = global_position
+	_setup_attack_audio_player()
 	_resolve_animation_nodes()
 	_resolve_aim_nodes()
+	_reset_part_health()
 	_connect_global_signals()
 	_set_state(initial_state)
 
@@ -212,10 +275,33 @@ func _resolve_aim_nodes() -> void:
 		_charge_node = get_node_or_null(charge_node_path) as Node2D
 	if not charge_anim_path.is_empty():
 		_charge_anim_sprite = get_node_or_null(charge_anim_path) as AnimatedSprite2D
+	var charge_root: Node2D = get_node_or_null("Charge") as Node2D
+	_charge_gun_sprite = get_node_or_null("Charge/ChargeGun") as AnimatedSprite2D
+	if _charge_gun_sprite == null:
+		_charge_gun_sprite = get_node_or_null("ChargeGun") as AnimatedSprite2D
+	_charge_light_sprite = get_node_or_null("Charge/ChargeLight") as AnimatedSprite2D
+	if _charge_light_sprite == null:
+		_charge_light_sprite = get_node_or_null("ChargeLight") as AnimatedSprite2D
+	if not charge_bullet_spawn_path.is_empty():
+		_charge_bullet_spawn_node = get_node_or_null(charge_bullet_spawn_path) as Node2D
+	if _charge_bullet_spawn_node == null:
+		_charge_bullet_spawn_node = get_node_or_null("Charge/BulletPoint") as Node2D
+	if _charge_bullet_spawn_node == null:
+		_charge_bullet_spawn_node = get_node_or_null("BulletPoint") as Node2D
+	if _charge_node == null:
+		_charge_node = charge_root
+	if _charge_node == null:
+		_charge_node = _charge_gun_sprite
+	if _charge_anim_sprite == null:
+		_charge_anim_sprite = _charge_gun_sprite
+	if _charge_anim_sprite == null:
+		_charge_anim_sprite = _charge_light_sprite
 	if not missile_left_path.is_empty():
 		_missile_left_node = get_node_or_null(missile_left_path) as Node2D
 	if not missile_right_path.is_empty():
 		_missile_right_node = get_node_or_null(missile_right_path) as Node2D
+	_cache_missile_launcher_origin(_missile_left_node)
+	_cache_missile_launcher_origin(_missile_right_node)
 
 	if not target_character_path.is_empty():
 		_target_character = get_node_or_null(target_character_path) as Node2D
@@ -232,6 +318,90 @@ func _resolve_aim_nodes() -> void:
 			_target_character = parent_node.get_node_or_null("Character") as Node2D
 
 
+func _setup_attack_audio_player() -> void:
+	if _boss_attack_audio_player != null and is_instance_valid(_boss_attack_audio_player):
+		return
+
+	_boss_attack_audio_player = AudioStreamPlayer.new()
+	_boss_attack_audio_player.name = "BossAttackAudio"
+	_boss_attack_audio_player.bus = "Master"
+	if boss_attack_sound_config != null and not String(boss_attack_sound_config.sfx_bus).is_empty():
+		_boss_attack_audio_player.bus = String(boss_attack_sound_config.sfx_bus)
+	add_child(_boss_attack_audio_player)
+
+
+func _play_boss_attack_sound(attack_type: int) -> void:
+	if boss_attack_sound_config == null:
+		return
+	if _boss_attack_audio_player == null:
+		return
+
+	var stream: AudioStream = boss_attack_sound_config.get_attack_sfx(attack_type)
+	if stream == null:
+		return
+
+	var bus_name: String = String(boss_attack_sound_config.sfx_bus)
+	if not bus_name.is_empty():
+		_boss_attack_audio_player.bus = bus_name
+	_boss_attack_audio_player.stream = stream
+	_boss_attack_audio_player.volume_db = boss_attack_sound_config.get_attack_sfx_volume_db(attack_type)
+	_boss_attack_audio_player.pitch_scale = maxf(0.01, boss_attack_sound_config.get_attack_sfx_pitch_scale(attack_type))
+	_boss_attack_audio_player.stop()
+	_boss_attack_audio_player.play(maxf(0.0, boss_attack_sound_config.get_attack_sfx_start_offset_sec(attack_type)))
+
+
+func _schedule_boss_attack_sound_from_sprite(attack_type: int, sprite: AnimatedSprite2D) -> void:
+	if boss_attack_sound_config == null:
+		return
+	if sprite == null or sprite.sprite_frames == null:
+		_play_boss_attack_sound(attack_type)
+		return
+
+	var anim_name: String = String(sprite.animation)
+	if anim_name.is_empty() or not sprite.sprite_frames.has_animation(anim_name):
+		_play_boss_attack_sound(attack_type)
+		return
+
+	var frame_count: int = sprite.sprite_frames.get_frame_count(anim_name)
+	if frame_count <= 0:
+		_play_boss_attack_sound(attack_type)
+		return
+
+	var start_frame: int = clampi(sprite.frame, 0, frame_count - 1)
+	var trigger_frame: int = clampi(boss_attack_sound_config.get_attack_sfx_start_frame(attack_type), 0, frame_count - 1)
+	var delay: float = 0.0
+	if trigger_frame > start_frame:
+		delay = _get_sprite_animation_partial_duration(sprite.sprite_frames, anim_name, start_frame, trigger_frame - 1)
+		delay /= maxf(0.01, sprite.speed_scale)
+
+	if delay <= 0.001:
+		_play_boss_attack_sound(attack_type)
+		return
+
+	var token: int = _boss_attack_sound_token
+	get_tree().create_timer(delay).timeout.connect(func() -> void:
+		if token != _boss_attack_sound_token:
+			return
+		if is_dead or _attack_phase_interrupted:
+			return
+		_play_boss_attack_sound(attack_type)
+	)
+
+
+func _find_timing_sprite(root: Node) -> AnimatedSprite2D:
+	if root == null:
+		return null
+	if root is AnimatedSprite2D:
+		return root as AnimatedSprite2D
+	return root.get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
+
+
+func _invalidate_boss_attack_sounds() -> void:
+	_boss_attack_sound_token += 1
+	if _boss_attack_audio_player != null:
+		_boss_attack_audio_player.stop()
+
+
 func _connect_global_signals() -> void:
 	if not EventBus.boss_defeated.is_connected(_on_boss_defeated):
 		EventBus.boss_defeated.connect(_on_boss_defeated)
@@ -245,8 +415,8 @@ func _connect_global_signals() -> void:
 		EventBus.attack_phase_started.connect(_on_attack_phase_started)
 	if not EventBus.attack_phase_ended.is_connected(_on_attack_phase_ended):
 		EventBus.attack_phase_ended.connect(_on_attack_phase_ended)
-	if not EventBus.attack_hit_confirmed.is_connected(_on_attack_hit_confirmed):
-		EventBus.attack_hit_confirmed.connect(_on_attack_hit_confirmed)
+	if not EventBus.attack_hit_resolved.is_connected(_on_attack_hit_resolved):
+		EventBus.attack_hit_resolved.connect(_on_attack_hit_resolved)
 	if not EventBus.show_return_countdown_requested.is_connected(_on_show_return_countdown_requested):
 		EventBus.show_return_countdown_requested.connect(_on_show_return_countdown_requested)
 	if not EventBus.player_died.is_connected(_on_player_died):
@@ -265,9 +435,6 @@ func _evaluate_state_by_conditions() -> void:
 		return
 	if _missile_state_remaining_time > 0.0:
 		_set_state(BossState.MISSILE_ATTACK)
-		return
-	if _is_preparing_charge:
-		_set_state(BossState.PRE_CHARGE_MOVE)
 		return
 	if _charge_state_remaining_time > 0.0:
 		_set_state(BossState.CHARGE)
@@ -313,6 +480,9 @@ func _enter_state(state: BossState) -> void:
 			_play_state_animation(move_animation)
 		BossState.CHARGE:
 			_play_charge_animation()
+			if not _charge_sfx_played_in_cycle:
+				_charge_sfx_played_in_cycle = true
+				_play_boss_attack_sound(BossAttackSoundConfig.ATTACK_CHARGE_BULLET)
 		BossState.MISSILE_ATTACK:
 			_play_state_animation(attack_animation)
 			_start_missile_attack()
@@ -394,24 +564,45 @@ func _update_pre_charge_move(delta: float) -> void:
 
 func _update_pre_missile_return(delta: float) -> void:
 	if not _has_move_target:
-		_is_preparing_missile = false
-		_begin_missile_attack(_pending_missile_beats)
+		# 已到原点后保持待机，等待预约发射时刻。
+		if debug_missile_timing and _is_preparing_missile and not _missile_return_arrived_logged:
+			print("[MissileDebug][Boss] arrived origin pos=", global_position,
+				" spawn=", _spawn_position,
+				" pending_s=", "%.3f" % maxf(0.0, _pending_missile_launch_time - _get_now_seconds()))
+			_missile_return_arrived_logged = true
 		return
 
-	if _move_towards_current_target(delta):
+	var return_speed: float = move_speed
+	if _has_pending_missile_launch:
+		var remaining: float = maxf(0.0, _pending_missile_launch_time - _get_now_seconds())
+		if remaining > 0.0:
+			var distance_to_target: float = maxf(0.0, global_position.distance_to(_move_target) - target_reach_distance)
+			if distance_to_target > 0.0:
+				var required_speed: float = distance_to_target / maxf(0.0001, remaining)
+				return_speed = maxf(move_speed, required_speed)
+
+	if _move_towards_current_target_with_speed(delta, return_speed):
 		_has_move_target = false
-		_is_preparing_missile = false
-		_begin_missile_attack(_pending_missile_beats)
+		if debug_missile_timing:
+			print("[MissileDebug][Boss] reached origin by move pos=", global_position,
+				" speed=", "%.3f" % return_speed,
+				" pending_s=", "%.3f" % maxf(0.0, _pending_missile_launch_time - _get_now_seconds()))
+		_missile_return_arrived_logged = true
+		# 到达原点后继续保持 PRE_MISSILE_RETURN，直到预约发射时刻到达。
 
 
 func _move_towards_current_target(delta: float) -> bool:
+	return _move_towards_current_target_with_speed(delta, move_speed)
+
+
+func _move_towards_current_target_with_speed(delta: float, speed: float) -> bool:
 	var to_target: Vector2 = _move_target - global_position
 	var distance: float = to_target.length()
 	if distance <= target_reach_distance:
 		global_position = _move_target
 		return true
 
-	var move_step: Vector2 = to_target.normalized() * move_speed * delta
+	var move_step: Vector2 = to_target.normalized() * maxf(0.0, speed) * delta
 	if move_step.length() > distance:
 		move_step = to_target
 	global_position += move_step
@@ -426,7 +617,7 @@ func _update_attack(_delta: float) -> void:
 
 func _update_charge(_delta: float) -> void:
 	# charge 状态期间仅维持瞄准与动画，由计时器控制退出。
-	pass
+	_try_fire_charge_bullet()
 
 
 func _update_missile_attack(_delta: float) -> void:
@@ -515,61 +706,123 @@ func _update_missile_state_timer(delta: float) -> void:
 	_missile_state_remaining_time = maxf(0.0, _missile_state_remaining_time - delta)
 
 
-func _play_charge_animation() -> void:
-	if _charge_anim_sprite == null:
+func _play_charge_animation(target_duration_sec: float = -1.0) -> void:
+	if _charge_animation_started_in_cycle:
+		if debug_charge_timing:
+			print("[ChargeDebug][Boss] play skipped cycle=", _charge_cycle_id,
+				" reason=already_started",
+				" state=", BossState.keys()[current_state],
+				" remaining_s=", "%.3f" % _charge_state_remaining_time)
 		return
-	if _charge_anim_sprite.sprite_frames == null:
-		return
-	if not _charge_anim_sprite.sprite_frames.has_animation(charge_animation_name):
-		push_warning("[Boss] ChargeAnim 缺少动画: %s" % String(charge_animation_name))
-		return
-
+	_charge_play_call_count += 1
+	if debug_charge_timing:
+		print("[ChargeDebug][Boss] play cycle=", _charge_cycle_id,
+			" call=", _charge_play_call_count,
+			" state=", BossState.keys()[current_state],
+			" remaining_s=", "%.3f" % _charge_state_remaining_time)
 	var target_duration: float = maxf(0.01, _charge_state_remaining_time)
-	var sprite_frames: SpriteFrames = _charge_anim_sprite.sprite_frames
-	var anim_name: String = String(charge_animation_name)
-	var frame_count: int = sprite_frames.get_frame_count(anim_name)
-	var attack_end_frame: int = _get_charge_attack_end_frame(frame_count)
+	if target_duration_sec > 0.0:
+		target_duration = maxf(0.01, target_duration_sec)
+	var visual_duration: float = 0.0
+	var has_playable_charge_anim: bool = false
+	for charge_sprite in _get_charge_anim_sprites():
+		var played_duration: float = _play_single_charge_sprite(charge_sprite, target_duration)
+		if played_duration > 0.0:
+			has_playable_charge_anim = true
+			visual_duration = maxf(visual_duration, played_duration)
 
-	# 对齐规则：第4拍时刻对应 attack_end_frame（从 0 计）
-	# 因此速度按 [0..attack_end_frame-1] 段时长进行缩放。
-	var base_duration: float = 0.0
-	if attack_end_frame > 0:
-		base_duration = _get_sprite_animation_partial_duration(sprite_frames, anim_name, 0, attack_end_frame - 1)
+	if has_playable_charge_anim:
+		_charge_animation_started_in_cycle = true
+		_charge_visual_remaining_time = maxf(target_duration, visual_duration)
 	else:
-		base_duration = _get_sprite_animation_duration(sprite_frames, anim_name)
-	if base_duration > 0.0:
-		# AnimatedSprite2D 实际时长 = base_duration / speed_scale
-		# 令 attack_end_frame 对齐到目标时长（默认 4 拍）。
-		_charge_anim_sprite.speed_scale = base_duration / target_duration
-	else:
-		_charge_anim_sprite.speed_scale = 1.0
-
-	var full_base_duration: float = _get_sprite_animation_duration(sprite_frames, anim_name)
-	if _charge_anim_sprite.speed_scale > 0.0 and full_base_duration > 0.0:
-		# 第4拍对齐关键帧后，继续把整段动画剩余部分播完一轮。
-		_charge_visual_remaining_time = full_base_duration / _charge_anim_sprite.speed_scale
-	else:
-		_charge_visual_remaining_time = target_duration
-
-	_charge_anim_sprite.visible = true
-	_charge_anim_sprite.stop()
-	_charge_anim_sprite.frame = 0
-	_charge_anim_sprite.frame_progress = 0.0
-	_charge_anim_sprite.play(charge_animation_name)
+		_charge_visual_remaining_time = 0.0
 
 
 func _stop_charge_animation() -> void:
-	if _charge_anim_sprite == null:
-		return
-	if _charge_anim_sprite.sprite_frames != null and _charge_anim_sprite.sprite_frames.has_animation(charge_animation_name):
-		var frame_count: int = _charge_anim_sprite.sprite_frames.get_frame_count(charge_animation_name)
-		var last_frame: int = frame_count - 1
-		if last_frame >= 0:
-			_charge_anim_sprite.frame = last_frame
-			_charge_anim_sprite.frame_progress = 0.0
-	_charge_anim_sprite.stop()
-	_charge_anim_sprite.speed_scale = 1.0
+	if debug_charge_timing and _charge_cycle_id > 0:
+		print("[ChargeDebug][Boss] stop cycle=", _charge_cycle_id,
+			" visual_remaining_s=", "%.3f" % _charge_visual_remaining_time,
+			" state=", BossState.keys()[current_state])
+	for charge_sprite in _get_charge_anim_sprites():
+		if charge_sprite == null:
+			continue
+		if charge_sprite.sprite_frames != null:
+			var stop_anim_name: StringName = _resolve_charge_animation_name(charge_sprite.sprite_frames)
+			if not stop_anim_name.is_empty():
+				var frame_count: int = charge_sprite.sprite_frames.get_frame_count(stop_anim_name)
+				var last_frame: int = frame_count - 1
+				if last_frame >= 0:
+					charge_sprite.frame = last_frame
+					charge_sprite.frame_progress = 0.0
+		charge_sprite.stop()
+		charge_sprite.speed_scale = 1.0
+	_clear_active_charge_bullet()
 	_charge_visual_remaining_time = 0.0
+
+
+func _get_charge_anim_sprites() -> Array[AnimatedSprite2D]:
+	var sprites: Array[AnimatedSprite2D] = []
+	if _charge_anim_sprite != null:
+		sprites.append(_charge_anim_sprite)
+	if _charge_gun_sprite != null and not sprites.has(_charge_gun_sprite):
+		sprites.append(_charge_gun_sprite)
+	if _charge_light_sprite != null and not sprites.has(_charge_light_sprite):
+		sprites.append(_charge_light_sprite)
+	return sprites
+
+
+func _resolve_charge_animation_name(sprite_frames: SpriteFrames) -> StringName:
+	if sprite_frames == null:
+		return StringName()
+	if sprite_frames.has_animation(charge_animation_name):
+		return charge_animation_name
+	if sprite_frames.has_animation(&"default"):
+		return &"default"
+	return StringName()
+
+
+func _play_single_charge_sprite(charge_sprite: AnimatedSprite2D, target_duration: float) -> float:
+	if charge_sprite == null:
+		return 0.0
+	if charge_sprite.sprite_frames == null:
+		return 0.0
+
+	var sprite_frames: SpriteFrames = charge_sprite.sprite_frames
+	var anim_name: StringName = _resolve_charge_animation_name(sprite_frames)
+	if anim_name.is_empty():
+		push_warning("[Boss] Charge 贴图缺少动画: %s / default" % String(charge_animation_name))
+		return 0.0
+
+	var anim_name_text: String = String(anim_name)
+	var frame_count: int = sprite_frames.get_frame_count(anim_name_text)
+	if frame_count <= 0:
+		return 0.0
+
+	var start_frame: int = mini(CHARGE_START_FRAME, frame_count - 1)
+	var attack_end_frame: int = _get_charge_attack_end_frame(frame_count)
+	if attack_end_frame < start_frame:
+		attack_end_frame = start_frame
+
+	# 对齐规则：提前三拍开播，从序列 2 起播；音符到判定线时对齐 attack_end_frame。
+	var base_duration: float = 0.0
+	if attack_end_frame > start_frame:
+		base_duration = _get_sprite_animation_partial_duration(sprite_frames, anim_name_text, start_frame, attack_end_frame - 1)
+	if base_duration > 0.0:
+		charge_sprite.speed_scale = base_duration / target_duration
+	else:
+		charge_sprite.speed_scale = 1.0
+
+	var full_base_duration: float = _get_sprite_animation_partial_duration(sprite_frames, anim_name_text, start_frame, frame_count - 1)
+	var played_duration: float = target_duration
+	if charge_sprite.speed_scale > 0.0 and full_base_duration > 0.0:
+		played_duration = full_base_duration / charge_sprite.speed_scale
+
+	charge_sprite.visible = true
+	charge_sprite.stop()
+	charge_sprite.play(anim_name)
+	charge_sprite.frame = start_frame
+	charge_sprite.frame_progress = 0.0
+	return played_duration
 
 
 func _update_charge_visual_timer(delta: float) -> void:
@@ -578,6 +831,160 @@ func _update_charge_visual_timer(delta: float) -> void:
 	_charge_visual_remaining_time = maxf(0.0, _charge_visual_remaining_time - delta)
 	if _charge_visual_remaining_time <= 0.0:
 		_stop_charge_animation()
+
+
+func _try_fire_charge_bullet() -> void:
+	if _charge_bullet_fired_this_cycle:
+		return
+	if charge_bullet_scene == null:
+		return
+	if charge_bullet_move_start_frame < charge_bullet_fire_frame:
+		return
+	if charge_bullet_hit_frame <= charge_bullet_move_start_frame:
+		return
+	if charge_bullet_despawn_frame <= charge_bullet_hit_frame:
+		return
+
+	var timing_sprite: AnimatedSprite2D = _get_charge_timing_sprite()
+	if timing_sprite == null:
+		return
+	if timing_sprite.frame < charge_bullet_fire_frame:
+		return
+
+	var wait_duration: float = _get_charge_bullet_phase_duration(
+		timing_sprite,
+		charge_bullet_fire_frame,
+		charge_bullet_move_start_frame,
+		0.0
+	)
+	var travel_duration: float = _get_charge_bullet_phase_duration(
+		timing_sprite,
+		charge_bullet_move_start_frame,
+		charge_bullet_hit_frame,
+		0.12
+	)
+	var despawn_delay: float = _get_charge_bullet_phase_duration(
+		timing_sprite,
+		charge_bullet_hit_frame,
+		charge_bullet_despawn_frame,
+		0.05
+	)
+	_spawn_charge_bullet(wait_duration, travel_duration, despawn_delay)
+	_charge_bullet_fired_this_cycle = true
+
+
+func _get_charge_timing_sprite() -> AnimatedSprite2D:
+	if _charge_gun_sprite != null:
+		return _charge_gun_sprite
+	if _charge_anim_sprite != null:
+		return _charge_anim_sprite
+	if _charge_light_sprite != null:
+		return _charge_light_sprite
+	return null
+
+
+func _get_charge_bullet_phase_duration(
+		timing_sprite: AnimatedSprite2D,
+		from_frame: int,
+		to_frame_exclusive: int,
+		fallback_duration: float
+	) -> float:
+	if to_frame_exclusive <= from_frame:
+		return 0.0
+	if timing_sprite == null or timing_sprite.sprite_frames == null:
+		return fallback_duration
+
+	var anim_name: StringName = _resolve_charge_animation_name(timing_sprite.sprite_frames)
+	if anim_name.is_empty():
+		return fallback_duration
+
+	var anim_text: String = String(anim_name)
+	var frame_count: int = timing_sprite.sprite_frames.get_frame_count(anim_text)
+	if frame_count <= 0:
+		return fallback_duration
+
+	var clamped_from_frame: int = clampi(from_frame, 0, frame_count - 1)
+	var clamped_to_frame_exclusive: int = clampi(to_frame_exclusive, 0, frame_count)
+	if clamped_to_frame_exclusive <= clamped_from_frame:
+		return 0.0
+
+	var base_fps: float = timing_sprite.sprite_frames.get_animation_speed(anim_text)
+	if base_fps <= 0.0:
+		return fallback_duration
+
+	var units: float = 0.0
+	for i in range(clamped_from_frame, clamped_to_frame_exclusive):
+		units += timing_sprite.sprite_frames.get_frame_duration(anim_text, i)
+
+	var base_duration: float = units / base_fps
+	var speed_scale: float = maxf(0.01, timing_sprite.speed_scale)
+	return maxf(0.0, base_duration / speed_scale)
+
+
+func _spawn_charge_bullet(wait_duration: float, travel_duration: float, despawn_delay: float) -> void:
+	if _charge_bullet_spawn_node == null:
+		_resolve_aim_nodes()
+	if _charge_bullet_spawn_node == null:
+		push_warning("[Boss] ChargeBullet 缺少 BulletPoint 节点，无法发射")
+		return
+
+	if _target_character == null:
+		_resolve_aim_nodes()
+	if _target_character == null:
+		return
+
+	var scene_root: Node = get_tree().current_scene
+	if scene_root == null:
+		scene_root = get_parent()
+	if scene_root == null:
+		return
+
+	_clear_active_charge_bullet()
+
+	var bullet: Node2D = charge_bullet_scene.instantiate() as Node2D
+	if bullet == null:
+		push_warning("[Boss] charge_bullet_scene 不是 Node2D，无法发射")
+		return
+
+	scene_root.add_child(bullet)
+	if not charge_bullet_use_scene_root_scale:
+		bullet.scale = Vector2(
+			charge_bullet_instance_scale.x * global_scale.x,
+			charge_bullet_instance_scale.y * global_scale.y
+		)
+	bullet.global_position = _charge_bullet_spawn_node.global_position
+	var player_pos: Vector2 = _target_character.global_position
+	var to_target: Vector2 = player_pos - bullet.global_position
+	var move_dir: Vector2 = Vector2.ZERO
+	if to_target.length_squared() > 0.0001:
+		move_dir = to_target.normalized()
+	else:
+		move_dir = Vector2.UP.rotated(bullet.global_rotation)
+
+	var hit_pos: Vector2 = player_pos - move_dir * maxf(0.0, charge_bullet_hit_distance_from_player)
+	_active_charge_bullet = bullet
+
+	if move_dir.length_squared() > 0.0001:
+		bullet.global_rotation = Vector2.UP.angle_to(move_dir) + PI
+
+	var fly_tween: Tween = bullet.create_tween()
+	if wait_duration > 0.0:
+		fly_tween.tween_interval(wait_duration)
+	fly_tween.tween_property(bullet, "global_position", hit_pos, maxf(0.01, travel_duration)).set_trans(Tween.TRANS_LINEAR).set_ease(Tween.EASE_IN_OUT)
+	if despawn_delay > 0.0:
+		fly_tween.tween_interval(despawn_delay)
+	fly_tween.tween_callback(func() -> void:
+		if is_instance_valid(bullet):
+			bullet.queue_free()
+		if _active_charge_bullet == bullet:
+			_active_charge_bullet = null
+	)
+
+
+func _clear_active_charge_bullet() -> void:
+	if _active_charge_bullet != null and is_instance_valid(_active_charge_bullet):
+		_active_charge_bullet.queue_free()
+	_active_charge_bullet = null
 
 
 func _play_state_animation(anim_name: StringName) -> void:
@@ -595,6 +1002,7 @@ func _play_state_animation(anim_name: StringName) -> void:
 
 func _on_boss_defeated() -> void:
 	is_dead = true
+	_invalidate_boss_attack_sounds()
 	_set_attack_hint_flash_active(false)
 	_reset_attack_hit_visuals()
 	_stop_break_transition()
@@ -602,16 +1010,18 @@ func _on_boss_defeated() -> void:
 	_is_preparing_missile = false
 	_is_preparing_charge = false
 	_has_pending_missile_launch = false
-	_pending_charge_beats = 0
+	_pending_charge_beats = 0.0
 	_has_pending_charge_fire = false
 	_pending_charge_fire_time = 0.0
 	_pending_missile_beats = 0
 	_missile_state_remaining_time = 0.0
+	_charge_bullet_fired_this_cycle = false
 	_stop_charge_animation()
 	_clear_active_missiles()
 
 
 func _on_attack_phase_started() -> void:
+	_invalidate_boss_attack_sounds()
 	_set_attack_hint_flash_active(true)
 	_stop_return_to_origin_transition()
 	_interrupt_for_attack_phase(BossState.BROKEN)
@@ -627,16 +1037,18 @@ func _interrupt_for_attack_phase(target_state: BossState = BossState.IDLE) -> vo
 	if is_dead:
 		return
 
+	_invalidate_boss_attack_sounds()
 	_attack_phase_interrupted = true
 	_is_preparing_missile = false
 	_is_preparing_charge = false
 	_has_pending_missile_launch = false
-	_pending_charge_beats = 0
+	_pending_charge_beats = 0.0
 	_has_pending_charge_fire = false
 	_pending_charge_fire_time = 0.0
 	_pending_missile_beats = 0
 	_charge_state_remaining_time = 0.0
 	_missile_state_remaining_time = 0.0
+	_charge_bullet_fired_this_cycle = false
 	_has_move_target = false
 	_stop_charge_animation()
 	_clear_active_missiles()
@@ -647,6 +1059,7 @@ func _on_attack_phase_ended() -> void:
 	if is_dead:
 		return
 
+	_invalidate_boss_attack_sounds()
 	_set_attack_hint_flash_active(false)
 	_reset_attack_hit_visuals()
 
@@ -656,12 +1069,13 @@ func _on_attack_phase_ended() -> void:
 	_is_preparing_missile = false
 	_is_preparing_charge = false
 	_has_pending_missile_launch = false
-	_pending_charge_beats = 0
+	_pending_charge_beats = 0.0
 	_has_pending_charge_fire = false
 	_pending_charge_fire_time = 0.0
 	_pending_missile_beats = 0
 	_charge_state_remaining_time = 0.0
 	_missile_state_remaining_time = 0.0
+	_charge_bullet_fired_this_cycle = false
 
 	# 攻击阶段结束后立即执行一次正常选位移动，避免观感像瞬移。
 	_set_state(BossState.RANDOM_MOVE)
@@ -678,6 +1092,7 @@ func _on_show_return_countdown_requested(_count: int) -> void:
 func _on_player_died() -> void:
 	# 玩家死亡后，Boss 逻辑完全冻结（不再移动/攻击/调度）。
 	is_dead = true
+	_invalidate_boss_attack_sounds()
 	_attack_phase_interrupted = true
 	_has_move_target = false
 	_is_preparing_missile = false
@@ -686,16 +1101,19 @@ func _on_player_died() -> void:
 	_has_pending_charge_fire = false
 	_pending_charge_fire_time = 0.0
 	_pending_missile_beats = 0
-	_pending_charge_beats = 0
+	_pending_charge_beats = 0.0
 	_charge_state_remaining_time = 0.0
 	_missile_state_remaining_time = 0.0
+	_charge_bullet_fired_this_cycle = false
 	_stop_charge_animation()
 	_clear_active_missiles()
 	set_process(false)
 
 
-func _on_attack_hit_confirmed(_attack_type: int, target: Variant) -> void:
+func _on_attack_hit_resolved(applied_damage: float, target: Variant) -> void:
 	if target == null:
+		return
+	if applied_damage <= 0.0:
 		return
 
 	var target_node: Node = target as Node
@@ -706,12 +1124,20 @@ func _on_attack_hit_confirmed(_attack_type: int, target: Variant) -> void:
 	if hit_visual == null:
 		return
 
+	var hit_part: int = _get_part_from_visual(hit_visual)
+	if hit_part == BOSS_PART_NONE:
+		return
+	if _is_part_destroyed(hit_part):
+		return
+
 	if hit_visual == _middle_body_visual:
 		_middle_red_flash_remaining = maxf(_middle_red_flash_remaining, hit_red_flash_duration)
 	elif hit_visual == _left_missile_visual:
 		_left_red_flash_remaining = maxf(_left_red_flash_remaining, hit_red_flash_duration)
 	elif hit_visual == _right_missile_visual:
 		_right_red_flash_remaining = maxf(_right_red_flash_remaining, hit_red_flash_duration)
+
+	_apply_damage_to_part(hit_part, applied_damage)
 
 
 func _set_attack_hint_flash_active(enabled: bool) -> void:
@@ -737,9 +1163,18 @@ func _update_attack_hit_flash(delta: float) -> void:
 		normal_color = Color(1.0 + boost, 1.0 + boost, 1.0 + boost, 1.0)
 
 	var hit_red_color: Color = Color(1.75, 0.30, 0.30, 1.0)
-	_apply_single_visual_color(_middle_body_visual, hit_red_color if _middle_red_flash_remaining > 0.0 else normal_color)
-	_apply_single_visual_color(_left_missile_visual, hit_red_color if _left_red_flash_remaining > 0.0 else normal_color)
-	_apply_single_visual_color(_right_missile_visual, hit_red_color if _right_red_flash_remaining > 0.0 else normal_color)
+	_apply_single_visual_color(_middle_body_visual, _get_part_flash_color(BOSS_PART_MIDDLE, _middle_red_flash_remaining, normal_color, hit_red_color))
+	_apply_single_visual_color(_left_missile_visual, _get_part_flash_color(BOSS_PART_LEFT, _left_red_flash_remaining, normal_color, hit_red_color))
+	_apply_single_visual_color(_right_missile_visual, _get_part_flash_color(BOSS_PART_RIGHT, _right_red_flash_remaining, normal_color, hit_red_color))
+
+
+func _get_part_flash_color(part: int, red_flash_remaining: float, normal_flash_color: Color, red_flash_color: Color) -> Color:
+	if _is_part_destroyed(part):
+		# 破坏后不参与红闪/白闪，保持基础显示。
+		return Color(1.0, 1.0, 1.0, 1.0)
+	if red_flash_remaining > 0.0:
+		return red_flash_color
+	return normal_flash_color
 
 
 func _apply_attack_hit_visual_color(color_value: Color) -> void:
@@ -783,69 +1218,304 @@ func _resolve_hit_visual_target(target_node: Node) -> CanvasItem:
 	return null
 
 
-func _on_boss_charge_requested(duration_beats: int) -> void:
-	if is_dead:
+func _set_visual_frame(visual: CanvasItem, frame_index: int) -> void:
+	if visual == null:
 		return
 
-	var lead_beats: int = duration_beats
-	if lead_beats <= 0:
-		lead_beats = charge_duration_beats
-	lead_beats = maxi(0, lead_beats)
+	if visual is AnimatedSprite2D:
+		var animated_visual: AnimatedSprite2D = visual as AnimatedSprite2D
+		if animated_visual != null:
+			animated_visual.pause()
+			animated_visual.frame = maxi(0, frame_index)
+		return
+
+	if visual is Sprite2D:
+		var sprite_visual: Sprite2D = visual as Sprite2D
+		if sprite_visual != null:
+			sprite_visual.frame = maxi(0, frame_index)
+
+
+func _reset_part_visual_frames() -> void:
+	_set_visual_frame(_middle_body_visual, middle_part_normal_frame)
+	_set_visual_frame(_left_missile_visual, left_part_normal_frame)
+	_set_visual_frame(_right_missile_visual, right_part_normal_frame)
+
+
+func _get_part_from_visual(hit_visual: CanvasItem) -> int:
+	if hit_visual == _middle_body_visual:
+		return BOSS_PART_MIDDLE
+	if hit_visual == _left_missile_visual:
+		return BOSS_PART_LEFT
+	if hit_visual == _right_missile_visual:
+		return BOSS_PART_RIGHT
+	return BOSS_PART_NONE
+
+
+func _is_part_destroyed(part: int) -> bool:
+	if part == BOSS_PART_MIDDLE:
+		return _middle_part_damage_accumulated >= maxf(1.0, middle_part_break_damage_threshold)
+	if part == BOSS_PART_LEFT:
+		return _left_part_damage_accumulated >= maxf(1.0, left_part_break_damage_threshold)
+	if part == BOSS_PART_RIGHT:
+		return _right_part_damage_accumulated >= maxf(1.0, right_part_break_damage_threshold)
+	return false
+
+
+func _apply_damage_to_part(part: int, damage: float) -> void:
+	if part == BOSS_PART_MIDDLE:
+		_middle_part_damage_accumulated += damage
+		if _middle_part_damage_accumulated >= maxf(1.0, middle_part_break_damage_threshold):
+			_on_part_destroyed(part)
+		return
+
+	if part == BOSS_PART_LEFT:
+		_left_part_damage_accumulated += damage
+		if _left_part_damage_accumulated >= maxf(1.0, left_part_break_damage_threshold):
+			_on_part_destroyed(part)
+		return
+
+	if part == BOSS_PART_RIGHT:
+		_right_part_damage_accumulated += damage
+		if _right_part_damage_accumulated >= maxf(1.0, right_part_break_damage_threshold):
+			_on_part_destroyed(part)
+
+
+func _on_part_destroyed(part: int) -> void:
+	if part == BOSS_PART_MIDDLE:
+		_set_visual_frame(_middle_body_visual, middle_part_broken_frame)
+		_middle_red_flash_remaining = 0.0
+		_set_part_hurtbox_active(BOSS_PART_MIDDLE, false)
+		_cancel_charge_flow_after_part_broken()
+		return
+
+	if part == BOSS_PART_LEFT:
+		_set_visual_frame(_left_missile_visual, left_part_broken_frame)
+		_left_red_flash_remaining = 0.0
+		_set_part_hurtbox_active(BOSS_PART_LEFT, false)
+	elif part == BOSS_PART_RIGHT:
+		_set_visual_frame(_right_missile_visual, right_part_broken_frame)
+		_right_red_flash_remaining = 0.0
+		_set_part_hurtbox_active(BOSS_PART_RIGHT, false)
+
+	if _are_missile_parts_all_destroyed():
+		_cancel_missile_flow_after_parts_broken()
+
+
+func _cancel_charge_flow_after_part_broken() -> void:
+	_is_preparing_charge = false
+	_has_pending_charge_fire = false
+	_pending_charge_fire_time = 0.0
+	_pending_charge_beats = 0.0
+	_charge_state_remaining_time = 0.0
+	_charge_visual_remaining_time = 0.0
+	_charge_bullet_fired_this_cycle = false
+	_charge_sfx_played_in_cycle = false
+	_clear_active_charge_bullet()
+	_stop_charge_animation()
+
+
+func _cancel_missile_flow_after_parts_broken() -> void:
+	_is_preparing_missile = false
+	_has_pending_missile_launch = false
+	_pending_missile_launch_time = 0.0
+	_pending_missile_beats = 0
+	_missile_state_remaining_time = 0.0
+	_clear_active_missiles()
+
+
+func _are_missile_parts_all_destroyed() -> bool:
+	return _is_part_destroyed(BOSS_PART_LEFT) and _is_part_destroyed(BOSS_PART_RIGHT)
+
+
+func _reset_part_health() -> void:
+	_middle_part_damage_accumulated = 0.0
+	_left_part_damage_accumulated = 0.0
+	_right_part_damage_accumulated = 0.0
+	_set_part_hurtbox_active(BOSS_PART_MIDDLE, true)
+	_set_part_hurtbox_active(BOSS_PART_LEFT, true)
+	_set_part_hurtbox_active(BOSS_PART_RIGHT, true)
+	_reset_part_visual_frames()
+
+
+func _get_visual_for_part(part: int) -> CanvasItem:
+	if part == BOSS_PART_MIDDLE:
+		return _middle_body_visual
+	if part == BOSS_PART_LEFT:
+		return _left_missile_visual
+	if part == BOSS_PART_RIGHT:
+		return _right_missile_visual
+	return null
+
+
+func _collect_area_nodes(root_node: Node) -> Array[Area2D]:
+	var areas: Array[Area2D] = []
+	if root_node == null:
+		return areas
+
+	var stack: Array[Node] = [root_node]
+	while not stack.is_empty():
+		var node: Node = stack.pop_back()
+		if node is Area2D:
+			areas.append(node as Area2D)
+		for child in node.get_children():
+			stack.append(child as Node)
+
+	return areas
+
+
+func _set_area_collision_shapes_enabled(area: Area2D, enabled: bool) -> void:
+	for child in area.get_children():
+		if child is CollisionShape2D:
+			(child as CollisionShape2D).set_deferred("disabled", not enabled)
+
+
+func _set_part_hurtbox_active(part: int, enabled: bool) -> void:
+	var part_visual: CanvasItem = _get_visual_for_part(part)
+	if part_visual == null:
+		return
+
+	for area in _collect_area_nodes(part_visual):
+		if area == null:
+			continue
+
+		if enabled:
+			if bool(area.get_meta(HURTBOX_RESTORE_META_KEY, false)):
+				if not area.is_in_group(ENEMY_HURTBOX_GROUP):
+					area.add_to_group(ENEMY_HURTBOX_GROUP)
+				area.set_meta(HURTBOX_RESTORE_META_KEY, false)
+			area.set_deferred("monitoring", true)
+			area.set_deferred("monitorable", true)
+			_set_area_collision_shapes_enabled(area, true)
+			continue
+
+		if area.is_in_group(ENEMY_HURTBOX_GROUP):
+			area.set_meta(HURTBOX_RESTORE_META_KEY, true)
+			area.remove_from_group(ENEMY_HURTBOX_GROUP)
+		area.set_deferred("monitoring", false)
+		area.set_deferred("monitorable", false)
+		_set_area_collision_shapes_enabled(area, false)
+
+
+func is_middle_part_destroyed() -> bool:
+	return _is_part_destroyed(BOSS_PART_MIDDLE)
+
+
+func are_missile_parts_all_destroyed() -> bool:
+	return _are_missile_parts_all_destroyed()
+
+
+func _on_boss_charge_requested(duration_beats: float) -> void:
+	if is_dead:
+		return
+	if _is_part_destroyed(BOSS_PART_MIDDLE):
+		if debug_charge_timing:
+			print("[ChargeDebug][Boss] request ignored reason=middle_part_destroyed")
+		return
+	var now: float = _get_now_seconds()
+
+	# 防抖：避免同一时刻重复事件导致蓄力动画重启抖动。
+	if now - _last_charge_request_time < maxf(0.0, charge_request_min_interval_sec):
+		if debug_charge_timing:
+			print("[ChargeDebug][Boss] request ignored by debounce now=", "%.3f" % now,
+				" dt=", "%.3f" % (now - _last_charge_request_time))
+		return
+
+	# 防重入：正在蓄力或已有待触发蓄力时，忽略新请求，避免动画二连/加速。
+	if current_state == BossState.CHARGE or _charge_state_remaining_time > 0.0 or _has_pending_charge_fire:
+		if debug_charge_timing:
+			print("[ChargeDebug][Boss] request ignored by reentry state=", BossState.keys()[current_state],
+				" charge_remaining_s=", "%.3f" % _charge_state_remaining_time,
+				" pending_fire=", _has_pending_charge_fire)
+		return
+
+	_last_charge_request_time = now
+
+	var lead_beats: float = duration_beats
+	if lead_beats <= 0.0:
+		lead_beats = float(charge_duration_beats)
+	lead_beats = maxf(0.0, lead_beats)
+	if debug_charge_timing:
+		print("[ChargeDebug][Boss] request accepted lead_beats=", "%.3f" % lead_beats,
+			" now=", "%.3f" % now,
+			" state=", BossState.keys()[current_state])
 
 	var beat_seconds: float = EventBus.beat_interval
 	if beat_seconds <= 0.0:
 		beat_seconds = 0.5
 
 	_charge_state_remaining_time = 0.0
-	_pending_charge_beats = maxi(1, charge_duration_beats)
-	var now: float = _get_now_seconds()
+	# 蓄力动画播放时长保持固定，避免因请求剩余拍数波动导致时快时慢。
+	_pending_charge_beats = float(maxi(1, charge_duration_beats))
+	_charge_animation_started_in_cycle = false
+	_charge_animation_started_early = false
+	_charge_sfx_played_in_cycle = false
 	var requested_fire_time: float = now + float(lead_beats) * beat_seconds
-	var windup_time: float = float(_pending_charge_beats) * beat_seconds
+	var windup_time: float = _pending_charge_beats * beat_seconds
 	# duration_beats 表示离“应命中时刻”的提前量；charge 需要提前进入蓄力。
 	_pending_charge_fire_time = requested_fire_time - windup_time
 	if _pending_charge_fire_time < now:
 		_pending_charge_fire_time = now
 	_has_pending_charge_fire = true
 	_is_preparing_charge = false
+	if lead_beats > _pending_charge_beats:
+		_charge_animation_started_early = true
+		_play_charge_animation(lead_beats * beat_seconds)
+	if debug_charge_timing:
+		print("[ChargeDebug][Boss] schedule fire_time=", "%.3f" % _pending_charge_fire_time,
+			" windup_s=", "%.3f" % windup_time)
 
 	# 若请求即刻发射，直接进入 charge。
-	if lead_beats <= 0 or _pending_charge_fire_time <= now:
+	if lead_beats <= 0.0 or _pending_charge_fire_time <= now:
 		_has_pending_charge_fire = false
 		_begin_charge_attack(_pending_charge_beats)
 
 
-func _on_boss_missile_requested(duration_beats: int) -> void:
+func _on_boss_missile_requested(duration_beats: float) -> void:
 	if is_dead:
 		return
+	if _are_missile_parts_all_destroyed():
+		if debug_missile_timing:
+			print("[MissileDebug][Boss] request ignored reason=both_missile_parts_destroyed")
+		return
 
-	var beats: int = duration_beats
-	if beats <= 0:
-		beats = missile_total_beats
-	beats = maxi(1, beats)
+	var beats: float = duration_beats
+	if beats <= 0.0:
+		beats = float(missile_total_beats)
+	beats = maxf(0.0, beats)
 
-	_pending_missile_beats = beats
+	_pending_missile_beats = maxi(1, int(ceili(beats)))
+	_missile_return_arrived_logged = false
 
 	var beat_seconds: float = EventBus.beat_interval
 	if beat_seconds <= 0.0:
 		beat_seconds = 0.5
 
-	# 以判定时刻为基准反推发射时刻：
-	# 发射到命中耗时 = phase1 + phase2，确保第二轨到判定线时导弹命中玩家。
-	var flight_beats: int = maxi(1, missile_phase1_beats) + maxi(1, missile_phase2_beats)
-	var launch_lead_beats: int = maxi(0, beats - flight_beats)
+	# duration_beats 语义：距命中剩余拍数。发射到命中耗时=phase1+phase2。
+	var flight_beats: float = float(maxi(1, missile_phase1_beats) + maxi(1, missile_phase2_beats))
+	var launch_lead_beats: float = maxf(0.0, beats - flight_beats)
+	if debug_missile_timing:
+		print("[MissileDebug][Boss] request recv beats=", "%.3f" % beats,
+			" flight_beats=", "%.3f" % flight_beats,
+			" lead_beats=", "%.3f" % launch_lead_beats,
+			" pos=", global_position,
+			" spawn=", _spawn_position)
 
-	# 命中提前量不足时直接发射，避免依赖 _process 调度导致漏发。
-	if launch_lead_beats <= 0:
+	if launch_lead_beats <= 0.0:
 		_has_pending_missile_launch = false
 		_pending_missile_launch_time = 0.0
 		_is_preparing_missile = false
 		_launch_missile_attack_now()
 		return
 
-	# 预约“下一次导弹发射时间”，不再做发射前归位。
 	_has_pending_missile_launch = true
 	_pending_missile_launch_time = _get_now_seconds() + float(launch_lead_beats) * beat_seconds
-	_is_preparing_missile = false
+	_move_target = _spawn_position
+	_has_move_target = global_position.distance_to(_move_target) > target_reach_distance
+	_is_preparing_missile = true
+	if debug_missile_timing:
+		print("[MissileDebug][Boss] schedule launch_at=", "%.3f" % _pending_missile_launch_time,
+			" move_target=", _move_target,
+			" need_move=", _has_move_target)
 
 
 func _prepare_pre_charge_move_target() -> bool:
@@ -912,19 +1582,31 @@ func _prepare_pre_missile_return_target() -> bool:
 	return true
 
 
-func _begin_charge_attack(beats: int) -> void:
-	var beat_count: int = maxi(1, beats)
+func _begin_charge_attack(beats: float) -> void:
+	var beat_count: float = maxf(0.01, beats)
 	var beat_seconds: float = EventBus.beat_interval
 	if beat_seconds <= 0.0:
 		beat_seconds = 0.5
+	_charge_cycle_id += 1
+	_charge_play_call_count = 0
+	if _charge_animation_started_early:
+		_charge_animation_started_early = false
+	else:
+		_charge_animation_started_in_cycle = false
+	if debug_charge_timing:
+		print("[ChargeDebug][Boss] begin cycle=", _charge_cycle_id,
+			" beat_count=", "%.3f" % beat_count,
+			" duration_s=", "%.3f" % (beat_count * beat_seconds),
+			" now_state=", BossState.keys()[current_state])
 
-	_pending_charge_beats = 0
+	_pending_charge_beats = 0.0
 	_pre_charge_target_on_ring = false
 	_has_pending_charge_fire = false
 	_pending_charge_fire_time = 0.0
-	_charge_state_remaining_time = float(beat_count) * beat_seconds
+	_charge_bullet_fired_this_cycle = false
+	_clear_active_charge_bullet()
+	_charge_state_remaining_time = beat_count * beat_seconds
 	if current_state == BossState.CHARGE:
-		_play_charge_animation()
 		return
 	_set_state(BossState.CHARGE)
 
@@ -936,11 +1618,6 @@ func _update_pending_charge_schedule() -> void:
 		_has_pending_charge_fire = false
 		return
 
-	if _target_character == null:
-		_resolve_aim_nodes()
-	if _target_character == null:
-		return
-
 	var now: float = _get_now_seconds()
 	var time_left: float = _pending_charge_fire_time - now
 	if time_left <= 0.0:
@@ -948,16 +1625,6 @@ func _update_pending_charge_schedule() -> void:
 		_has_pending_charge_fire = false
 		_begin_charge_attack(_pending_charge_beats)
 		return
-
-	var current_distance: float = global_position.distance_to(_target_character.global_position)
-	var stop_distance: float = maxf(1.0, pre_charge_distance_from_player)
-	var need_distance: float = absf(current_distance - stop_distance)
-	var can_cover_distance: float = move_speed * time_left
-
-	# 当“剩余时间 * 移速”足以覆盖需要前进的距离时，启动预移动。
-	if not _is_preparing_charge and need_distance <= can_cover_distance + target_reach_distance:
-		_is_preparing_charge = true
-		_set_state(BossState.PRE_CHARGE_MOVE)
 
 
 func _begin_missile_attack(beats: int) -> void:
@@ -1014,8 +1681,10 @@ func _spawn_missile_instance(phase1_duration: float, phase2_duration: float) -> 
 	missile.add_to_group(MISSILE_EFFECT_GROUP)
 	missile.global_position = launch_node.global_position
 	_active_missiles.append(missile)
+	_schedule_boss_attack_sound_from_sprite(BossAttackSoundConfig.ATTACK_MISSILE, _find_timing_sprite(missile))
 
 	var outward_dir: Vector2 = _get_missile_outward_direction(launch_node).normalized()
+	_play_missile_launcher_recoil(launch_node, outward_dir)
 	var outward_target: Vector2 = _get_missile_offscreen_target(missile.global_position, outward_dir)
 	var teleport_target: Vector2 = _get_missile_teleport_corner(launch_node)
 	_orient_missile_to_direction(missile, outward_dir)
@@ -1053,9 +1722,9 @@ func _spawn_missile_instance(phase1_duration: float, phase2_duration: float) -> 
 
 func _pick_missile_launch_node() -> Node2D:
 	var candidates: Array[Node2D] = []
-	if _missile_left_node != null:
+	if _missile_left_node != null and not _is_part_destroyed(BOSS_PART_LEFT):
 		candidates.append(_missile_left_node)
-	if _missile_right_node != null:
+	if _missile_right_node != null and not _is_part_destroyed(BOSS_PART_RIGHT):
 		candidates.append(_missile_right_node)
 	if candidates.is_empty():
 		return null
@@ -1153,16 +1822,34 @@ func _update_pending_missile_launch() -> void:
 	var now: float = _get_now_seconds()
 	var remaining: float = _pending_missile_launch_time - now
 
-	# 到达发射时刻：直接发射，不再等待归位。
+	# 导弹预约期间持续锁定目标为原点，避免被随机移动改写。
+	if remaining > 0.0:
+		if not _is_preparing_missile:
+			_is_preparing_missile = true
+		_move_target = _spawn_position
+		if global_position.distance_to(_move_target) <= target_reach_distance:
+			_has_move_target = false
+		else:
+			_has_move_target = true
+
+	# 到达发射时刻：无论当前位置如何，都准点发射。
 	if remaining <= 0.0:
 		_launch_missile_attack_now()
 
 
 func _launch_missile_attack_now() -> void:
-	_is_preparing_missile = false
+	if debug_missile_timing:
+		print("[MissileDebug][Boss] launch now pos=", global_position,
+			" spawn=", _spawn_position,
+			" dist_to_spawn=", "%.3f" % global_position.distance_to(_spawn_position))
 	_has_pending_missile_launch = false
+	_pending_missile_launch_time = 0.0
+	_has_move_target = false
+	_is_preparing_missile = false
 	_pending_missile_beats = 0
+	_missile_state_remaining_time = 0.0
 	_start_missile_attack()
+	_set_state(BossState.RANDOM_MOVE)
 
 
 func _start_return_to_origin_transition() -> void:
@@ -1199,6 +1886,10 @@ func _stop_return_to_origin_transition() -> void:
 
 func _get_now_seconds() -> float:
 	return float(Time.get_ticks_msec()) / 1000.0
+
+
+func get_spawn_position() -> Vector2:
+	return _spawn_position
 
 
 func _start_shield_break_transition() -> void:
@@ -1257,6 +1948,7 @@ func _stop_break_transition() -> void:
 
 func _clear_active_missiles() -> void:
 	_missile_effect_token += 1
+	_reset_missile_launcher_recoil()
 
 	for missile in _active_missiles:
 		if missile != null and is_instance_valid(missile):
@@ -1271,6 +1963,108 @@ func _clear_active_missiles() -> void:
 			if missile_node is CanvasItem:
 				(missile_node as CanvasItem).visible = false
 			missile_node.queue_free()
+
+
+func _cache_missile_launcher_origin(launch_node: Node2D) -> void:
+	if launch_node == null:
+		return
+	var recoil_node: Node2D = _get_missile_recoil_node_by_launch_node(launch_node)
+	if recoil_node == null:
+		return
+	if launch_node == _missile_left_node:
+		if _missile_left_origin_node != recoil_node:
+			_missile_left_origin_node = recoil_node
+			_missile_left_origin_position = recoil_node.position
+		return
+	if launch_node == _missile_right_node:
+		if _missile_right_origin_node != recoil_node:
+			_missile_right_origin_node = recoil_node
+			_missile_right_origin_position = recoil_node.position
+
+
+func _get_missile_launcher_origin(launch_node: Node2D) -> Vector2:
+	if launch_node == _missile_left_node:
+		return _missile_left_origin_position
+	if launch_node == _missile_right_node:
+		return _missile_right_origin_position
+	return launch_node.position
+
+
+func _kill_missile_launcher_recoil_tween(launch_node: Node2D) -> void:
+	if launch_node == _missile_left_node:
+		if _missile_left_recoil_tween != null:
+			_missile_left_recoil_tween.kill()
+			_missile_left_recoil_tween = null
+		return
+	if launch_node == _missile_right_node:
+		if _missile_right_recoil_tween != null:
+			_missile_right_recoil_tween.kill()
+			_missile_right_recoil_tween = null
+
+
+func _play_missile_launcher_recoil(launch_node: Node2D, outward_dir: Vector2) -> void:
+	if launch_node == null:
+		return
+	var recoil_node: Node2D = _get_missile_recoil_node_by_launch_node(launch_node)
+	if recoil_node == null:
+		return
+	if outward_dir.length_squared() <= 0.0001:
+		return
+	if missile_launcher_recoil_distance <= 0.0:
+		return
+
+	_cache_missile_launcher_origin(launch_node)
+	_kill_missile_launcher_recoil_tween(launch_node)
+
+	var origin_local: Vector2 = _get_missile_launcher_origin(launch_node)
+	recoil_node.position = origin_local
+
+	var recoil_dir_global: Vector2 = -outward_dir.normalized()
+	var recoil_global_target: Vector2 = recoil_node.global_position + recoil_dir_global * missile_launcher_recoil_distance
+	var recoil_local_target: Vector2 = origin_local + recoil_dir_global * missile_launcher_recoil_distance
+	var parent_2d: Node2D = recoil_node.get_parent() as Node2D
+	if parent_2d != null:
+		recoil_local_target = parent_2d.to_local(recoil_global_target)
+
+	var recoil_tween: Tween = create_tween()
+	if launch_node == _missile_left_node:
+		_missile_left_recoil_tween = recoil_tween
+	elif launch_node == _missile_right_node:
+		_missile_right_recoil_tween = recoil_tween
+
+	recoil_tween.tween_property(recoil_node, "position", recoil_local_target, maxf(0.01, missile_launcher_recoil_out_duration)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	recoil_tween.tween_property(recoil_node, "position", origin_local, maxf(0.01, missile_launcher_recoil_return_duration)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	recoil_tween.tween_callback(func() -> void:
+		if launch_node == _missile_left_node:
+			_missile_left_recoil_tween = null
+		elif launch_node == _missile_right_node:
+			_missile_right_recoil_tween = null
+	)
+
+
+func _reset_missile_launcher_recoil() -> void:
+	if _missile_left_node != null:
+		_kill_missile_launcher_recoil_tween(_missile_left_node)
+	if _missile_right_node != null:
+		_kill_missile_launcher_recoil_tween(_missile_right_node)
+	if _missile_left_origin_node != null and is_instance_valid(_missile_left_origin_node):
+		_missile_left_origin_node.position = _missile_left_origin_position
+	if _missile_right_origin_node != null and is_instance_valid(_missile_right_origin_node):
+		_missile_right_origin_node.position = _missile_right_origin_position
+
+
+func _get_missile_recoil_node_by_launch_node(launch_node: Node2D) -> Node2D:
+	if launch_node == _missile_left_node:
+		var left_visual_node: Node2D = _left_missile_visual as Node2D
+		if left_visual_node != null:
+			return left_visual_node
+		return _missile_left_node
+	if launch_node == _missile_right_node:
+		var right_visual_node: Node2D = _right_missile_visual as Node2D
+		if right_visual_node != null:
+			return right_visual_node
+		return _missile_right_node
+	return launch_node
 
 
 func _start_player_dash_afterimage(duration: float) -> void:

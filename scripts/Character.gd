@@ -55,6 +55,7 @@ var _is_dead: bool = false
 
 var _is_next_attack_charged: bool = false
 var _is_attack_anim_playing: bool = false
+var _pending_attack_phase_end_transition: bool = false
 var _facing_sign: float = -1.0
 var _prep_movement_enabled: bool = false
 var _attack_movement_enabled: bool = true
@@ -110,6 +111,7 @@ func _physics_process(delta: float) -> void:
 		return
 	if _state == PlayerState.ATTACK or _prep_movement_enabled:
 		_update_attack_movement(delta)
+	_clamp_position_inside_screen()
 
 
 func _on_defense_action(track: Note.NoteType) -> void:
@@ -146,6 +148,7 @@ func _on_attack_action(attack_type: int) -> void:
 func _on_attack_phase_started() -> void:
 	if _is_dead:
 		return
+	_pending_attack_phase_end_transition = false
 	_is_next_attack_charged = false
 	_prep_movement_enabled = false
 	_attack_movement_enabled = true
@@ -156,9 +159,17 @@ func _on_attack_phase_started() -> void:
 func _on_attack_phase_ended() -> void:
 	if _is_dead:
 		return
+	_pending_attack_phase_end_transition = false
 	_is_next_attack_charged = false
 	_prep_movement_enabled = false
 	_attack_movement_enabled = false
+	if _is_attack_anim_playing:
+		_pending_attack_phase_end_transition = true
+		return
+	_complete_attack_phase_end_transition()
+
+
+func _complete_attack_phase_end_transition() -> void:
 	_clear_attack_action_runtime()
 	_transition_to_state(PlayerState.DEFENSE)
 	_facing_sign = -1.0
@@ -199,15 +210,15 @@ func _exit_state(state: PlayerState) -> void:
 
 
 func _update_attack_movement(delta: float) -> void:
+	if _is_attack_anim_playing and (lock_movement_during_attack or not _attack_movement_enabled):
+		velocity = Vector2.ZERO
+		_action_state = ActionState.ATTACK
+		return
+
 	if _state == PlayerState.ATTACK and not _attack_movement_enabled:
 		velocity = Vector2.ZERO
 		_action_state = ActionState.IDLE
 		_play_idle()
-		return
-
-	if _is_attack_anim_playing and lock_movement_during_attack:
-		velocity = Vector2.ZERO
-		_action_state = ActionState.ATTACK
 		return
 
 	var input_dir: Vector2 = Input.get_vector(move_action_left, move_action_right, move_action_up, move_action_down)
@@ -227,6 +238,64 @@ func _update_attack_movement(delta: float) -> void:
 	else:
 		_action_state = ActionState.IDLE
 		_play_idle()
+
+
+func _clamp_position_inside_screen() -> void:
+	var visible_world_rect: Rect2 = _get_visible_world_rect()
+	var half_extents: Vector2 = _get_character_half_extents()
+
+	var min_x: float = visible_world_rect.position.x + half_extents.x
+	var max_x: float = visible_world_rect.position.x + visible_world_rect.size.x - half_extents.x
+	var min_y: float = visible_world_rect.position.y + half_extents.y
+	var max_y: float = visible_world_rect.position.y + visible_world_rect.size.y - half_extents.y
+
+	if max_x < min_x:
+		var center_x: float = visible_world_rect.position.x + visible_world_rect.size.x * 0.5
+		min_x = center_x
+		max_x = center_x
+	if max_y < min_y:
+		var center_y: float = visible_world_rect.position.y + visible_world_rect.size.y * 0.5
+		min_y = center_y
+		max_y = center_y
+
+	global_position = Vector2(
+		clampf(global_position.x, min_x, max_x),
+		clampf(global_position.y, min_y, max_y)
+	)
+
+
+func _get_visible_world_rect() -> Rect2:
+	var viewport_rect: Rect2 = get_viewport().get_visible_rect()
+	var inv_canvas: Transform2D = get_viewport().get_canvas_transform().affine_inverse()
+
+	var p1: Vector2 = inv_canvas * viewport_rect.position
+	var p2: Vector2 = inv_canvas * Vector2(viewport_rect.position.x + viewport_rect.size.x, viewport_rect.position.y)
+	var p3: Vector2 = inv_canvas * Vector2(viewport_rect.position.x, viewport_rect.position.y + viewport_rect.size.y)
+	var p4: Vector2 = inv_canvas * (viewport_rect.position + viewport_rect.size)
+
+	var min_x: float = minf(minf(p1.x, p2.x), minf(p3.x, p4.x))
+	var max_x: float = maxf(maxf(p1.x, p2.x), maxf(p3.x, p4.x))
+	var min_y: float = minf(minf(p1.y, p2.y), minf(p3.y, p4.y))
+	var max_y: float = maxf(maxf(p1.y, p2.y), maxf(p3.y, p4.y))
+
+	return Rect2(Vector2(min_x, min_y), Vector2(max_x - min_x, max_y - min_y))
+
+
+func _get_character_half_extents() -> Vector2:
+	if animated_sprite == null or animated_sprite.sprite_frames == null:
+		return Vector2(24.0, 24.0)
+
+	var anim_name: String = String(animated_sprite.animation)
+	if anim_name.is_empty() or not animated_sprite.sprite_frames.has_animation(anim_name):
+		return Vector2(24.0, 24.0)
+
+	var frame_texture: Texture2D = animated_sprite.sprite_frames.get_frame_texture(anim_name, animated_sprite.frame)
+	if frame_texture == null:
+		return Vector2(24.0, 24.0)
+
+	var tex_size: Vector2 = frame_texture.get_size()
+	var scale_abs: Vector2 = Vector2(absf(animated_sprite.global_scale.x), absf(animated_sprite.global_scale.y))
+	return Vector2(tex_size.x * scale_abs.x * 0.5, tex_size.y * scale_abs.y * 0.5)
 
 
 func _start_attack_action(attack_type: int, is_charged: bool) -> void:
@@ -537,6 +606,9 @@ func _on_animation_finished() -> void:
 
 	if _state == PlayerState.ATTACK and _is_attack_anim_playing:
 		_finish_attack_action()
+		if _pending_attack_phase_end_transition and not _is_attack_anim_playing:
+			_pending_attack_phase_end_transition = false
+			_complete_attack_phase_end_transition()
 
 
 func _on_animation_frame_changed() -> void:
@@ -569,6 +641,7 @@ func _on_player_died() -> void:
 		return
 
 	_is_dead = true
+	_pending_attack_phase_end_transition = false
 	velocity = Vector2.ZERO
 	_is_next_attack_charged = false
 	_prep_movement_enabled = false

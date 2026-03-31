@@ -41,6 +41,7 @@ const ACTION_MAPPING := {
 
 # 按键音效配置
 @export var key_sound_config: KeySoundConfig = null
+@export var debug_attack_drum_alignment: bool = false
 
 @onready var track_manager: Node = get_node("../TrackManager")
 @onready var music_player: Node = get_node("../MusicPlayer")
@@ -66,6 +67,7 @@ var _heavy_skip_next_beat: bool = false    # 重击占用下一拍标志
 var _beat_generation: int = 0            # 每拍递增，用于使过期回调失效
 var _attack_beat_abs_times: PackedFloat64Array = PackedFloat64Array()  # 预计算的每拍绝对时间
 var _next_beat_idx: int = 0  # 下一个待处理的拍子索引
+var _attack_beat_input_states: Dictionary = {}  # key=判定拍编号(1-based), value=该拍是否已有输入/占用
 
 
 func _ready() -> void:
@@ -324,6 +326,7 @@ func _on_miss_triggered(track_type: int) -> void:
 func pause_input() -> void:
 	current_phase = PhaseState.PAUSED
 	_attack_beat_abs_times.clear()
+	_attack_beat_input_states.clear()
 	_next_beat_idx = 0
 	if attack_phase_timer != null:
 		attack_phase_timer.stop()
@@ -345,18 +348,19 @@ func start_attack_phase(duration: float, bi: float, first_beat_abs_time: float) 
 	attack_beat_interval = bi
 	current_beat_in_attack = 0  # 代表输入拍第1拍（尚未到来）
 	attack_phase_start_time = Time.get_ticks_msec() / 1000.0
-	# 使用从 ScoreManager 传入的绝对时间，而非重新计算（消除 Timer 漂移导致的音符间隙）
-	current_beat_start_time = first_beat_abs_time
+	# 每拍窗口定义为 [重音前半拍, 重音后半拍)，因此拍起点 = 重音时刻 - 半拍。
+	current_beat_start_time = first_beat_abs_time - 0.5 * bi
 	current_beat_has_input = false
 	_current_beat_forced_occupied = false
 	_heavy_skip_next_beat = false
 	_beat_generation += 1  # 使所有残留回调失效
+	_attack_beat_input_states.clear()
 	
-	# 预计算所有拍的绝对时间（输入拍 + 退出拍）——基于同一时间基准
+	# 预计算所有拍的绝对时间（输入拍 + 退出拍），这里存储“每拍窗口起点”。
 	_attack_beat_abs_times.clear()
 	_attack_beat_abs_times.resize(GameConstants.INPUT_BEATS + GameConstants.EXIT_BEATS)
 	for i in range(GameConstants.INPUT_BEATS + GameConstants.EXIT_BEATS):
-		_attack_beat_abs_times[i] = first_beat_abs_time + i * bi
+		_attack_beat_abs_times[i] = current_beat_start_time + i * bi
 	_next_beat_idx = 0
 	
 	# 通过 EventBus 通知 UI 显示攻击界面
@@ -373,6 +377,12 @@ func start_attack_phase(duration: float, bi: float, first_beat_abs_time: float) 
 
 ## 攻击阶段的输入处理
 func _handle_attack_phase_input(event: InputEvent) -> void:
+	# 忽略键盘长按产生的重复事件，避免一次按住跨拍连续占位。
+	if event is InputEventKey:
+		var key_event: InputEventKey = event as InputEventKey
+		if key_event != null and key_event.echo:
+			return
+
 	# 先将攻击拍状态追到当前时刻，避免输入事件先于 _process 导致落在旧拍状态。
 	var synced_now: float = Time.get_ticks_msec() / 1000.0
 	_advance_attack_beats_to_time(synced_now)
@@ -380,8 +390,10 @@ func _handle_attack_phase_input(event: InputEvent) -> void:
 	# 检测按键动作
 	for action in ACTION_MAPPING:
 		if event.is_action_pressed(action):
-			# 仅允许在输入阶段且当前拍可用时发动行动
-			if current_beat_in_attack < 1 or current_beat_in_attack > GameConstants.INPUT_BEATS:
+			var current_time: float = synced_now
+			var judge_beat: int = _get_input_judge_beat_for_time(current_time)
+			# 仅允许在输入阶段有效拍窗口内发动行动
+			if judge_beat < 1 or judge_beat > GameConstants.INPUT_BEATS:
 				print("当前不在可输入拍，忽略攻击输入")
 				return
 
@@ -395,35 +407,44 @@ func _handle_attack_phase_input(event: InputEvent) -> void:
 				Note.NoteType.DODGE:
 					attack_type = AttackType.HEAL
 
-			if current_beat_has_input:
-				# 重击占用拍允许用回复覆盖，避免“重击后无法及时回血”。
-				if _current_beat_forced_occupied and attack_type == AttackType.HEAL:
-					current_beat_has_input = false
-					_current_beat_forced_occupied = false
-					print("回复覆盖重击占用拍")
-				else:
-					print("当前拍已被占用，等待下一次未占用拍")
-					return
-
-			var current_time: float = synced_now
-			var time_since_beat: float = current_time - current_beat_start_time
-			var next_beat_time: float = current_beat_start_time + attack_beat_interval
-			if current_time < current_beat_start_time or current_time >= next_beat_time:
-				print("输入不在当前拍窗口内，忽略")
+			var beat_used: bool = bool(_attack_beat_input_states.get(judge_beat, false))
+			if beat_used:
+				print("当前拍已被占用，等待下一次未占用拍")
 				return
+
+			var beat_start_time: float = _attack_beat_abs_times[judge_beat - 1]
+			var time_since_beat: float = current_time - beat_start_time
 			
-			current_beat_has_input = true
+			_attack_beat_input_states[judge_beat] = true
+			if judge_beat == current_beat_in_attack:
+				current_beat_has_input = true
 			
 			# 发送攻击信号
 			EventBus.attack_performed.emit(attack_type)
+			_log_attack_drum_alignment("input_" + _get_attack_name(attack_type))
 			print("发动攻击: ", _get_attack_name(attack_type), " (距离节拍 ", int(time_since_beat * 1000), "ms)")
 			
 			# 重攻击消耗两拍：占用下一拍，不立即触发第二次攻击
-			if attack_type == AttackType.HEAVY and current_beat_in_attack < GameConstants.INPUT_BEATS:
+			if attack_type == AttackType.HEAVY and judge_beat < GameConstants.INPUT_BEATS:
 				_heavy_skip_next_beat = true
 				print("重击占用下一拍")
 			
 			return
+
+
+func _get_input_judge_beat_for_time(now: float) -> int:
+	if attack_beat_interval <= 0.0:
+		return -1
+	if _attack_beat_abs_times.size() < GameConstants.INPUT_BEATS:
+		return -1
+
+	for i in range(GameConstants.INPUT_BEATS):
+		var start_time: float = _attack_beat_abs_times[i]
+		var end_time: float = start_time + attack_beat_interval
+		if now >= start_time and now < end_time:
+			return i + 1
+
+	return -1
 
 
 func _advance_attack_beats_to_time(now: float) -> void:
@@ -437,13 +458,6 @@ func _advance_attack_beats_to_time(now: float) -> void:
 ## 攻击节拍触发（基于绝对时间，由 _process 调用）
 ## beat_idx: 拍子在 _attack_beat_abs_times 数组中的索引
 func _on_attack_beat_timed(beat_idx: int) -> void:
-	# 先结算上一拍：若该拍无任何动作且非重击占用，则自动蓄力。
-	if current_beat_in_attack >= 1 and current_beat_in_attack <= GameConstants.INPUT_BEATS:
-		if not current_beat_has_input and not _current_beat_forced_occupied:
-			current_beat_has_input = true
-			EventBus.attack_performed.emit(AttackType.ENHANCE)
-			print("自动强化（拍", current_beat_in_attack, "，本拍无输入）")
-
 	# 递增拍数，使用预计算的绝对时间（消除帧抖动漂移）
 	current_beat_in_attack += 1
 	current_beat_start_time = _attack_beat_abs_times[beat_idx]
@@ -454,17 +468,23 @@ func _on_attack_beat_timed(beat_idx: int) -> void:
 	if _heavy_skip_next_beat:
 		current_beat_has_input = true
 		_current_beat_forced_occupied = true
+		_attack_beat_input_states[current_beat_in_attack] = true
 		_heavy_skip_next_beat = false
 		print("重击占用本拍")
 	else:
 		current_beat_has_input = false
 		_current_beat_forced_occupied = false
+		_attack_beat_input_states[current_beat_in_attack] = false
 	
 	# 输入阶段（拍 1 ~ INPUT_BEATS）
 	if current_beat_in_attack <= GameConstants.INPUT_BEATS:
+		# 判定拍结束时（反拍）若无输入则自动蓄力。
+		_schedule_auto_enhance_for_beat(current_beat_in_attack, current_beat_start_time)
+
 		# 生成下一个节拍标记视觉音符（覆盖拍 3 ~ 16）
 		if current_beat_in_attack < (GameConstants.INPUT_BEATS - 1):
-			var note_target_time: float = _attack_beat_abs_times[beat_idx] + 2.0 * attack_beat_interval
+			# 目标时间使用“重音中心”，因此在窗口起点基础上加 2.5 拍。
+			var note_target_time: float = _attack_beat_abs_times[beat_idx] + 2.5 * attack_beat_interval
 			EventBus.spawn_beat_note_requested.emit(attack_beat_interval, note_target_time)
 			print("DEBUG: 生成音符 (拍", current_beat_in_attack + 1, ")")
 		
@@ -490,6 +510,7 @@ func _on_attack_phase_end() -> void:
 	current_phase = PhaseState.DEFENSE
 	_beat_generation += 1  # 使所有残留回调失效
 	_attack_beat_abs_times.clear()
+	_attack_beat_input_states.clear()
 	_current_beat_forced_occupied = false
 	if attack_phase_timer != null:
 		attack_phase_timer.stop()
@@ -516,3 +537,56 @@ func _get_attack_name(attack_type: AttackType) -> String:
 			return "强化"
 		_:
 			return "未知"
+
+
+func _log_attack_drum_alignment(tag: String) -> void:
+	if not debug_attack_drum_alignment:
+		return
+	if attack_beat_interval <= 0.0:
+		return
+	if not music_player:
+		return
+	if not music_player.has_method("get_drum_playback_position"):
+		return
+
+	var drum_pos: float = float(music_player.call("get_drum_playback_position"))
+	if drum_pos < 0.0:
+		return
+
+	var phase_in_beat: float = fposmod(drum_pos, attack_beat_interval)
+	var distance_to_nearest_accent: float = minf(phase_in_beat, attack_beat_interval - phase_in_beat)
+	print("[AttackDrumAlign] tag=", tag,
+		" beat=", current_beat_in_attack,
+		" drum_pos=", "%.4f" % drum_pos,
+		" phase=", "%.4f" % phase_in_beat,
+		" bi=", "%.4f" % attack_beat_interval,
+		" dist_to_accent=", "%.4f" % distance_to_nearest_accent)
+
+
+func _schedule_auto_enhance_for_beat(beat_number: int, beat_start_time: float) -> void:
+	if beat_number < 1 or beat_number > GameConstants.INPUT_BEATS:
+		return
+
+	var token: int = _beat_generation
+	var beat_end_time: float = beat_start_time + attack_beat_interval
+	var now: float = Time.get_ticks_msec() / 1000.0
+	var delay: float = maxf(0.0, beat_end_time - now)
+
+	get_tree().create_timer(delay).timeout.connect(func() -> void:
+		if token != _beat_generation:
+			return
+		if current_phase != PhaseState.ATTACK:
+			return
+
+		var already_used: bool = bool(_attack_beat_input_states.get(beat_number, false))
+		if already_used:
+			return
+
+		_attack_beat_input_states[beat_number] = true
+		if current_beat_in_attack == beat_number:
+			current_beat_has_input = true
+
+		EventBus.attack_performed.emit(AttackType.ENHANCE)
+		_log_attack_drum_alignment("auto_enhance")
+		print("自动强化（拍", beat_number, "，本拍无输入）")
+	)

@@ -42,14 +42,23 @@ var note_visual_enabled: bool = false
 
 # 非可视音符追踪（用于判定和 MISS 检测）
 var tracked_notes: Array[Note] = []
+var _missile_request_sent_notes: Array[Note] = []
+var _charge_request_sent_notes: Array[Note] = []
+var _boss_node: Node2D = null
+var _boss_origin_position: Vector2 = Vector2.ZERO
 
 # 音符生成音效配置
 @export var key_sound_config: KeySoundConfig = null
 
-@export_group("临时音效")
-@export var boss_laser_sound: AudioStream = preload("res://assets/SFX/laser3.wav")
-@export var boss_laser_volume_db: float = -2.0
-@export_range(0.0, 5.0, 0.01) var boss_laser_start_offset_sec: float = 0.0
+@export_group("Boss 攻击音效")
+@export var boss_attack_sound_config: BossAttackSoundConfig = preload("res://config/boss_attack_sound_config.tres")
+@export_group("")
+
+@export_group("Boss 导弹联动")
+@export_node_path("Node2D") var boss_node_path: NodePath = NodePath("../Boss")
+@export_range(0.0, 4.0, 0.25) var boss_charge_prepare_lead_beats: float = 0.75
+@export var debug_missile_timing: bool = false
+@export var debug_charge_timing: bool = false
 @export_group("")
 
 # 轨道动画配置（可配置每种音符类型的攻击动画，未配置则使用默认 Bling）
@@ -103,7 +112,7 @@ var _attack_phase_blocked: bool = false
 var spawn_audio_player_hit: AudioStreamPlayer = null
 var spawn_audio_player_guard: AudioStreamPlayer = null
 var spawn_audio_player_dodge: AudioStreamPlayer = null
-var _boss_laser_audio_player: AudioStreamPlayer = null
+var _boss_attack_audio_player: AudioStreamPlayer = null
 
 # 活跃的 Bling 特效追踪（按轨道分组，用于避免重叠）
 var _active_blings: Dictionary = {}
@@ -150,6 +159,7 @@ func _ready() -> void:
 	
 	if not game_ui:
 		push_warning("[TrackManager] game_ui 未设置，请在编辑器中拖拽 GameUI 节点到 @export")
+	_resolve_boss_node()
 	
 	# 创建音符生成音效播放器
 	spawn_audio_player_hit = AudioStreamPlayer.new()
@@ -168,14 +178,13 @@ func _ready() -> void:
 	spawn_audio_player_hit.bus = "Master"
 	spawn_audio_player_dodge.bus = "Master"
 
-	# Boss 激光临时音效播放器
-	_boss_laser_audio_player = AudioStreamPlayer.new()
-	_boss_laser_audio_player.name = "BossLaserAudio"
-	_boss_laser_audio_player.bus = "Master"
-	add_child(_boss_laser_audio_player)
-	if boss_laser_sound:
-		_boss_laser_audio_player.stream = boss_laser_sound
-	_boss_laser_audio_player.volume_db = boss_laser_volume_db
+	# Boss 攻击音效播放器（激光/导弹/蓄力子弹共用配置）
+	_boss_attack_audio_player = AudioStreamPlayer.new()
+	_boss_attack_audio_player.name = "BossAttackAudio"
+	_boss_attack_audio_player.bus = "Master"
+	if boss_attack_sound_config != null and not String(boss_attack_sound_config.sfx_bus).is_empty():
+		_boss_attack_audio_player.bus = String(boss_attack_sound_config.sfx_bus)
+	add_child(_boss_attack_audio_player)
 	
 	# 加载音符生成音效
 	if key_sound_config:
@@ -236,11 +245,13 @@ func _process(_delta: float) -> void:
 		
 		# 检查非可视追踪音符的 MISS
 		for i in range(tracked_notes.size() - 1, -1, -1):
+			if i < 0 or i >= tracked_notes.size():
+				continue
 			var note: Note = tracked_notes[i]
 			var time_past: float = current_time - note.beat_time
 			if time_past > MISS_THRESHOLD:
-				EventBus.miss_triggered.emit(note.type)
 				tracked_notes.remove_at(i)
+				EventBus.miss_triggered.emit(note.type)
 
 
 ## 设置铺面数据
@@ -262,13 +273,116 @@ func _on_beat_hit(beat_number: float, _note: Note) -> void:
 ## 检查并生成需要提前生成的音符（基于时间）
 func _check_and_spawn_notes_by_time(now_time: float) -> void:
 	for note in scheduled_notes.duplicate():
+		if not _is_note_type_enabled_by_boss_parts(note.type):
+			scheduled_notes.erase(note)
+			_missile_request_sent_notes.erase(note)
+			_charge_request_sent_notes.erase(note)
+			if debug_missile_timing and note.type == Note.NoteType.HIT:
+				print("[MissileDebug][Track] skip hit_note=#", note.beat_number, " reason=missile_parts_destroyed")
+			if debug_charge_timing and note.type == Note.NoteType.DODGE:
+				print("[ChargeDebug][Track] skip dodge_note=#", note.beat_number, " reason=middle_part_destroyed")
+			continue
+
 		var advance_beats: int = SPAWN_ADVANCE[note.type]
-		var spawn_time: float = note.beat_time - advance_beats * EventBus.beat_interval
+		var beat_interval: float = EventBus.beat_interval
+		if beat_interval <= 0.0:
+			beat_interval = 0.5
+		var spawn_time: float = note.beat_time - advance_beats * beat_interval
+		if note.type == Note.NoteType.HIT:
+			var prepare_seconds: float = _get_boss_return_prepare_seconds()
+			var request_time: float = spawn_time - prepare_seconds
+			if now_time >= request_time and not _missile_request_sent_notes.has(note):
+				var remaining_beats_to_hit: float = maxf(0.0, (note.beat_time - now_time) / beat_interval)
+				EventBus.boss_missile_requested.emit(remaining_beats_to_hit)
+				if debug_missile_timing:
+					print("[MissileDebug][Track] request hit_note=#", note.beat_number,
+						" now=", "%.3f" % now_time,
+						" request_time=", "%.3f" % request_time,
+						" spawn_time=", "%.3f" % spawn_time,
+						" prepare_s=", "%.3f" % prepare_seconds,
+						" remain_beats=", "%.3f" % remaining_beats_to_hit)
+				_missile_request_sent_notes.append(note)
+
+		if note.type == Note.NoteType.DODGE:
+			var charge_prepare_lead_beats: float = maxf(0.0, boss_charge_prepare_lead_beats)
+			var charge_request_time: float = spawn_time - charge_prepare_lead_beats * beat_interval
+			if now_time >= charge_request_time and not _charge_request_sent_notes.has(note):
+				var charge_remaining_beats_to_hit: float = maxf(0.0, (note.beat_time - now_time) / beat_interval)
+				EventBus.boss_charge_requested.emit(charge_remaining_beats_to_hit)
+				if debug_charge_timing:
+					print("[ChargeDebug][Track] request dodge_note=#", note.beat_number,
+						" now=", "%.3f" % now_time,
+						" request_time=", "%.3f" % charge_request_time,
+						" spawn_time=", "%.3f" % spawn_time,
+						" remain_beats=", "%.3f" % charge_remaining_beats_to_hit)
+				_charge_request_sent_notes.append(note)
 		
 		# 如果当前时间已经到达或超过音符的生成时间
 		if now_time >= spawn_time:
+			if debug_charge_timing and note.type == Note.NoteType.DODGE:
+				print("[ChargeDebug][Track] spawn dodge_note=#", note.beat_number,
+					" now=", "%.3f" % now_time,
+					" spawn_time=", "%.3f" % spawn_time)
+			if debug_missile_timing and note.type == Note.NoteType.HIT:
+				print("[MissileDebug][Track] spawn hit_note=#", note.beat_number,
+					" now=", "%.3f" % now_time,
+					" spawn_time=", "%.3f" % spawn_time)
 			_spawn_note(note)
 			scheduled_notes.erase(note)
+			_missile_request_sent_notes.erase(note)
+			_charge_request_sent_notes.erase(note)
+
+
+func _get_boss_return_prepare_seconds() -> float:
+	if _boss_node == null or not is_instance_valid(_boss_node):
+		_resolve_boss_node()
+	if _boss_node == null or not is_instance_valid(_boss_node):
+		if debug_missile_timing:
+			print("[MissileDebug][Track] boss node missing, fallback prepare_s=0")
+		return 0.0
+
+	var origin: Vector2 = _boss_origin_position
+	if _boss_node.has_method("get_spawn_position"):
+		origin = _boss_node.call("get_spawn_position")
+
+	var move_speed_value: Variant = _boss_node.get("move_speed")
+	var move_speed: float = 1.0
+	if move_speed_value != null:
+		move_speed = maxf(1.0, float(move_speed_value))
+
+	var distance_to_origin: float = _boss_node.global_position.distance_to(origin)
+	if debug_missile_timing and distance_to_origin <= 0.001:
+		print("[MissileDebug][Track] boss already near origin, prepare_s=0 pos=", _boss_node.global_position, " origin=", origin)
+	return distance_to_origin / move_speed
+
+
+func _resolve_boss_node() -> void:
+	if _boss_node != null and is_instance_valid(_boss_node):
+		return
+
+	if not boss_node_path.is_empty():
+		_boss_node = get_node_or_null(boss_node_path) as Node2D
+
+	if _boss_node == null:
+		var parent_node: Node = get_parent()
+		if parent_node != null:
+			_boss_node = parent_node.get_node_or_null("Boss") as Node2D
+
+	if _boss_node == null:
+		var scene_root: Node = get_tree().current_scene
+		if scene_root != null:
+			_boss_node = scene_root.find_child("Boss", true, false) as Node2D
+
+	if _boss_node == null:
+		return
+
+	if _boss_node.has_method("get_spawn_position"):
+		_boss_origin_position = _boss_node.call("get_spawn_position")
+	else:
+		_boss_origin_position = _boss_node.global_position
+
+	if debug_missile_timing:
+		print("[MissileDebug][Track] boss resolved: ", _boss_node.get_path(), " origin=", _boss_origin_position)
 
 
 ## 检查并生成需要提前生成的音符（已废弃，保留用于节拍信号触发）
@@ -282,18 +396,17 @@ func _check_and_spawn_notes(_current_beat: float) -> void:
 func _spawn_note(note: Note) -> void:
 	if _attack_phase_blocked:
 		return
+	if not _is_note_type_enabled_by_boss_parts(note.type):
+		return
 
 	_schedule_prejudge_key_hint(note)
 
 	# HIT / DODGE 轨道改为驱动 Boss 状态机攻击状态，不再走原轨道特效
-	if note.type == Note.NoteType.HIT:
-		EventBus.boss_missile_requested.emit(SPAWN_ADVANCE[Note.NoteType.HIT])
-	if note.type == Note.NoteType.DODGE:
-		EventBus.boss_charge_requested.emit(SPAWN_ADVANCE[Note.NoteType.DODGE])
+	# DODGE 的蓄力请求在 _check_and_spawn_notes_by_time 中提前发送。
 	if note.type != Note.NoteType.HIT and note.type != Note.NoteType.DODGE:
 		# 其他轨道沿用原特效逻辑
 		_spawn_track_animation(note)
-	
+
 	if note_visual_enabled:
 		# 可视模式：创建 NoteVisual 实例
 		if not game_ui:
@@ -301,18 +414,18 @@ func _spawn_note(note: Note) -> void:
 		var notes_container: Control = game_ui.get_notes_container()
 		if not notes_container:
 			return
-		
+
 		var note_visual := NOTE_VISUAL_SCENE.instantiate() as NoteVisual
 		var track_y: float = game_ui.get_track_y(note.type)
 		var judgment_x: float = game_ui.get_judgment_line_x()
 		var spawn_pos := Vector2(spawn_x, track_y)
 		var target_pos := Vector2(judgment_x, track_y)
-		
+
 		var advance_beats: int = SPAWN_ADVANCE[note.type]
 		var spawn_time: float = note.beat_time - advance_beats * EventBus.beat_interval
 		var move_start_time: float = spawn_time + EventBus.beat_interval
 		var target_time: float = note.beat_time
-		
+
 		note_visual.initialize(note, spawn_pos, target_pos, move_start_time, target_time)
 		notes_container.add_child(note_visual)
 		active_notes.append(note_visual)
@@ -320,6 +433,25 @@ func _spawn_note(note: Note) -> void:
 	else:
 		# 非可视模式：仅追踪音符用于判定
 		tracked_notes.append(note)
+
+
+func _is_note_type_enabled_by_boss_parts(note_type: Note.NoteType) -> bool:
+	if _boss_node == null or not is_instance_valid(_boss_node):
+		_resolve_boss_node()
+	if _boss_node == null or not is_instance_valid(_boss_node):
+		return true
+
+	if note_type == Note.NoteType.DODGE:
+		if _boss_node.has_method("is_middle_part_destroyed"):
+			return not bool(_boss_node.call("is_middle_part_destroyed"))
+		return true
+
+	if note_type == Note.NoteType.HIT:
+		if _boss_node.has_method("are_missile_parts_all_destroyed"):
+			return not bool(_boss_node.call("are_missile_parts_all_destroyed"))
+		return true
+
+	return true
 
 
 ## 在音符到判定线前 1 拍显示按键提示（玩家头顶）
@@ -454,6 +586,9 @@ func _invalidate_effect_callbacks() -> void:
 			sprite.stop()
 			sprite.visible = false
 
+	if _boss_attack_audio_player != null:
+		_boss_attack_audio_player.stop()
+
 
 ## 暂停音符生成
 func pause_note_spawning() -> void:
@@ -543,26 +678,64 @@ func _spawn_track_animation(note: Note) -> void:
 	_spawn_main_animation(note, main_target_beats, counter)
 
 
-func _schedule_guard_laser_sound(delay: float) -> void:
-	if delay <= 0.0:
-		_play_boss_laser_sound()
+func _schedule_boss_attack_sound_on_animation(
+		attack_type: int,
+		sprite_frames: SpriteFrames,
+		anim_name: String,
+		anim_speed_scale: float,
+		play_start_delay: float
+	) -> void:
+	if boss_attack_sound_config == null:
+		return
+	if _boss_attack_audio_player == null:
+		return
+	if sprite_frames == null:
+		return
+	if anim_name.is_empty() or not sprite_frames.has_animation(anim_name):
+		return
+
+	var stream: AudioStream = boss_attack_sound_config.get_attack_sfx(attack_type)
+	if stream == null:
+		return
+
+	var frame_count: int = sprite_frames.get_frame_count(anim_name)
+	var trigger_frame: int = clampi(boss_attack_sound_config.get_attack_sfx_start_frame(attack_type), 0, maxi(0, frame_count - 1))
+	var frame_delay: float = 0.0
+	if trigger_frame > 0:
+		frame_delay = _get_animation_duration(sprite_frames, anim_name, 0, trigger_frame - 1)
+		frame_delay /= maxf(0.01, anim_speed_scale)
+
+	var total_delay: float = maxf(0.0, play_start_delay) + frame_delay
+	if total_delay <= 0.001:
+		_play_boss_attack_sound(attack_type)
 		return
 
 	var token: int = _effect_runtime_token
-	get_tree().create_timer(delay).timeout.connect(func() -> void:
+	get_tree().create_timer(total_delay).timeout.connect(func() -> void:
 		if token != _effect_runtime_token or _attack_phase_blocked:
 			return
-		_play_boss_laser_sound()
+		_play_boss_attack_sound(attack_type)
 	)
 
 
-func _play_boss_laser_sound() -> void:
-	if _boss_laser_audio_player == null:
+func _play_boss_attack_sound(attack_type: int) -> void:
+	if boss_attack_sound_config == null:
 		return
-	if _boss_laser_audio_player.stream == null:
+	if _boss_attack_audio_player == null:
 		return
-	_boss_laser_audio_player.stop()
-	_boss_laser_audio_player.play(maxf(0.0, boss_laser_start_offset_sec))
+
+	var stream: AudioStream = boss_attack_sound_config.get_attack_sfx(attack_type)
+	if stream == null:
+		return
+
+	var bus_name: String = String(boss_attack_sound_config.sfx_bus)
+	if not bus_name.is_empty():
+		_boss_attack_audio_player.bus = bus_name
+	_boss_attack_audio_player.stream = stream
+	_boss_attack_audio_player.volume_db = boss_attack_sound_config.get_attack_sfx_volume_db(attack_type)
+	_boss_attack_audio_player.pitch_scale = maxf(0.01, boss_attack_sound_config.get_attack_sfx_pitch_scale(attack_type))
+	_boss_attack_audio_player.stop()
+	_boss_attack_audio_player.play(maxf(0.0, boss_attack_sound_config.get_attack_sfx_start_offset_sec(attack_type)))
 
 
 ## 生成预警特效（在主动画之前显示，持续1拍后自动销毁）
@@ -746,8 +919,13 @@ func _spawn_main_animation(note: Note, target_beats: int, counter: int) -> void:
 		anim_sprite.speed_scale = anim_speed_scale
 		anim_sprite.play(resolved_anim_name)
 	if note.type == Note.NoteType.GUARD:
-		var guard_sound_delay: float = play_start_delay + maxf(0.0, attack_end_delay)
-		_schedule_guard_laser_sound(guard_sound_delay)
+		_schedule_boss_attack_sound_on_animation(
+			BossAttackSoundConfig.ATTACK_LASER,
+			sprite_frames,
+			resolved_anim_name,
+			anim_speed_scale,
+			play_start_delay
+		)
 	
 	# 追踪活跃特效（用于默认 Bling 槽位避重）
 	if not _active_blings.has(note.type):
