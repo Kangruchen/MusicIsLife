@@ -2,7 +2,7 @@
 
 [ext_resource type="AudioStream" uid="uid://c551fjik1avxu" path="res://assets/SFX/chargefull.wav" id="1_6xrq8"]
 [ext_resource type="AudioStream" uid="uid://dy7owihsmnyq2" path="res://assets/SFX/laserfull.wav" id="1_laser"]
-[ext_resource type="Script" uid="uid://dvqabbakhn5v" path="res://scripts/BossAttackSoundConfig.gd" id="4_script"]
+[ext_resource type="Script" path="res://scripts/BossAttackSoundConfig.gd" id="4_script"]
 
 [resource]
 script = ExtResource("4_script")
