@@ -828,6 +828,7 @@ func _play_single_charge_sprite(charge_sprite: AnimatedSprite2D, target_duration
 func _update_charge_visual_timer(delta: float) -> void:
 	if _charge_visual_remaining_time <= 0.0:
 		return
+	_try_fire_charge_bullet()
 	_charge_visual_remaining_time = maxf(0.0, _charge_visual_remaining_time - delta)
 	if _charge_visual_remaining_time <= 0.0:
 		_stop_charge_animation()

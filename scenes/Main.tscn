@@ -154,3 +154,4 @@ pre_charge_distance_from_player = 250.0
 
 [node name="scene_boss" parent="." instance=ExtResource("17_ft6cd")]
 z_index = -10
+position = Vector2(1, -3)
