@@ -1,15 +1,16 @@
-[gd_scene load_steps=9 format=3 uid="uid://thjb062mo4cv"]
+[gd_scene load_steps=12 format=3 uid="uid://thjb062mo4cv"]
 
-[ext_resource type="Texture2D" uid="uid://d2rq78kq8bp8n" path="res://scenes/guide_bg.png" id="1_or254"]
-[ext_resource type="Script" uid="uid://dg7dpf4hq6rmc" path="res://scenes/guide.gd" id="2_gui_script"]
+[ext_resource type="Texture2D" uid="uid://dj4n3u3mly46c" path="res://scenes/guide_bg.png" id="1_or254"]
+[ext_resource type="Script" path="res://scenes/guide.gd" id="2_gui_script"]
+[ext_resource type="Texture2D" uid="uid://d21e60k2rsasd" path="res://assets/UI/Defense.png" id="3_wxloj"]
+[ext_resource type="Texture2D" uid="uid://cn8px43bssthh" path="res://assets/UI/EnemyBar.png" id="4_fd7ko"]
+[ext_resource type="Texture2D" uid="uid://vcrcd1jx08g7" path="res://assets/UI/PlayerBar.png" id="5_fd7ko"]
+[ext_resource type="Texture2D" uid="uid://caooqn6xaa8p1" path="res://assets/UI/Attack.png" id="6_nhlb8"]
 
 [sub_resource type="LabelSettings" id="LabelSettings_or254"]
 font_color = Color(1, 0.8, 0, 1)
 outline_size = 2
 outline_color = Color(0.008202022, 0.008202025, 0.008202025, 1)
-
-[sub_resource type="LabelSettings" id="LabelSettings_0el4p"]
-font_color = Color(0.8784314, 0.8784314, 0.8784314, 1)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_or254"]
 draw_center = false
@@ -59,16 +60,59 @@ label_settings = SubResource("LabelSettings_or254")
 horizontal_alignment = 1
 uppercase = true
 
-[node name="Content" type="Label" parent="."]
+[node name="Content" type="RichTextLabel" parent="."]
 layout_mode = 0
-offset_left = 188.0
-offset_top = 134.0
-offset_right = 490.0
-offset_bottom = 218.0
-text = "Defense Phase - Press keys to the beat
+offset_left = 65.0
+offset_top = 63.0
+offset_right = 865.0
+offset_bottom = 147.0
+scale = Vector2(0.6, 0.6)
+theme_override_font_sizes/normal_font_size = 18
+bbcode_enabled = true
+text = "[u][color=red]Defense Phase[/color] - Press the corresponding button in time with the enemy's attack rhythm！[/u]"
 
-Attack Phase - Free inputs allowed"
-label_settings = SubResource("LabelSettings_0el4p")
+[node name="Content2" type="RichTextLabel" parent="."]
+layout_mode = 0
+offset_left = 207.00002
+offset_top = 120.0
+offset_right = 707.0
+offset_bottom = 204.0
+scale = Vector2(0.6, 0.6)
+bbcode_enabled = true
+text = "The yellow bar is the boss's [color=yellow]shield.[/color] Successfully parrying an attack will reduce the shield; once the shield is empty, it will be your attack phase!"
+
+[node name="Content3" type="RichTextLabel" parent="."]
+layout_mode = 0
+offset_left = 207.00002
+offset_top = 168.0
+offset_right = 707.0
+offset_bottom = 252.0
+scale = Vector2(0.6, 0.6)
+bbcode_enabled = true
+text = "The blue bar is your [color=yellow]rhythm energy[/color]. Making mistakes and using powerful attacks will drain some of your energy.[color=yellow] Be careful not to let it run out![/color]"
+
+[node name="Content4" type="RichTextLabel" parent="."]
+layout_mode = 0
+offset_left = 207.00002
+offset_top = 214.0
+offset_right = 707.0
+offset_bottom = 298.0
+scale = Vector2(0.6, 0.6)
+bbcode_enabled = true
+text = "The red bar is the boss's [color=yellow]health[/color]. Attack the boss in attack phase and beat the boss!"
+
+[node name="Content5" type="RichTextLabel" parent="."]
+layout_mode = 0
+offset_left = 206.0
+offset_top = 250.0
+offset_right = 1006.0
+offset_bottom = 334.0
+scale = Vector2(0.6, 0.6)
+theme_override_font_sizes/normal_font_size = 18
+bbcode_enabled = true
+text = "[u][color=red]Attack Phase[/color] - Use your favorite attacks to give the boss a good beating![/u]
+A/D = Run  [color=blue]Blue (J) = Light Attack  [color=yellow]Yellow (I) = Heavy Attack
+[color=green]Green (L) = Heal  [color=red]Red (Do Nothing) = Boost "
 
 [node name="BackButton" type="Button" parent="."]
 layout_mode = 0
@@ -101,3 +145,23 @@ offset_right = 261.0
 offset_bottom = 127.0
 grow_horizontal = 2
 grow_vertical = 2
+
+[node name="Defense" type="Sprite2D" parent="."]
+position = Vector2(133, 138)
+scale = Vector2(0.25, 0.25)
+texture = ExtResource("3_wxloj")
+
+[node name="EnemyBar" type="Sprite2D" parent="."]
+position = Vector2(350, 98)
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("4_fd7ko")
+
+[node name="PlayerBar" type="Sprite2D" parent="."]
+position = Vector2(530, 166)
+scale = Vector2(0.3, 0.3)
+texture = ExtResource("5_fd7ko")
+
+[node name="Attack" type="Sprite2D" parent="."]
+position = Vector2(132, 248)
+scale = Vector2(0.25, 0.25)
+texture = ExtResource("6_nhlb8")

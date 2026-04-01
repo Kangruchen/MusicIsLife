@@ -69,6 +69,7 @@ const PENDING_ATTACK_TIMEOUT: float = 0.6
 @onready var track_manager: Node = get_node("../TrackManager")
 @onready var input_manager: Node = get_node("../InputManager")
 @onready var music_player: Node = get_node("../MusicPlayer")
+@onready var boss_node: Node = get_node_or_null("../Boss")
 
 # 暂停相关
 var is_paused_for_attack: bool = false
@@ -483,6 +484,12 @@ func _on_attack_hit_confirmed(attack_type: int, _target: Variant) -> void:
 	var damage: float = float(pending_attack_hits[hit_index].get("damage", 0.0))
 	pending_attack_hits.remove_at(hit_index)
 
+	var damage_multiplier: float = 1.0
+	var resolved_boss: Node = _resolve_boss_node()
+	if resolved_boss != null and is_instance_valid(resolved_boss) and resolved_boss.has_method("get_hit_damage_multiplier"):
+		damage_multiplier = float(resolved_boss.call("get_hit_damage_multiplier", _target))
+	damage *= maxf(0.0, damage_multiplier)
+
 	if damage <= 0.0:
 		return
 
@@ -499,6 +506,29 @@ func _on_attack_hit_confirmed(attack_type: int, _target: Variant) -> void:
 		boss_defeated.emit()
 		EventBus.boss_defeated.emit()
 		print("Boss被击败！")
+
+
+func _resolve_boss_node() -> Node:
+	if boss_node != null and is_instance_valid(boss_node):
+		return boss_node
+
+	boss_node = get_node_or_null("../Boss")
+	if boss_node != null and is_instance_valid(boss_node):
+		return boss_node
+
+	var scene_root: Node = get_tree().current_scene
+	if scene_root != null:
+		var direct_boss: Node = scene_root.get_node_or_null("Boss")
+		if direct_boss != null and is_instance_valid(direct_boss):
+			boss_node = direct_boss
+			return boss_node
+
+		var found_boss: Node = scene_root.find_child("Boss", true, false)
+		if found_boss != null and is_instance_valid(found_boss):
+			boss_node = found_boss
+			return boss_node
+
+	return null
 
 
 func _cleanup_pending_attack_hits() -> void:

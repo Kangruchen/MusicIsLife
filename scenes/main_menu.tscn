@@ -3,10 +3,10 @@
 [ext_resource type="Script" uid="uid://dlu3ahejwko8f" path="res://scenes/main_menu.gd" id="1_ekxnf"]
 [ext_resource type="Texture2D" uid="uid://6gl6sdjlyboh" path="res://scenes/0bb116c02789fc5b0854eab691c92b2f.jpg" id="2_bqqt6"]
 [ext_resource type="FontFile" uid="uid://bqvdp7h6k6dox" path="res://scenes/Orbitron-VariableFont_wght.ttf" id="3_bqqt6"]
-[ext_resource type="Script" uid="uid://bb3n5cbcej0a" path="res://scenes/new_game_btn.gd" id="4_wu84c"]
-[ext_resource type="Script" uid="uid://kcmmt83orarr" path="res://scenes/guide_btn.gd" id="5_oa1go"]
-[ext_resource type="Script" uid="uid://ctoccnqdvxyio" path="res://scenes/settings_btn.gd" id="6_tbmy8"]
-[ext_resource type="Script" uid="uid://bbm3twhqmhutv" path="res://scenes/quit_btn.gd" id="7_jk1qb"]
+[ext_resource type="Script" path="res://scenes/new_game_btn.gd" id="4_wu84c"]
+[ext_resource type="Script" path="res://scenes/guide_btn.gd" id="5_oa1go"]
+[ext_resource type="Script" path="res://scenes/settings_btn.gd" id="6_tbmy8"]
+[ext_resource type="Script" path="res://scenes/quit_btn.gd" id="7_jk1qb"]
 
 [sub_resource type="FontVariation" id="FontVariation_ekxnf"]
 base_font = ExtResource("3_bqqt6")

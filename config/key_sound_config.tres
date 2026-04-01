@@ -1,8 +1,8 @@
 [gd_resource type="Resource" script_class="KeySoundConfig" load_steps=5 format=3 uid="uid://brd58vvvmh20v"]
 
-[ext_resource type="AudioStream" uid="uid://c7gxwl5pdeqng" path="res://assets/SFX/kick.wav" id="1_4saig"]
+[ext_resource type="AudioStream" uid="uid://dvdlhy3awutoi" path="res://assets/SFX/dodgedrum.wav" id="1_4saig"]
 [ext_resource type="AudioStream" uid="uid://bqawaag18yohl" path="res://assets/SFX/guarddrum.wav" id="2_4saig"]
-[ext_resource type="AudioStream" uid="uid://cbx8xasgppw4e" path="res://assets/SFX/hitdrum.wav" id="3_4saig"]
+[ext_resource type="AudioStream" uid="uid://c7g0kn075r0fi" path="res://assets/SFX/hitdrum.wav" id="3_4saig"]
 [ext_resource type="Script" uid="uid://bxoqksavyl5ps" path="res://scripts/KeySoundConfig.gd" id="4_7gc1v"]
 
 [resource]
@@ -11,4 +11,5 @@ guard_sound = ExtResource("2_4saig")
 hit_sound = ExtResource("3_4saig")
 dodge_sound = ExtResource("1_4saig")
 guard_volume_db = 5.0
-dodge_volume_db = -5.0
+hit_volume_db = 5.0
+dodge_volume_db = 5.0

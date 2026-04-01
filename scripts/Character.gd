@@ -29,6 +29,7 @@ const ATTACK_TYPE_ENHANCE: int = 3
 
 @export_group("Hitbox Timing")
 @export var attack_hitbox_enabled: bool = true
+@export_range(0.0, 120.0, 1.0) var attack_back_hit_tolerance_px: float = 8.0
 @export_range(0, 60, 1) var light_hitbox_open_frame: int = 1
 @export_range(0, 60, 1) var light_hitbox_close_frame: int = 3
 @export_range(0, 60, 1) var heavy_hitbox_open_frame: int = 1
@@ -37,6 +38,10 @@ const ATTACK_TYPE_ENHANCE: int = 3
 @export_range(0, 60, 1) var charged_light_hitbox_close_frame: int = 3
 @export_range(0, 60, 1) var charged_heavy_hitbox_open_frame: int = 1
 @export_range(0, 60, 1) var charged_heavy_hitbox_close_frame: int = 4
+
+@export_group("Debug Hitbox")
+@export var debug_show_combat_hitboxes: bool = false
+@export var debug_hitbox_hotkey_enabled: bool = true
 
 @export_group("Hitbox Presets")
 @export var light_hitbox_preset_name: StringName = &"Light"
@@ -72,8 +77,12 @@ var _current_hitbox_size: Vector2 = Vector2(120.0, 90.0)
 var _current_hitbox_offset: Vector2 = Vector2(90.0, 0.0)
 var _death_anim_token: int = 0
 var _death_blackout_active: bool = false
+var _death_restart_input_enabled: bool = false
 var _death_fx_layer: CanvasLayer = null
 var _death_black_rect: ColorRect = null
+var _death_hint_line_top: Label = null
+var _death_hint_line_bottom: Label = null
+var _defense_miss_flash_tween: Tween = null
 @onready var music_player_node: Node = get_node_or_null("../GameManager/MusicPlayer")
 @onready var main_camera: Camera2D = get_node_or_null("../Camera2D") as Camera2D
 
@@ -93,6 +102,8 @@ func _ready() -> void:
 		EventBus.attack_movement_enabled_changed.connect(_on_attack_movement_enabled_changed)
 	if not EventBus.player_died.is_connected(_on_player_died):
 		EventBus.player_died.connect(_on_player_died)
+	if not EventBus.judgment_made.is_connected(_on_judgment_made):
+		EventBus.judgment_made.connect(_on_judgment_made)
 
 	if attack_hitbox != null and not attack_hitbox.area_entered.is_connected(_on_attack_hitbox_area_entered):
 		attack_hitbox.area_entered.connect(_on_attack_hitbox_area_entered)
@@ -106,12 +117,146 @@ func _ready() -> void:
 	_enter_state(_state)
 
 
+func _on_judgment_made(_track: int, judgment: int, _timing_diff: float) -> void:
+	if _is_dead:
+		return
+	if _state != PlayerState.DEFENSE:
+		return
+	if judgment != 3:
+		return
+	_play_defense_miss_flash()
+
+
+func _play_defense_miss_flash() -> void:
+	if animated_sprite == null:
+		return
+
+	# 连续 MISS 时，终止旧 tween 并从红色重新开始。
+	if _defense_miss_flash_tween != null:
+		_defense_miss_flash_tween.kill()
+
+	animated_sprite.modulate = Color(1.0, 0.28, 0.28, 1.0)
+	_defense_miss_flash_tween = create_tween()
+	_defense_miss_flash_tween.set_trans(Tween.TRANS_SINE)
+	_defense_miss_flash_tween.set_ease(Tween.EASE_OUT)
+	_defense_miss_flash_tween.tween_property(animated_sprite, "modulate", Color(1.0, 1.0, 1.0, 1.0), 0.14)
+	_defense_miss_flash_tween.finished.connect(func() -> void:
+		_defense_miss_flash_tween = null
+	)
+
+
 func _physics_process(delta: float) -> void:
 	if _is_dead:
 		return
 	if _state == PlayerState.ATTACK or _prep_movement_enabled:
 		_update_attack_movement(delta)
+	if _is_attack_hitbox_active:
+		_update_attack_hitbox_transform()
 	_clamp_position_inside_screen()
+
+
+func _process(_delta: float) -> void:
+	if debug_show_combat_hitboxes:
+		queue_redraw()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	var key_event: InputEventKey = event as InputEventKey
+	if key_event == null:
+		return
+	if not key_event.pressed or key_event.echo:
+		return
+
+	if debug_hitbox_hotkey_enabled and key_event.keycode == KEY_F6:
+		debug_show_combat_hitboxes = not debug_show_combat_hitboxes
+		queue_redraw()
+		print("[HitboxDebug] 可视化: ", "ON" if debug_show_combat_hitboxes else "OFF")
+		get_viewport().set_input_as_handled()
+		return
+
+	if key_event.keycode == KEY_ESCAPE:
+		get_viewport().set_input_as_handled()
+		_return_to_main_menu()
+		return
+
+	if not _death_restart_input_enabled:
+		return
+	if not _is_dead:
+		return
+
+	match key_event.keycode:
+		KEY_R:
+			get_viewport().set_input_as_handled()
+			_quick_restart_current_scene()
+		_:
+			pass
+
+
+func _draw() -> void:
+	if not debug_show_combat_hitboxes:
+		return
+
+	_draw_attack_hitbox_debug()
+	_draw_enemy_hurtboxes_debug()
+
+
+func _draw_attack_hitbox_debug() -> void:
+	if attack_hitbox == null or attack_hitbox_shape == null:
+		return
+	if attack_hitbox_shape.shape == null:
+		return
+
+	var global_xform: Transform2D = attack_hitbox.global_transform * attack_hitbox_shape.transform
+	var active_color: Color = Color(0.95, 0.25, 0.25, 1.0) if _is_attack_hitbox_active else Color(0.75, 0.75, 0.75, 1.0)
+	_draw_shape_debug(global_xform, attack_hitbox_shape.shape, active_color, 0.14, 2.0)
+
+
+func _draw_enemy_hurtboxes_debug() -> void:
+	var selected_area: Area2D = null
+	if attack_hitbox != null and attack_hitbox.monitoring:
+		selected_area = _pick_frontmost_attack_target_area()
+
+	for node in get_tree().get_nodes_in_group(&"enemy_hurtbox"):
+		var enemy_area: Area2D = node as Area2D
+		if enemy_area == null or not is_instance_valid(enemy_area):
+			continue
+
+		for child in enemy_area.get_children():
+			var shape_node: CollisionShape2D = child as CollisionShape2D
+			if shape_node == null or shape_node.shape == null:
+				continue
+
+			var global_xform: Transform2D = enemy_area.global_transform * shape_node.transform
+			var is_selected: bool = (selected_area != null and enemy_area == selected_area)
+			var color: Color = Color(1.0, 0.95, 0.2, 1.0) if is_selected else Color(0.2, 0.95, 1.0, 1.0)
+			var fill_alpha: float = 0.16 if is_selected else 0.08
+			_draw_shape_debug(global_xform, shape_node.shape, color, fill_alpha, 2.0)
+
+
+func _draw_shape_debug(global_xform: Transform2D, shape: Shape2D, color: Color, fill_alpha: float, line_width: float) -> void:
+	var local_xform: Transform2D = global_transform.affine_inverse() * global_xform
+
+	if shape is RectangleShape2D:
+		var rect_shape: RectangleShape2D = shape as RectangleShape2D
+		var half: Vector2 = rect_shape.size * 0.5
+		var points: PackedVector2Array = PackedVector2Array([
+			local_xform * Vector2(-half.x, -half.y),
+			local_xform * Vector2(half.x, -half.y),
+			local_xform * Vector2(half.x, half.y),
+			local_xform * Vector2(-half.x, half.y)
+		])
+		draw_colored_polygon(points, Color(color.r, color.g, color.b, fill_alpha))
+		var outline: PackedVector2Array = PackedVector2Array([points[0], points[1], points[2], points[3], points[0]])
+		draw_polyline(outline, color, line_width, true)
+		return
+
+	if shape is CircleShape2D:
+		var circle_shape: CircleShape2D = shape as CircleShape2D
+		var radius_scale: float = maxf(local_xform.x.length(), local_xform.y.length())
+		var center: Vector2 = local_xform.origin
+		var radius: float = circle_shape.radius * radius_scale
+		draw_circle(center, radius, Color(color.r, color.g, color.b, fill_alpha))
+		draw_arc(center, radius, 0.0, TAU, 48, color, line_width, true)
 
 
 func _on_defense_action(track: Note.NoteType) -> void:
@@ -388,7 +533,7 @@ func _open_attack_hitbox() -> void:
 		attack_hitbox_shape.shape = shape
 
 	shape.size = _current_hitbox_size
-	attack_hitbox.position = Vector2(_get_attack_forward_sign() * _current_hitbox_offset.x, _current_hitbox_offset.y)
+	_update_attack_hitbox_transform()
 	_attack_hitbox_attack_type = _current_attack_type
 	_attack_hit_targets.clear()
 	_set_attack_hitbox_enabled(true)
@@ -403,15 +548,86 @@ func _process_attack_overlap_once() -> void:
 	if attack_hitbox == null or not attack_hitbox.monitoring:
 		return
 
-	for area in attack_hitbox.get_overlapping_areas():
-		var other_area: Area2D = area as Area2D
-		if other_area == null:
+	var best_area: Area2D = _pick_frontmost_attack_target_area()
+	if best_area == null:
+		return
+	_process_single_attack_overlap(best_area)
+
+
+func _on_attack_hitbox_area_entered(_area: Area2D) -> void:
+	# 进入回调也走统一筛选，保证只命中前方最近目标。
+	_process_attack_overlap_once()
+
+
+func _pick_frontmost_attack_target_area() -> Area2D:
+	var candidates: Array[Area2D] = []
+	for overlap in attack_hitbox.get_overlapping_areas():
+		var candidate_area: Area2D = overlap as Area2D
+		if candidate_area == null or not is_instance_valid(candidate_area):
 			continue
-		_process_single_attack_overlap(other_area)
+		if not candidate_area.is_in_group(&"enemy_hurtbox"):
+			continue
+
+		var candidate_id: int = candidate_area.get_instance_id()
+		if _attack_hit_targets.has(candidate_id):
+			continue
+
+		candidates.append(candidate_area)
+
+	if candidates.is_empty():
+		return null
+	if candidates.size() == 1:
+		return candidates[0]
+
+	var best_area: Area2D = null
+	var best_distance_sq: float = INF
+	var attack_center: Vector2 = _get_attack_hitbox_center_global()
+	var forward_sign: float = signf(attack_hitbox.position.x)
+	if forward_sign == 0.0:
+		forward_sign = _facing_sign if _facing_sign != 0.0 else -1.0
+	var back_tolerance: float = maxf(0.0, attack_back_hit_tolerance_px)
+
+	for area in candidates:
+
+		var target_point: Vector2 = _get_enemy_hurtbox_target_point(area, attack_center)
+		var dx: float = target_point.x - attack_center.x
+		if dx * forward_sign < -back_tolerance:
+			continue
+
+		var distance_sq: float = attack_center.distance_squared_to(target_point)
+		if distance_sq < best_distance_sq:
+			best_distance_sq = distance_sq
+			best_area = area
+
+	return best_area
 
 
-func _on_attack_hitbox_area_entered(area: Area2D) -> void:
-	_process_single_attack_overlap(area)
+func _get_attack_hitbox_center_global() -> Vector2:
+	if attack_hitbox == null:
+		return global_position
+	if attack_hitbox_shape == null:
+		return attack_hitbox.global_position
+	return (attack_hitbox.global_transform * attack_hitbox_shape.transform).origin
+
+
+func _get_enemy_hurtbox_target_point(area: Area2D, reference_point: Vector2) -> Vector2:
+	var best_point: Vector2 = area.global_position
+	var best_distance_sq: float = INF
+
+	for child in area.get_children():
+		var shape_node: CollisionShape2D = child as CollisionShape2D
+		if shape_node == null or shape_node.shape == null:
+			continue
+		if shape_node.disabled:
+			continue
+
+		var shape_center: Vector2 = (area.global_transform * shape_node.transform).origin
+		var distance_sq: float = reference_point.distance_squared_to(shape_center)
+		if distance_sq < best_distance_sq:
+			best_distance_sq = distance_sq
+			best_point = shape_center
+
+	return best_point
 
 
 func _process_single_attack_overlap(area: Area2D) -> void:
@@ -429,7 +645,8 @@ func _process_single_attack_overlap(area: Area2D) -> void:
 		return
 	_attack_hit_targets[area_id] = true
 
-	var target: Node = area.get_parent()
+	# 传递真实受击 Area，避免中间层级变化导致部位识别丢失。
+	var target: Node = area
 	EventBus.attack_hit_confirmed.emit(_attack_hitbox_attack_type, target)
 
 
@@ -474,25 +691,13 @@ func _get_default_hitbox_size_for_current_attack() -> Vector2:
 
 
 func _get_attack_forward_sign() -> float:
-	var closest_sign: float = 0.0
-	var closest_distance: float = INF
-	for node in get_tree().get_nodes_in_group(&"enemy_hurtbox"):
-		var enemy_area: Area2D = node as Area2D
-		if enemy_area == null:
-			continue
-		var dx: float = enemy_area.global_position.x - global_position.x
-		var dist: float = absf(dx)
-		if dist < closest_distance and dist > 0.001:
-			closest_distance = dist
-			closest_sign = signf(dx)
-
-	if closest_sign != 0.0:
-		_facing_sign = closest_sign
-		if animated_sprite != null:
-			animated_sprite.flip_h = _facing_sign > 0.0
-		return closest_sign
-
 	return _facing_sign if _facing_sign != 0.0 else -1.0
+
+
+func _update_attack_hitbox_transform() -> void:
+	if attack_hitbox == null:
+		return
+	attack_hitbox.position = Vector2(-_get_attack_forward_sign() * _current_hitbox_offset.x, _current_hitbox_offset.y)
 
 
 func _set_attack_hitbox_enabled(enabled: bool) -> void:
@@ -641,6 +846,7 @@ func _on_player_died() -> void:
 		return
 
 	_is_dead = true
+	_death_restart_input_enabled = false
 	_pending_attack_phase_end_transition = false
 	velocity = Vector2.ZERO
 	_is_next_attack_charged = false
@@ -649,6 +855,7 @@ func _on_player_died() -> void:
 	_clear_attack_action_runtime()
 	_state = PlayerState.DEFENSE
 	_action_state = ActionState.IDLE
+	_hide_death_restart_hints()
 	_start_death_music_fadeout()
 
 	_play_dead_fail_sequence()
@@ -744,7 +951,73 @@ func _fade_to_black_after_fail(token: int) -> void:
 	fade_tween.tween_callback(func() -> void:
 		if token != _death_anim_token:
 			return
+		_death_restart_input_enabled = true
+		_show_death_restart_hints()
 	)
+
+
+func _show_death_restart_hints() -> void:
+	if _death_fx_layer == null or not is_instance_valid(_death_fx_layer):
+		return
+
+	_hide_death_restart_hints()
+
+	_death_hint_line_top = Label.new()
+	_death_hint_line_top.text = "Press R to restart"
+	_death_hint_line_top.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_death_hint_line_top.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_death_hint_line_top.add_theme_font_size_override("font_size", 26)
+	_death_hint_line_top.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.95))
+	_death_hint_line_top.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.8))
+	_death_hint_line_top.add_theme_constant_override("shadow_offset_x", 2)
+	_death_hint_line_top.add_theme_constant_override("shadow_offset_y", 2)
+	_death_hint_line_top.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	_death_hint_line_top.offset_left = -220.0
+	_death_hint_line_top.offset_right = 220.0
+	_death_hint_line_top.offset_top = -48.0
+	_death_hint_line_top.offset_bottom = 0.0
+	_death_fx_layer.add_child(_death_hint_line_top)
+
+	_death_hint_line_bottom = Label.new()
+	_death_hint_line_bottom.text = "Press Esc to return to main menu"
+	_death_hint_line_bottom.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_death_hint_line_bottom.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_death_hint_line_bottom.add_theme_font_size_override("font_size", 22)
+	_death_hint_line_bottom.add_theme_color_override("font_color", Color(0.93, 0.93, 0.93, 0.92))
+	_death_hint_line_bottom.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.8))
+	_death_hint_line_bottom.add_theme_constant_override("shadow_offset_x", 2)
+	_death_hint_line_bottom.add_theme_constant_override("shadow_offset_y", 2)
+	_death_hint_line_bottom.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	_death_hint_line_bottom.offset_left = -260.0
+	_death_hint_line_bottom.offset_right = 260.0
+	_death_hint_line_bottom.offset_top = 8.0
+	_death_hint_line_bottom.offset_bottom = 56.0
+	_death_fx_layer.add_child(_death_hint_line_bottom)
+
+
+func _hide_death_restart_hints() -> void:
+	if _death_hint_line_top != null and is_instance_valid(_death_hint_line_top):
+		_death_hint_line_top.queue_free()
+	if _death_hint_line_bottom != null and is_instance_valid(_death_hint_line_bottom):
+		_death_hint_line_bottom.queue_free()
+	_death_hint_line_top = null
+	_death_hint_line_bottom = null
+
+
+func _quick_restart_current_scene() -> void:
+	_death_restart_input_enabled = false
+	_hide_death_restart_hints()
+	var err: int = get_tree().reload_current_scene()
+	if err != OK:
+		push_warning("[Character] 重开场景失败: %d" % err)
+
+
+func _return_to_main_menu() -> void:
+	_death_restart_input_enabled = false
+	_hide_death_restart_hints()
+	var err: int = get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+	if err != OK:
+		push_warning("[Character] 返回主菜单失败: %d" % err)
 
 
 func _freeze_current_animation_last_frame() -> void:

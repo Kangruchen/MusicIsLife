@@ -9,6 +9,7 @@ extends Node
 # Miss 音效开关
 @export var enable_miss_audio_effect: bool = false
 @export var miss_sound: AudioStream = null  # Miss 时播放的音效
+@export_range(-80.0, 24.0, 0.1) var miss_sound_volume_db: float = 0.0
 
 # Lowpass Filter 配置
 const NORMAL_CUTOFF: float = 20000.0  # 正常频率
@@ -62,6 +63,7 @@ func _ready() -> void:
 	# 加载 miss 音效
 	if miss_sound:
 		miss_sfx_player.stream = miss_sound
+	miss_sfx_player.volume_db = miss_sound_volume_db
 	
 	# 获取 Lowpass Filter 引用
 	var bus_index: int = AudioServer.get_bus_index("Master")
@@ -400,6 +402,7 @@ func apply_miss_effect() -> void:
 func apply_track_miss_effect(note_type: int) -> void:
 	# 播放 miss 音效
 	if miss_sfx_player and miss_sfx_player.stream:
+		miss_sfx_player.volume_db = miss_sound_volume_db
 		miss_sfx_player.play()
 	
 	# 获取各轨道的正常音量

@@ -21,4 +21,4 @@ const GREAT_WINDOW: float = 0.100     ## 100 ms
 const GOOD_WINDOW: float = 0.150      ## 150 ms
 
 # === MISS 判定 ===
-const MISS_THRESHOLD: float = 0.200   ## 超过判定线后 200 ms 算 MISS
+const MISS_THRESHOLD: float = 0.150   ## 音符过判定线 150 ms 后算 MISS

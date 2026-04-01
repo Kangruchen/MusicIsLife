@@ -6,10 +6,12 @@
 script = ExtResource("1_script")
 guard_anim = "Guard"
 hit_anim = "Attack2"
+dodge_anim = "Dodge"
 light_attack_anim = "Attack2"
 heavy_attack_anim = "Attack1"
 charged_light_attack_anim = "Attack2"
 charged_heavy_attack_anim = "Attack1"
+heal_anim = "Dodge"
 idle_anim = "Idle"
 move_anim = "Run"
 fail_anim = "Fail"

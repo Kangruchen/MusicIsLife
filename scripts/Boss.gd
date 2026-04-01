@@ -79,6 +79,7 @@ enum BossState {
 @export var missile_total_beats: int = 3
 @export var missile_phase1_beats: int = 1
 @export var missile_phase2_beats: int = 2
+@export var enable_pre_missile_return: bool = false
 @export var missile_outward_distance: float = 1200.0
 @export_range(0.0, 200.0, 1.0) var missile_launcher_recoil_distance: float = 24.0
 @export_range(0.01, 0.5, 0.01) var missile_launcher_recoil_out_duration: float = 0.06
@@ -111,12 +112,19 @@ enum BossState {
 @export var middle_part_break_damage_threshold: float = 1000.0
 @export var left_part_break_damage_threshold: float = 500.0
 @export var right_part_break_damage_threshold: float = 500.0
+@export var middle_part_hit_damage_multiplier: float = 1.5
 @export_range(0, 10, 1) var middle_part_normal_frame: int = 0
 @export_range(0, 10, 1) var middle_part_broken_frame: int = 1
 @export_range(0, 10, 1) var left_part_normal_frame: int = 0
 @export_range(0, 10, 1) var left_part_broken_frame: int = 1
 @export_range(0, 10, 1) var right_part_normal_frame: int = 0
 @export_range(0, 10, 1) var right_part_broken_frame: int = 1
+
+@export_group("Part Debug Override")
+@export var debug_enable_part_state_override: bool = false
+@export var debug_middle_part_destroyed: bool = false
+@export var debug_left_part_destroyed: bool = false
+@export var debug_right_part_destroyed: bool = false
 
 var current_state: BossState = BossState.IDLE
 
@@ -164,6 +172,7 @@ var _has_pending_missile_launch: bool = false
 var _pending_missile_launch_time: float = 0.0
 var _active_missiles: Array[Node2D] = []
 var _missile_launch_side_index: int = 0
+var _pending_missile_forced_sides: Array[int] = []
 var _attack_phase_interrupted: bool = false
 var _missile_effect_token: int = 0
 var _missile_left_origin_position: Vector2 = Vector2.ZERO
@@ -195,8 +204,12 @@ var _charge_animation_started_in_cycle: bool = false
 var _middle_part_damage_accumulated: float = 0.0
 var _left_part_damage_accumulated: float = 0.0
 var _right_part_damage_accumulated: float = 0.0
-var _boss_attack_audio_player: AudioStreamPlayer = null
+var _boss_attack_audio_players: Dictionary = {}
 var _boss_attack_sound_token: int = 0
+var _debug_last_override_enabled: bool = false
+var _debug_last_middle_destroyed: bool = false
+var _debug_last_left_destroyed: bool = false
+var _debug_last_right_destroyed: bool = false
 
 const MISSILE_EFFECT_GROUP: StringName = &"boss_missile_effect"
 const PLAYER_DASH_AFTERIMAGE_GROUP: StringName = &"player_dash_afterimage"
@@ -207,6 +220,8 @@ const BOSS_PART_MIDDLE: int = 0
 const BOSS_PART_LEFT: int = 1
 const BOSS_PART_RIGHT: int = 2
 const HURTBOX_RESTORE_META_KEY: StringName = &"boss_part_hurtbox_restore_group"
+const MISSILE_SIDE_LEFT: int = 0
+const MISSILE_SIDE_RIGHT: int = 1
 
 
 func _ready() -> void:
@@ -222,6 +237,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_update_attack_hit_flash(delta)
+	_apply_debug_part_state_override_if_needed()
 
 	if _attack_phase_interrupted:
 		return
@@ -319,21 +335,33 @@ func _resolve_aim_nodes() -> void:
 
 
 func _setup_attack_audio_player() -> void:
-	if _boss_attack_audio_player != null and is_instance_valid(_boss_attack_audio_player):
-		return
+	# 预热三个独立播放器，避免不同攻击音效互相覆盖。
+	_get_attack_audio_player(BossAttackSoundConfig.ATTACK_LASER)
+	_get_attack_audio_player(BossAttackSoundConfig.ATTACK_MISSILE)
+	_get_attack_audio_player(BossAttackSoundConfig.ATTACK_CHARGE_BULLET)
 
-	_boss_attack_audio_player = AudioStreamPlayer.new()
-	_boss_attack_audio_player.name = "BossAttackAudio"
-	_boss_attack_audio_player.bus = "Master"
+
+func _get_attack_audio_player(attack_type: int) -> AudioStreamPlayer:
+	if _boss_attack_audio_players.has(attack_type):
+		var cached: AudioStreamPlayer = _boss_attack_audio_players[attack_type] as AudioStreamPlayer
+		if cached != null and is_instance_valid(cached):
+			return cached
+
+	var player: AudioStreamPlayer = AudioStreamPlayer.new()
+	player.name = "BossAttackAudio_%d" % attack_type
+	player.bus = "Master"
 	if boss_attack_sound_config != null and not String(boss_attack_sound_config.sfx_bus).is_empty():
-		_boss_attack_audio_player.bus = String(boss_attack_sound_config.sfx_bus)
-	add_child(_boss_attack_audio_player)
+		player.bus = String(boss_attack_sound_config.sfx_bus)
+	add_child(player)
+	_boss_attack_audio_players[attack_type] = player
+	return player
 
 
 func _play_boss_attack_sound(attack_type: int) -> void:
 	if boss_attack_sound_config == null:
 		return
-	if _boss_attack_audio_player == null:
+	var player: AudioStreamPlayer = _get_attack_audio_player(attack_type)
+	if player == null:
 		return
 
 	var stream: AudioStream = boss_attack_sound_config.get_attack_sfx(attack_type)
@@ -342,12 +370,12 @@ func _play_boss_attack_sound(attack_type: int) -> void:
 
 	var bus_name: String = String(boss_attack_sound_config.sfx_bus)
 	if not bus_name.is_empty():
-		_boss_attack_audio_player.bus = bus_name
-	_boss_attack_audio_player.stream = stream
-	_boss_attack_audio_player.volume_db = boss_attack_sound_config.get_attack_sfx_volume_db(attack_type)
-	_boss_attack_audio_player.pitch_scale = maxf(0.01, boss_attack_sound_config.get_attack_sfx_pitch_scale(attack_type))
-	_boss_attack_audio_player.stop()
-	_boss_attack_audio_player.play(maxf(0.0, boss_attack_sound_config.get_attack_sfx_start_offset_sec(attack_type)))
+		player.bus = bus_name
+	player.stream = stream
+	player.volume_db = boss_attack_sound_config.get_attack_sfx_volume_db(attack_type)
+	player.pitch_scale = maxf(0.01, boss_attack_sound_config.get_attack_sfx_pitch_scale(attack_type))
+	player.stop()
+	player.play(maxf(0.0, boss_attack_sound_config.get_attack_sfx_start_offset_sec(attack_type)))
 
 
 func _schedule_boss_attack_sound_from_sprite(attack_type: int, sprite: AnimatedSprite2D) -> void:
@@ -398,8 +426,10 @@ func _find_timing_sprite(root: Node) -> AnimatedSprite2D:
 
 func _invalidate_boss_attack_sounds() -> void:
 	_boss_attack_sound_token += 1
-	if _boss_attack_audio_player != null:
-		_boss_attack_audio_player.stop()
+	for value in _boss_attack_audio_players.values():
+		var player: AudioStreamPlayer = value as AudioStreamPlayer
+		if player != null and is_instance_valid(player):
+			player.stop()
 
 
 func _connect_global_signals() -> void:
@@ -417,10 +447,19 @@ func _connect_global_signals() -> void:
 		EventBus.attack_phase_ended.connect(_on_attack_phase_ended)
 	if not EventBus.attack_hit_resolved.is_connected(_on_attack_hit_resolved):
 		EventBus.attack_hit_resolved.connect(_on_attack_hit_resolved)
+	if not EventBus.judgment_made.is_connected(_on_judgment_made):
+		EventBus.judgment_made.connect(_on_judgment_made)
 	if not EventBus.show_return_countdown_requested.is_connected(_on_show_return_countdown_requested):
 		EventBus.show_return_countdown_requested.connect(_on_show_return_countdown_requested)
 	if not EventBus.player_died.is_connected(_on_player_died):
 		EventBus.player_died.connect(_on_player_died)
+
+
+func _on_judgment_made(_track: int, judgment: int, _timing_diff: float) -> void:
+	# 仅在成功判定（非 MISS）瞬间静音 Boss 攻击音效，避免覆盖按键反馈音。
+	if judgment == 3:
+		return
+	_invalidate_boss_attack_sounds()
 
 
 func _evaluate_state_by_conditions() -> void:
@@ -432,9 +471,6 @@ func _evaluate_state_by_conditions() -> void:
 		return
 	if _is_preparing_missile:
 		_set_state(BossState.PRE_MISSILE_RETURN)
-		return
-	if _missile_state_remaining_time > 0.0:
-		_set_state(BossState.MISSILE_ATTACK)
 		return
 	if _charge_state_remaining_time > 0.0:
 		_set_state(BossState.CHARGE)
@@ -579,7 +615,8 @@ func _update_pre_missile_return(delta: float) -> void:
 			var distance_to_target: float = maxf(0.0, global_position.distance_to(_move_target) - target_reach_distance)
 			if distance_to_target > 0.0:
 				var required_speed: float = distance_to_target / maxf(0.0001, remaining)
-				return_speed = maxf(move_speed, required_speed)
+				# 按剩余时间精确求速，避免提前到达原点。
+				return_speed = maxf(0.0, required_speed)
 
 	if _move_towards_current_target_with_speed(delta, return_speed):
 		_has_move_target = false
@@ -1011,6 +1048,7 @@ func _on_boss_defeated() -> void:
 	_is_preparing_missile = false
 	_is_preparing_charge = false
 	_has_pending_missile_launch = false
+	_pending_missile_forced_sides.clear()
 	_pending_charge_beats = 0.0
 	_has_pending_charge_fire = false
 	_pending_charge_fire_time = 0.0
@@ -1043,6 +1081,7 @@ func _interrupt_for_attack_phase(target_state: BossState = BossState.IDLE) -> vo
 	_is_preparing_missile = false
 	_is_preparing_charge = false
 	_has_pending_missile_launch = false
+	_pending_missile_forced_sides.clear()
 	_pending_charge_beats = 0.0
 	_has_pending_charge_fire = false
 	_pending_charge_fire_time = 0.0
@@ -1070,6 +1109,7 @@ func _on_attack_phase_ended() -> void:
 	_is_preparing_missile = false
 	_is_preparing_charge = false
 	_has_pending_missile_launch = false
+	_pending_missile_forced_sides.clear()
 	_pending_charge_beats = 0.0
 	_has_pending_charge_fire = false
 	_pending_charge_fire_time = 0.0
@@ -1099,6 +1139,7 @@ func _on_player_died() -> void:
 	_is_preparing_missile = false
 	_is_preparing_charge = false
 	_has_pending_missile_launch = false
+	_pending_missile_forced_sides.clear()
 	_has_pending_charge_fire = false
 	_pending_charge_fire_time = 0.0
 	_pending_missile_beats = 0
@@ -1210,11 +1251,22 @@ func _get_attack_hit_visuals() -> Array[CanvasItem]:
 func _resolve_hit_visual_target(target_node: Node) -> CanvasItem:
 	if target_node == null:
 		return null
-	if target_node == _middle_body_visual or (_middle_body_visual != null and _middle_body_visual.is_ancestor_of(target_node)):
+
+	var cursor: Node = target_node
+	while cursor != null:
+		if cursor == _middle_body_visual:
+			return _middle_body_visual
+		if cursor == _left_missile_visual:
+			return _left_missile_visual
+		if cursor == _right_missile_visual:
+			return _right_missile_visual
+		cursor = cursor.get_parent()
+
+	if _middle_body_visual != null and _middle_body_visual.is_ancestor_of(target_node):
 		return _middle_body_visual
-	if target_node == _left_missile_visual or (_left_missile_visual != null and _left_missile_visual.is_ancestor_of(target_node)):
+	if _left_missile_visual != null and _left_missile_visual.is_ancestor_of(target_node):
 		return _left_missile_visual
-	if target_node == _right_missile_visual or (_right_missile_visual != null and _right_missile_visual.is_ancestor_of(target_node)):
+	if _right_missile_visual != null and _right_missile_visual.is_ancestor_of(target_node):
 		return _right_missile_visual
 	return null
 
@@ -1286,7 +1338,6 @@ func _on_part_destroyed(part: int) -> void:
 		_set_visual_frame(_middle_body_visual, middle_part_broken_frame)
 		_middle_red_flash_remaining = 0.0
 		_set_part_hurtbox_active(BOSS_PART_MIDDLE, false)
-		_cancel_charge_flow_after_part_broken()
 		return
 
 	if part == BOSS_PART_LEFT:
@@ -1300,6 +1351,65 @@ func _on_part_destroyed(part: int) -> void:
 
 	if _are_missile_parts_all_destroyed():
 		_cancel_missile_flow_after_parts_broken()
+
+
+func _apply_debug_part_state_override_if_needed() -> void:
+	var changed: bool = false
+	if _debug_last_override_enabled != debug_enable_part_state_override:
+		changed = true
+	if _debug_last_middle_destroyed != debug_middle_part_destroyed:
+		changed = true
+	if _debug_last_left_destroyed != debug_left_part_destroyed:
+		changed = true
+	if _debug_last_right_destroyed != debug_right_part_destroyed:
+		changed = true
+
+	if not changed:
+		return
+
+	_debug_last_override_enabled = debug_enable_part_state_override
+	_debug_last_middle_destroyed = debug_middle_part_destroyed
+	_debug_last_left_destroyed = debug_left_part_destroyed
+	_debug_last_right_destroyed = debug_right_part_destroyed
+
+	if not debug_enable_part_state_override:
+		return
+
+	_set_part_destroyed_for_debug(BOSS_PART_MIDDLE, debug_middle_part_destroyed)
+	_set_part_destroyed_for_debug(BOSS_PART_LEFT, debug_left_part_destroyed)
+	_set_part_destroyed_for_debug(BOSS_PART_RIGHT, debug_right_part_destroyed)
+
+
+func _set_part_destroyed_for_debug(part: int, destroyed: bool) -> void:
+	var currently_destroyed: bool = _is_part_destroyed(part)
+	if currently_destroyed == destroyed:
+		return
+
+	if destroyed:
+		if part == BOSS_PART_MIDDLE:
+			_middle_part_damage_accumulated = maxf(1.0, middle_part_break_damage_threshold)
+		elif part == BOSS_PART_LEFT:
+			_left_part_damage_accumulated = maxf(1.0, left_part_break_damage_threshold)
+		elif part == BOSS_PART_RIGHT:
+			_right_part_damage_accumulated = maxf(1.0, right_part_break_damage_threshold)
+		_on_part_destroyed(part)
+		return
+
+	if part == BOSS_PART_MIDDLE:
+		_middle_part_damage_accumulated = 0.0
+		_set_visual_frame(_middle_body_visual, middle_part_normal_frame)
+		_middle_red_flash_remaining = 0.0
+		_set_part_hurtbox_active(BOSS_PART_MIDDLE, true)
+	elif part == BOSS_PART_LEFT:
+		_left_part_damage_accumulated = 0.0
+		_set_visual_frame(_left_missile_visual, left_part_normal_frame)
+		_left_red_flash_remaining = 0.0
+		_set_part_hurtbox_active(BOSS_PART_LEFT, true)
+	elif part == BOSS_PART_RIGHT:
+		_right_part_damage_accumulated = 0.0
+		_set_visual_frame(_right_missile_visual, right_part_normal_frame)
+		_right_red_flash_remaining = 0.0
+		_set_part_hurtbox_active(BOSS_PART_RIGHT, true)
 
 
 func _cancel_charge_flow_after_part_broken() -> void:
@@ -1321,6 +1431,7 @@ func _cancel_missile_flow_after_parts_broken() -> void:
 	_pending_missile_launch_time = 0.0
 	_pending_missile_beats = 0
 	_missile_state_remaining_time = 0.0
+	_pending_missile_forced_sides.clear()
 	_clear_active_missiles()
 
 
@@ -1332,6 +1443,7 @@ func _reset_part_health() -> void:
 	_middle_part_damage_accumulated = 0.0
 	_left_part_damage_accumulated = 0.0
 	_right_part_damage_accumulated = 0.0
+	_pending_missile_forced_sides.clear()
 	_set_part_hurtbox_active(BOSS_PART_MIDDLE, true)
 	_set_part_hurtbox_active(BOSS_PART_LEFT, true)
 	_set_part_hurtbox_active(BOSS_PART_RIGHT, true)
@@ -1405,12 +1517,66 @@ func are_missile_parts_all_destroyed() -> bool:
 	return _are_missile_parts_all_destroyed()
 
 
+func get_next_missile_turn_side() -> int:
+	return MISSILE_SIDE_LEFT if (_missile_launch_side_index % 2 == 0) else MISSILE_SIDE_RIGHT
+
+
+func is_missile_side_destroyed(side: int) -> bool:
+	if side == MISSILE_SIDE_LEFT:
+		return _is_part_destroyed(BOSS_PART_LEFT)
+	if side == MISSILE_SIDE_RIGHT:
+		return _is_part_destroyed(BOSS_PART_RIGHT)
+	return true
+
+
+func is_pre_missile_return_enabled() -> bool:
+	return enable_pre_missile_return
+
+
+func consume_missile_turn() -> void:
+	_missile_launch_side_index += 1
+
+
+func enqueue_missile_forced_side(side: int) -> void:
+	if side != MISSILE_SIDE_LEFT and side != MISSILE_SIDE_RIGHT:
+		return
+	_pending_missile_forced_sides.append(side)
+
+
+func is_track_attack_visual_active(note_type: int) -> bool:
+	if note_type == Note.NoteType.HIT:
+		if _are_missile_parts_all_destroyed():
+			return false
+		if _is_preparing_missile or _has_pending_missile_launch:
+			return true
+		if _missile_state_remaining_time > 0.0:
+			return true
+		return current_state == BossState.PRE_MISSILE_RETURN or current_state == BossState.MISSILE_ATTACK
+
+	if note_type == Note.NoteType.DODGE:
+		if _is_preparing_charge or _has_pending_charge_fire:
+			return true
+		if _charge_state_remaining_time > 0.0 or _charge_visual_remaining_time > 0.0:
+			return true
+		return current_state == BossState.PRE_CHARGE_MOVE or current_state == BossState.CHARGE
+
+	return true
+
+
+func get_hit_damage_multiplier(target: Variant) -> float:
+	var target_node: Node = target as Node
+	if target_node == null:
+		return 1.0
+
+	var hit_visual: CanvasItem = _resolve_hit_visual_target(target_node)
+	if hit_visual == _middle_body_visual and not _is_part_destroyed(BOSS_PART_MIDDLE):
+		return maxf(0.0, middle_part_hit_damage_multiplier)
+
+	return 1.0
+
+
 func _on_boss_charge_requested(duration_beats: float) -> void:
 	if is_dead:
-		return
-	if _is_part_destroyed(BOSS_PART_MIDDLE):
-		if debug_charge_timing:
-			print("[ChargeDebug][Boss] request ignored reason=middle_part_destroyed")
 		return
 	var now: float = _get_now_seconds()
 
@@ -1510,13 +1676,18 @@ func _on_boss_missile_requested(duration_beats: float) -> void:
 
 	_has_pending_missile_launch = true
 	_pending_missile_launch_time = _get_now_seconds() + float(launch_lead_beats) * beat_seconds
-	_move_target = _spawn_position
-	_has_move_target = global_position.distance_to(_move_target) > target_reach_distance
-	_is_preparing_missile = true
+	if enable_pre_missile_return:
+		_move_target = _spawn_position
+		_has_move_target = global_position.distance_to(_move_target) > target_reach_distance
+		_is_preparing_missile = true
+	else:
+		_has_move_target = false
+		_is_preparing_missile = false
 	if debug_missile_timing:
 		print("[MissileDebug][Boss] schedule launch_at=", "%.3f" % _pending_missile_launch_time,
 			" move_target=", _move_target,
-			" need_move=", _has_move_target)
+			" need_move=", _has_move_target,
+			" pre_return_enabled=", enable_pre_missile_return)
 
 
 func _prepare_pre_charge_move_target() -> bool:
@@ -1639,10 +1810,10 @@ func _begin_missile_attack(beats: int) -> void:
 	var state_duration: float = float(beat_count) * beat_seconds
 	_missile_state_remaining_time = maxf(_missile_state_remaining_time, state_duration)
 
-	if current_state == BossState.MISSILE_ATTACK:
-		_start_missile_attack()
-	else:
-		_set_state(BossState.MISSILE_ATTACK)
+	# 发射导弹后立即恢复随机移动；导弹飞行中的“攻击可视激活”由 _missile_state_remaining_time 负责。
+	_start_missile_attack()
+	if not is_dead and not _attack_phase_interrupted:
+		_set_state(BossState.RANDOM_MOVE)
 
 
 func _start_missile_attack() -> void:
@@ -1722,25 +1893,29 @@ func _spawn_missile_instance(phase1_duration: float, phase2_duration: float) -> 
 
 
 func _pick_missile_launch_node() -> Node2D:
-	var candidates: Array[Node2D] = []
-	if _missile_left_node != null and not _is_part_destroyed(BOSS_PART_LEFT):
-		candidates.append(_missile_left_node)
-	if _missile_right_node != null and not _is_part_destroyed(BOSS_PART_RIGHT):
-		candidates.append(_missile_right_node)
-	if candidates.is_empty():
-		return null
-	if candidates.size() == 1:
-		return candidates[0]
+	if not _pending_missile_forced_sides.is_empty():
+		var forced_side: int = int(_pending_missile_forced_sides.pop_front())
+		if forced_side == MISSILE_SIDE_LEFT:
+			if _missile_left_node != null and not _is_part_destroyed(BOSS_PART_LEFT):
+				return _missile_left_node
+			return null
 
-	# 两侧交替发射：0=left, 1=right。
-	var picked: Node2D = _missile_left_node if (_missile_launch_side_index % 2 == 0) else _missile_right_node
+		if _missile_right_node != null and not _is_part_destroyed(BOSS_PART_RIGHT):
+			return _missile_right_node
+		return null
+
+	# 严格按轮次侧位发射：轮到坏侧则本次不发，不兜底切到另一侧。
+	var launch_side: int = _missile_launch_side_index % 2
 	_missile_launch_side_index += 1
 
-	if picked != null:
-		return picked
+	if launch_side == MISSILE_SIDE_LEFT:
+		if _missile_left_node != null and not _is_part_destroyed(BOSS_PART_LEFT):
+			return _missile_left_node
+		return null
 
-	# 兜底：理论上不会走到这里。
-	return candidates[0]
+	if _missile_right_node != null and not _is_part_destroyed(BOSS_PART_RIGHT):
+		return _missile_right_node
+	return null
 
 
 func _get_missile_outward_direction(launch_node: Node2D) -> Vector2:
@@ -1825,13 +2000,17 @@ func _update_pending_missile_launch() -> void:
 
 	# 导弹预约期间持续锁定目标为原点，避免被随机移动改写。
 	if remaining > 0.0:
-		if not _is_preparing_missile:
-			_is_preparing_missile = true
-		_move_target = _spawn_position
-		if global_position.distance_to(_move_target) <= target_reach_distance:
-			_has_move_target = false
+		if enable_pre_missile_return:
+			if not _is_preparing_missile:
+				_is_preparing_missile = true
+			_move_target = _spawn_position
+			if global_position.distance_to(_move_target) <= target_reach_distance:
+				_has_move_target = false
+			else:
+				_has_move_target = true
 		else:
-			_has_move_target = true
+			_is_preparing_missile = false
+			_has_move_target = false
 
 	# 到达发射时刻：无论当前位置如何，都准点发射。
 	if remaining <= 0.0:
@@ -1843,14 +2022,14 @@ func _launch_missile_attack_now() -> void:
 		print("[MissileDebug][Boss] launch now pos=", global_position,
 			" spawn=", _spawn_position,
 			" dist_to_spawn=", "%.3f" % global_position.distance_to(_spawn_position))
+	var immediate_beats: int = _pending_missile_beats
+	if immediate_beats <= 0:
+		immediate_beats = maxi(1, missile_total_beats)
 	_has_pending_missile_launch = false
 	_pending_missile_launch_time = 0.0
 	_has_move_target = false
 	_is_preparing_missile = false
-	_pending_missile_beats = 0
-	_missile_state_remaining_time = 0.0
-	_start_missile_attack()
-	_set_state(BossState.RANDOM_MOVE)
+	_begin_missile_attack(immediate_beats)
 
 
 func _start_return_to_origin_transition() -> void:

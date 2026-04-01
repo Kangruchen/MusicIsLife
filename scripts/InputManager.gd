@@ -42,6 +42,9 @@ const ACTION_MAPPING := {
 # 按键音效配置
 @export var key_sound_config: KeySoundConfig = null
 @export var debug_attack_drum_alignment: bool = false
+@export_group("判定")
+@export var ignore_empty_press_without_nearby_notes: bool = false
+@export_range(0.01, 0.5, 0.01) var empty_press_note_check_window: float = 0.15
 
 @onready var track_manager: Node = get_node("../TrackManager")
 @onready var music_player: Node = get_node("../MusicPlayer")
@@ -258,11 +261,33 @@ func _handle_input(track_type: Note.NoteType) -> void:
 		_apply_miss_audio_effect()
 		EventBus.judgment_made.emit(wrong_note.type, JudgmentType.MISS, 0.0)
 		print("判定: MISS (按错键 - 应为 ", wrong_note.get_type_string(), ")")
-	else:
-		# 真正的空按
-		_apply_miss_audio_effect()
-		EventBus.judgment_made.emit(track_type, JudgmentType.MISS, 0.0)
-		print("判定: MISS (空按)")
+		return
+
+	# 真正的空按
+	if ignore_empty_press_without_nearby_notes:
+		if not _has_any_nearby_note(current_time, empty_press_note_check_window):
+			_play_key_sound(track_type)
+			print("判定: 忽略空按 (附近无音符)")
+			return
+	_apply_miss_audio_effect()
+	EventBus.judgment_made.emit(track_type, JudgmentType.MISS, 0.0)
+	print("判定: MISS (空按)")
+
+
+func _has_any_nearby_note(current_time: float, window: float) -> bool:
+	for note_visual in track_manager.active_notes:
+		if not note_visual or not is_instance_valid(note_visual):
+			continue
+		if not note_visual.is_active:
+			continue
+		if abs(current_time - note_visual.target_time) <= window:
+			return true
+
+	for note in track_manager.tracked_notes:
+		if abs(current_time - note.beat_time) <= window:
+			return true
+
+	return false
 
 
 ## 计算判定等级
@@ -315,7 +340,7 @@ func get_judgment_color(judgment: JudgmentType) -> Color:
 
 ## 由 TrackManager 通过 EventBus.miss_triggered 触发
 func _on_miss_triggered(track_type: int) -> void:
-	if current_phase == PhaseState.PAUSED:
+	if current_phase != PhaseState.DEFENSE:
 		return
 	_apply_miss_audio_effect()
 	EventBus.judgment_made.emit(track_type, JudgmentType.MISS, 0.0)

@@ -31,11 +31,14 @@ const SPAWN_ADVANCE := {
 	Note.NoteType.DODGE: 3   # 提前3拍（生成后1拍不动，2拍移动）(L键，第三轨道)
 }
 
+const MISSILE_SIDE_LEFT: int = 0
+const MISSILE_SIDE_RIGHT: int = 1
+
 # 音符生成位置X坐标（动态计算，在 _ready 中初始化）
 var spawn_x: float = 900.0
 
 # MISS 判定窗口 — 值与 GameConstants.MISS_THRESHOLD 同步
-const MISS_THRESHOLD: float = 0.200
+const MISS_THRESHOLD: float = GameConstants.MISS_THRESHOLD
 
 # 音符视觉生成开关（暂时停用）
 var note_visual_enabled: bool = false
@@ -44,6 +47,7 @@ var note_visual_enabled: bool = false
 var tracked_notes: Array[Note] = []
 var _missile_request_sent_notes: Array[Note] = []
 var _charge_request_sent_notes: Array[Note] = []
+var _hit_note_side_map: Dictionary = {}  # key=Note, value=MISSILE_SIDE_LEFT/RIGHT
 var _boss_node: Node2D = null
 var _boss_origin_position: Vector2 = Vector2.ZERO
 
@@ -57,6 +61,7 @@ var _boss_origin_position: Vector2 = Vector2.ZERO
 @export_group("Boss 导弹联动")
 @export_node_path("Node2D") var boss_node_path: NodePath = NodePath("../Boss")
 @export_range(0.0, 4.0, 0.25) var boss_charge_prepare_lead_beats: float = 0.75
+@export_range(0.0, 8.0, 0.25) var boss_return_prepare_max_beats: float = 1.0
 @export var debug_missile_timing: bool = false
 @export var debug_charge_timing: bool = false
 @export_group("")
@@ -90,6 +95,7 @@ var _boss_origin_position: Vector2 = Vector2.ZERO
 
 @export_group("判定前按键提示")
 @export var enable_prejudge_key_hint: bool = true
+@export_enum("全程显示", "部分显示") var prejudge_key_hint_display_mode: int = 1
 @export_range(0, 10, 1) var defense_hint_max_per_attack_type: int = 2
 @export_node_path("Node2D") var hint_player_node_path: NodePath = NodePath("../../Character")
 @export var hint_guard_offset: Vector2 = Vector2(-70.0, -110.0)  # J: 左上
@@ -156,6 +162,7 @@ func _ready() -> void:
 	EventBus.boss_energy_depleted.connect(_on_attack_phase_started)
 	EventBus.attack_phase_started.connect(_on_attack_phase_started)
 	EventBus.attack_phase_ended.connect(_on_attack_phase_ended)
+	EventBus.judgment_made.connect(_on_judgment_made)
 	
 	if not game_ui:
 		push_warning("[TrackManager] game_ui 未设置，请在编辑器中拖拽 GameUI 节点到 @export")
@@ -222,6 +229,13 @@ func _process(_delta: float) -> void:
 		for note_visual in active_notes:
 			if note_visual and note_visual.is_active:
 				note_visual.update_position(current_time)
+
+				# 当攻击可视状态在运行中被中断（阶段切换/部位破坏）时，静默丢弃，避免无动画却触发 MISS。
+				if note_visual.note_data != null and _should_silently_drop_runtime_note(note_visual.note_data):
+					note_visual.is_active = false
+					note_visual.destroy()
+					_erase_note_runtime_state(note_visual.note_data)
+					continue
 				
 				# 检查是否到达判定线前两拍，播放音符音效
 				var time_before_target: float = note_visual.target_time - current_time
@@ -232,7 +246,7 @@ func _process(_delta: float) -> void:
 				
 				# 检查是否超过判定窗口（自动 MISS）
 				var time_past_target: float = current_time - note_visual.target_time
-				if time_past_target > MISS_THRESHOLD:
+				if time_past_target >= MISS_THRESHOLD:
 					EventBus.miss_triggered.emit(note_visual.note_data.type)
 					note_visual.is_active = false
 					note_visual.destroy()
@@ -248,17 +262,36 @@ func _process(_delta: float) -> void:
 			if i < 0 or i >= tracked_notes.size():
 				continue
 			var note: Note = tracked_notes[i]
-			var time_past: float = current_time - note.beat_time
-			if time_past > MISS_THRESHOLD:
+			if _should_silently_drop_runtime_note(note):
 				tracked_notes.remove_at(i)
+				_erase_note_runtime_state(note)
+				continue
+			var time_past: float = current_time - note.beat_time
+			if time_past >= MISS_THRESHOLD:
+				tracked_notes.remove_at(i)
+				_erase_note_runtime_state(note)
 				EventBus.miss_triggered.emit(note.type)
 
 
 ## 设置铺面数据
 func set_chart(chart: Chart) -> void:
+	clear_all_notes()
 	current_chart = chart
 	scheduled_notes = chart.notes.duplicate()
+	_assign_hit_note_sides()
 	print("轨道管理器已加载铺面，共 ", scheduled_notes.size(), " 个音符待生成")
+
+
+func _assign_hit_note_sides() -> void:
+	_hit_note_side_map.clear()
+	var next_side: int = MISSILE_SIDE_LEFT
+	for note in scheduled_notes:
+		if note == null:
+			continue
+		if note.type != Note.NoteType.HIT:
+			continue
+		_hit_note_side_map[note] = next_side
+		next_side = MISSILE_SIDE_RIGHT if next_side == MISSILE_SIDE_LEFT else MISSILE_SIDE_LEFT
 
 
 ## 节拍触发回调
@@ -273,6 +306,20 @@ func _on_beat_hit(beat_number: float, _note: Note) -> void:
 ## 检查并生成需要提前生成的音符（基于时间）
 func _check_and_spawn_notes_by_time(now_time: float) -> void:
 	for note in scheduled_notes.duplicate():
+		if note.type == Note.NoteType.HIT:
+			var marked_side: int = int(_hit_note_side_map.get(note, MISSILE_SIDE_LEFT))
+			if _is_missile_side_destroyed(marked_side):
+
+				scheduled_notes.erase(note)
+				_missile_request_sent_notes.erase(note)
+				_charge_request_sent_notes.erase(note)
+				_hit_note_side_map.erase(note)
+
+				if debug_missile_timing:
+					var side_name: String = "LEFT" if marked_side == MISSILE_SIDE_LEFT else "RIGHT"
+					print("[MissileDebug][Track] skip hit_note=#", note.beat_number, " reason=marked_side_destroyed side=", side_name)
+				continue
+
 		if not _is_note_type_enabled_by_boss_parts(note.type):
 			scheduled_notes.erase(note)
 			_missile_request_sent_notes.erase(note)
@@ -293,14 +340,19 @@ func _check_and_spawn_notes_by_time(now_time: float) -> void:
 			var request_time: float = spawn_time - prepare_seconds
 			if now_time >= request_time and not _missile_request_sent_notes.has(note):
 				var remaining_beats_to_hit: float = maxf(0.0, (note.beat_time - now_time) / beat_interval)
+				var marked_side: int = int(_hit_note_side_map.get(note, MISSILE_SIDE_LEFT))
+				if _boss_node != null and is_instance_valid(_boss_node) and _boss_node.has_method("enqueue_missile_forced_side"):
+					_boss_node.call("enqueue_missile_forced_side", marked_side)
 				EventBus.boss_missile_requested.emit(remaining_beats_to_hit)
 				if debug_missile_timing:
+					var side_name: String = "LEFT" if marked_side == MISSILE_SIDE_LEFT else "RIGHT"
 					print("[MissileDebug][Track] request hit_note=#", note.beat_number,
 						" now=", "%.3f" % now_time,
 						" request_time=", "%.3f" % request_time,
 						" spawn_time=", "%.3f" % spawn_time,
 						" prepare_s=", "%.3f" % prepare_seconds,
-						" remain_beats=", "%.3f" % remaining_beats_to_hit)
+						" remain_beats=", "%.3f" % remaining_beats_to_hit,
+						" side=", side_name)
 				_missile_request_sent_notes.append(note)
 
 		if note.type == Note.NoteType.DODGE:
@@ -327,33 +379,71 @@ func _check_and_spawn_notes_by_time(now_time: float) -> void:
 				print("[MissileDebug][Track] spawn hit_note=#", note.beat_number,
 					" now=", "%.3f" % now_time,
 					" spawn_time=", "%.3f" % spawn_time)
+
+			if (note.type == Note.NoteType.HIT or note.type == Note.NoteType.DODGE) and not _is_attack_visual_ready_for_note(note.type):
+				scheduled_notes.erase(note)
+				_missile_request_sent_notes.erase(note)
+				_charge_request_sent_notes.erase(note)
+				if debug_missile_timing and note.type == Note.NoteType.HIT:
+					print("[MissileDebug][Track] skip hit_note=#", note.beat_number, " reason=visual_not_active")
+				if debug_charge_timing and note.type == Note.NoteType.DODGE:
+					print("[ChargeDebug][Track] skip dodge_note=#", note.beat_number, " reason=visual_not_active")
+				continue
+
 			_spawn_note(note)
 			scheduled_notes.erase(note)
 			_missile_request_sent_notes.erase(note)
 			_charge_request_sent_notes.erase(note)
+			if note.type == Note.NoteType.HIT:
+				_hit_note_side_map.erase(note)
+
+
+func _is_attack_visual_ready_for_note(note_type: Note.NoteType) -> bool:
+	if _boss_node == null or not is_instance_valid(_boss_node):
+		_resolve_boss_node()
+	if _boss_node == null or not is_instance_valid(_boss_node):
+		return false
+	if _boss_node.has_method("is_track_attack_visual_active"):
+		return bool(_boss_node.call("is_track_attack_visual_active", int(note_type)))
+	return true
+
+
+func _is_missile_side_destroyed(side: int) -> bool:
+	if _boss_node == null or not is_instance_valid(_boss_node):
+		_resolve_boss_node()
+	if _boss_node == null or not is_instance_valid(_boss_node):
+		return false
+	if _boss_node.has_method("is_missile_side_destroyed"):
+		return bool(_boss_node.call("is_missile_side_destroyed", side))
+	return false
 
 
 func _get_boss_return_prepare_seconds() -> float:
 	if _boss_node == null or not is_instance_valid(_boss_node):
 		_resolve_boss_node()
-	if _boss_node == null or not is_instance_valid(_boss_node):
+
+	var beat_interval: float = EventBus.beat_interval
+	if beat_interval <= 0.0:
+		beat_interval = 0.5
+
+	var pre_return_enabled: bool = true
+	if _boss_node != null and is_instance_valid(_boss_node):
+		if _boss_node.has_method("is_pre_missile_return_enabled"):
+			pre_return_enabled = bool(_boss_node.call("is_pre_missile_return_enabled"))
+		else:
+			var enabled_value: Variant = _boss_node.get("enable_pre_missile_return")
+			if enabled_value != null:
+				pre_return_enabled = bool(enabled_value)
+
+	if not pre_return_enabled:
 		if debug_missile_timing:
-			print("[MissileDebug][Track] boss node missing, fallback prepare_s=0")
+			print("[MissileDebug][Track] pre-return disabled, prepare_s=0")
 		return 0.0
 
-	var origin: Vector2 = _boss_origin_position
-	if _boss_node.has_method("get_spawn_position"):
-		origin = _boss_node.call("get_spawn_position")
-
-	var move_speed_value: Variant = _boss_node.get("move_speed")
-	var move_speed: float = 1.0
-	if move_speed_value != null:
-		move_speed = maxf(1.0, float(move_speed_value))
-
-	var distance_to_origin: float = _boss_node.global_position.distance_to(origin)
-	if debug_missile_timing and distance_to_origin <= 0.001:
-		print("[MissileDebug][Track] boss already near origin, prepare_s=0 pos=", _boss_node.global_position, " origin=", origin)
-	return distance_to_origin / move_speed
+	var prepare_seconds: float = beat_interval
+	if debug_missile_timing:
+		print("[MissileDebug][Track] fixed prepare_s=", "%.3f" % prepare_seconds, " (1 beat)")
+	return prepare_seconds
 
 
 func _resolve_boss_node() -> void:
@@ -442,8 +532,7 @@ func _is_note_type_enabled_by_boss_parts(note_type: Note.NoteType) -> bool:
 		return true
 
 	if note_type == Note.NoteType.DODGE:
-		if _boss_node.has_method("is_middle_part_destroyed"):
-			return not bool(_boss_node.call("is_middle_part_destroyed"))
+		# 中间部位破坏后也允许继续蓄力，不再禁用 DODGE 轨道。
 		return true
 
 	if note_type == Note.NoteType.HIT:
@@ -452,6 +541,34 @@ func _is_note_type_enabled_by_boss_parts(note_type: Note.NoteType) -> bool:
 		return true
 
 	return true
+
+
+func _should_silently_drop_runtime_note(note: Note) -> bool:
+	if note == null:
+		return true
+
+	if not _is_note_type_enabled_by_boss_parts(note.type):
+		return true
+
+	if note.type == Note.NoteType.HIT:
+		var marked_side: int = int(_hit_note_side_map.get(note, MISSILE_SIDE_LEFT))
+		if _is_missile_side_destroyed(marked_side):
+			return true
+
+	if note.type == Note.NoteType.HIT or note.type == Note.NoteType.DODGE:
+		if not _is_attack_visual_ready_for_note(note.type):
+			return true
+
+	return false
+
+
+func _erase_note_runtime_state(note: Note) -> void:
+	if note == null:
+		return
+	_missile_request_sent_notes.erase(note)
+	_charge_request_sent_notes.erase(note)
+	if note.type == Note.NoteType.HIT:
+		_hit_note_side_map.erase(note)
 
 
 ## 在音符到判定线前 1 拍显示按键提示（玩家头顶）
@@ -550,6 +667,8 @@ func clear_all_notes() -> void:
 			note_visual.destroy()
 	active_notes.clear()
 	tracked_notes.clear()
+	_missile_request_sent_notes.clear()
+	_charge_request_sent_notes.clear()
 	# 清除所有活跃的 Bling 特效
 	for track_type in _active_blings:
 		for bling in _active_blings[track_type]:
@@ -603,24 +722,33 @@ func resume_note_spawning() -> void:
 	if music_player and music_player.playing:
 		current_time = music_player.get_playback_position() + AudioServer.get_time_to_next_mix()
 	
-	# 只清理判定时间在当前时间之前的音符（已经来不及打了）
-	# 保留判定时间还在未来的音符，即使它们的生成时间已过
+	# 清理所有已错过“生成时机”的音符，避免恢复后首帧补生成并立刻 MISS。
 	var removed_count: int = 0
-	var buffer_time: float = 0.2  # 0.2秒缓冲，太接近当前时间的也跳过
+	var beat_interval: float = EventBus.beat_interval
+	if beat_interval <= 0.0:
+		beat_interval = 0.5
 	
 	for note in scheduled_notes.duplicate():
-		# 如果音符的判定时间已经过去（加上小缓冲），则跳过
-		if note.beat_time < (current_time - buffer_time):
+		var advance_beats: int = int(SPAWN_ADVANCE[note.type]) if SPAWN_ADVANCE.has(note.type) else 2
+		var spawn_time: float = note.beat_time - advance_beats * beat_interval
+		if spawn_time <= current_time:
 			scheduled_notes.erase(note)
+			_missile_request_sent_notes.erase(note)
+			_charge_request_sent_notes.erase(note)
+			_hit_note_side_map.erase(note)
 			removed_count += 1
 	
 	if removed_count > 0:
-		print("已跳过 ", removed_count, " 个判定时间已过的音符")
+		print("已跳过 ", removed_count, " 个生成时机已过的音符")
 	
-	# 清理已过期的追踪音符
+	# 清空残留追踪，确保恢复时轨道判定干净。
 	for i in range(tracked_notes.size() - 1, -1, -1):
-		if tracked_notes[i].beat_time < (current_time - buffer_time):
-			tracked_notes.remove_at(i)
+		tracked_notes.remove_at(i)
+
+	for note_visual in active_notes:
+		if note_visual and is_instance_valid(note_visual):
+			note_visual.destroy()
+	active_notes.clear()
 	
 	# 最后才恢复生成（避免_process在清理前执行）
 	is_paused = false
@@ -641,7 +769,20 @@ func _on_attack_phase_ended() -> void:
 	# 避免 attack_phase_ended（提前半拍）导致过早恢复。
 
 
+func _on_judgment_made(_track: int, judgment: int, _timing_diff: float) -> void:
+	# 成功判定瞬间让 Boss 攻击音效让位给按键音，MISS 不处理。
+	if judgment == 3:
+		return
+	if _boss_attack_audio_player != null:
+		_boss_attack_audio_player.stop()
+
+
 func _can_show_prejudge_hint(note_type: Note.NoteType) -> bool:
+	# 全程显示：忽略每轨显示次数上限
+	if prejudge_key_hint_display_mode == 0:
+		return true
+
+	# 部分显示：沿用现有每轨次数上限逻辑
 	if defense_hint_max_per_attack_type <= 0:
 		return false
 	var shown_count: int = int(_defense_hint_shown_counts.get(note_type, 0))

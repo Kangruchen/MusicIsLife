@@ -6,7 +6,7 @@
 [ext_resource type="PackedScene" uid="uid://c8jx3vn5qwm4r" path="res://scenes/GameUI.tscn" id="3_game_ui"]
 [ext_resource type="Script" uid="uid://olseljrkaswj" path="res://scripts/TrackManager.gd" id="4_track_mgr"]
 [ext_resource type="Script" uid="uid://dgu5lxyijp7a0" path="res://scripts/InputManager.gd" id="5_input_mgr"]
-[ext_resource type="AudioStream" uid="uid://dhe24nnncnlss" path="res://assets/SFX/miss.wav" id="5_wp0k4"]
+[ext_resource type="AudioStream" uid="uid://mw64aohjctaa" path="res://assets/SFX/miss1.wav" id="6_cvmbd"]
 [ext_resource type="Script" uid="uid://1spmii0kmgww" path="res://scripts/ScoreManager.gd" id="6_score_mgr"]
 [ext_resource type="Resource" uid="uid://brd58vvvmh20v" path="res://config/key_sound_config.tres" id="7_key_sound"]
 [ext_resource type="Resource" uid="uid://tka37j3asl60" path="res://config/key_sound_config_boss.tres" id="8_bjd11"]
@@ -92,14 +92,15 @@ position = Vector2(0, 130)
 
 [node name="MusicPlayer" type="Node" parent="GameManager"]
 script = ExtResource("1_h5v3q")
-music_path = "uid://bxaoaflu31joj"
-miss_sound = ExtResource("5_wp0k4")
+music_path = "uid://dxab1vst4q675"
+miss_sound = ExtResource("6_cvmbd")
+miss_sound_volume_db = -10.0
 
 [node name="BeatManager" type="Node" parent="GameManager"]
 script = ExtResource("2_b4ymn")
 bpm = 0.0
 generate_test_chart = false
-chart_sm_path = "res://assets/charts/Factory Fever.sm"
+chart_sm_path = "res://assets/charts/Factory Fever/Factory Fever.sm"
 
 [node name="TrackManager" type="Node" parent="GameManager" node_paths=PackedStringArray("guard_position_nodes", "game_ui")]
 script = ExtResource("4_track_mgr")
@@ -112,6 +113,7 @@ game_ui = NodePath("../../GameUI")
 script = ExtResource("5_input_mgr")
 key_sound_config = ExtResource("7_key_sound")
 debug_attack_drum_alignment = true
+ignore_empty_press_without_nearby_notes = true
 
 [node name="ScoreManager" type="Node" parent="GameManager"]
 script = ExtResource("6_score_mgr")
@@ -134,6 +136,7 @@ dodge_player_health_perfect = 0.0
 dodge_player_health_great = 0.0
 dodge_player_health_good = 0.0
 dodge_player_health_miss = -20.0
+max_player_health = 120.0
 max_boss_health = 2000.0
 attack_config = ExtResource("12_qmy6f")
 
