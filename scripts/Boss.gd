@@ -84,6 +84,16 @@ enum BossState {
 @export_range(0.0, 200.0, 1.0) var missile_launcher_recoil_distance: float = 24.0
 @export_range(0.01, 0.5, 0.01) var missile_launcher_recoil_out_duration: float = 0.06
 @export_range(0.01, 0.8, 0.01) var missile_launcher_recoil_return_duration: float = 0.14
+@export var missile_warning_enabled: bool = true
+@export var missile_warning_light_color: Color = Color(1.0, 0.12, 0.12, 1.0)
+@export_range(0.05, 1.0, 0.01) var missile_warning_peak_alpha: float = 0.9
+@export_range(0.05, 0.9, 0.01) var missile_warning_flash_ratio: float = 0.2
+@export_range(0.2, 4.0, 0.01) var missile_warning_light_scale: float = 1.2
+@export_range(4.0, 80.0, 0.5) var missile_warning_radius_px: float = 11.0
+@export_range(0.6, 6.0, 0.1) var missile_warning_falloff_power: float = 2.4
+@export var missile_warning_additive_blend: bool = true
+@export var missile_warning_preview_on_boss: bool = false
+@export var missile_warning_preview_offset: Vector2 = Vector2(0.0, -22.0)
 @export var debug_missile_timing: bool = false
 @export var debug_charge_timing: bool = false
 
@@ -182,6 +192,12 @@ var _missile_right_origin_node: Node2D = null
 var _missile_left_recoil_tween: Tween = null
 var _missile_right_recoil_tween: Tween = null
 var _missile_return_arrived_logged: bool = false
+var _last_missile_despawn_position: Vector2 = Vector2.ZERO
+var _has_last_missile_despawn_position: bool = false
+var _missile_warning_light_texture: Texture2D = null
+var _missile_warning_light_texture_signature: String = ""
+var _missile_warning_preview_light: Sprite2D = null
+var _missile_warning_preview_token: int = 0
 var _break_transition_tween: Tween = null
 var _break_tilt_tween: Tween = null
 var _player_dash_tween: Tween = null
@@ -238,6 +254,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	_update_attack_hit_flash(delta)
 	_apply_debug_part_state_override_if_needed()
+	_update_missile_warning_preview()
 
 	if _attack_phase_interrupted:
 		return
@@ -1011,12 +1028,17 @@ func _spawn_charge_bullet(wait_duration: float, travel_duration: float, despawn_
 	fly_tween.tween_property(bullet, "global_position", hit_pos, maxf(0.01, travel_duration)).set_trans(Tween.TRANS_LINEAR).set_ease(Tween.EASE_IN_OUT)
 	if despawn_delay > 0.0:
 		fly_tween.tween_interval(despawn_delay)
-	fly_tween.tween_callback(func() -> void:
-		if is_instance_valid(bullet):
-			bullet.queue_free()
-		if _active_charge_bullet == bullet:
-			_active_charge_bullet = null
-	)
+	var bullet_instance_id: int = bullet.get_instance_id()
+	fly_tween.tween_callback(_on_charge_bullet_fly_finished.bind(bullet_instance_id))
+
+
+func _on_charge_bullet_fly_finished(bullet_instance_id: int) -> void:
+	var bullet_obj: Object = instance_from_id(bullet_instance_id)
+	var bullet_node: Node2D = bullet_obj as Node2D
+	if bullet_node != null and is_instance_valid(bullet_node):
+		bullet_node.queue_free()
+	if _active_charge_bullet == bullet_node:
+		_active_charge_bullet = null
 
 
 func _clear_active_charge_bullet() -> void:
@@ -1853,6 +1875,8 @@ func _spawn_missile_instance(phase1_duration: float, phase2_duration: float) -> 
 	missile.add_to_group(MISSILE_EFFECT_GROUP)
 	missile.global_position = launch_node.global_position
 	_active_missiles.append(missile)
+	_attach_missile_warning_light(missile)
+	_start_missile_warning_blink(missile, token)
 	_schedule_boss_attack_sound_from_sprite(BossAttackSoundConfig.ATTACK_MISSILE, _find_timing_sprite(missile))
 
 	var outward_dir: Vector2 = _get_missile_outward_direction(launch_node).normalized()
@@ -1863,33 +1887,299 @@ func _spawn_missile_instance(phase1_duration: float, phase2_duration: float) -> 
 
 	var phase1_tween: Tween = missile.create_tween()
 	phase1_tween.tween_property(missile, "global_position", outward_target, phase1_duration).set_trans(Tween.TRANS_LINEAR).set_ease(Tween.EASE_IN_OUT)
-	phase1_tween.tween_callback(func() -> void:
-		if token != _missile_effect_token:
-			if is_instance_valid(missile):
-				missile.queue_free()
-			_active_missiles.erase(missile)
+	var missile_instance_id: int = missile.get_instance_id()
+	phase1_tween.tween_callback(_on_missile_phase1_finished.bind(token, missile_instance_id, outward_target, teleport_target, phase2_duration))
+
+
+func _on_missile_phase1_finished(token: int, missile_instance_id: int, outward_target: Vector2, teleport_target: Vector2, phase2_duration: float) -> void:
+	var missile_obj: Object = instance_from_id(missile_instance_id)
+	var missile_node: Node2D = missile_obj as Node2D
+
+	if token != _missile_effect_token:
+		if missile_node != null and is_instance_valid(missile_node):
+			_record_missile_despawn_position(missile_node)
+			missile_node.queue_free()
+		_remove_active_missile_by_id(missile_instance_id)
+		return
+
+	if missile_node == null or not is_instance_valid(missile_node):
+		_remove_active_missile_by_id(missile_instance_id)
+		return
+
+	# 第二拍开始：瞬移到左上/右上屏幕外边缘。
+	missile_node.global_position = teleport_target
+	# 第二拍起始放大 2 倍。
+	missile_node.scale *= 2.0
+	_refresh_missile_warning_light(missile_node)
+	var player_target: Vector2 = _get_current_target_position(outward_target)
+	_orient_missile_to_direction(missile_node, player_target - missile_node.global_position)
+	var phase2_tween: Tween = missile_node.create_tween()
+	phase2_tween.tween_property(missile_node, "global_position", player_target, phase2_duration).set_trans(Tween.TRANS_LINEAR).set_ease(Tween.EASE_IN_OUT)
+	phase2_tween.tween_callback(_on_missile_phase2_finished.bind(token, missile_instance_id))
+
+
+func _on_missile_phase2_finished(token: int, missile_instance_id: int) -> void:
+	var missile_obj: Object = instance_from_id(missile_instance_id)
+	var missile_node: Node2D = missile_obj as Node2D
+
+	if token != _missile_effect_token:
+		if missile_node != null and is_instance_valid(missile_node):
+			_record_missile_despawn_position(missile_node)
+			missile_node.queue_free()
+		_remove_active_missile_by_id(missile_instance_id)
+		return
+
+	if missile_node != null and is_instance_valid(missile_node):
+		_record_missile_despawn_position(missile_node)
+		missile_node.queue_free()
+	_remove_active_missile_by_id(missile_instance_id)
+
+
+func _remove_active_missile_by_id(missile_instance_id: int) -> void:
+	for i in range(_active_missiles.size() - 1, -1, -1):
+		var active_missile: Node2D = _active_missiles[i]
+		if active_missile == null or not is_instance_valid(active_missile):
+			_active_missiles.remove_at(i)
+			continue
+		if active_missile.get_instance_id() == missile_instance_id:
+			_active_missiles.remove_at(i)
+
+
+func _record_missile_despawn_position(missile: Node2D) -> void:
+	if missile == null or not is_instance_valid(missile):
+		return
+	_last_missile_despawn_position = missile.global_position
+	_has_last_missile_despawn_position = true
+
+
+func get_missile_hit_effect_position() -> Vector2:
+	if _target_character == null:
+		_resolve_aim_nodes()
+
+	var reference_pos: Vector2 = global_position
+	if _target_character != null:
+		reference_pos = _target_character.global_position
+
+	var best_pos: Vector2 = Vector2.ZERO
+	var best_dist_sq: float = INF
+	var found_active: bool = false
+	for active_missile in _active_missiles:
+		if active_missile == null or not is_instance_valid(active_missile):
+			continue
+		var dist_sq: float = active_missile.global_position.distance_squared_to(reference_pos)
+		if dist_sq < best_dist_sq:
+			best_dist_sq = dist_sq
+			best_pos = active_missile.global_position
+			found_active = true
+
+	if found_active:
+		return best_pos
+
+	if _has_last_missile_despawn_position:
+		return _last_missile_despawn_position
+	if _target_character != null:
+		return _target_character.global_position
+
+	return global_position
+
+
+func _attach_missile_warning_light(missile: Node2D) -> void:
+	if not missile_warning_enabled:
+		return
+	if missile == null or not is_instance_valid(missile):
+		return
+	if missile.get_node_or_null("MissileWarningLight") != null:
+		return
+
+	var warning_light: Sprite2D = Sprite2D.new()
+	warning_light.name = "MissileWarningLight"
+	missile.add_child(warning_light)
+	_configure_warning_light_sprite(warning_light, missile)
+
+
+func _refresh_missile_warning_light(missile: Node2D) -> void:
+	if missile == null or not is_instance_valid(missile):
+		return
+	var warning_light: Sprite2D = missile.get_node_or_null("MissileWarningLight") as Sprite2D
+	if warning_light == null:
+		return
+	_configure_warning_light_sprite(warning_light, missile)
+
+
+func _start_missile_warning_blink(missile: Node2D, token: int) -> void:
+	if not missile_warning_enabled:
+		return
+	if missile == null or not is_instance_valid(missile):
+		return
+	if token != _missile_effect_token:
+		return
+
+	_blink_missile_warning_once(missile)
+
+	var beat_seconds: float = EventBus.beat_interval
+	if beat_seconds <= 0.0:
+		beat_seconds = 0.5
+	var missile_instance_id: int = missile.get_instance_id()
+	get_tree().create_timer(beat_seconds).timeout.connect(_on_missile_warning_blink_timeout.bind(token, missile_instance_id))
+
+
+func _on_missile_warning_blink_timeout(token: int, missile_instance_id: int) -> void:
+	if token != _missile_effect_token:
+		return
+
+	var missile_obj: Object = instance_from_id(missile_instance_id)
+	var missile_node: Node2D = missile_obj as Node2D
+	if missile_node == null or not is_instance_valid(missile_node):
+		return
+
+	_start_missile_warning_blink(missile_node, token)
+
+
+func _blink_missile_warning_once(missile: Node2D) -> void:
+	if missile == null or not is_instance_valid(missile):
+		return
+	var warning_light: Sprite2D = missile.get_node_or_null("MissileWarningLight") as Sprite2D
+	if warning_light == null:
+		return
+	_blink_warning_light_once(warning_light, missile)
+
+
+func _blink_warning_light_once(warning_light: Sprite2D, owner_node: Node2D) -> void:
+	if warning_light == null or not is_instance_valid(warning_light):
+		return
+	_configure_warning_light_sprite(warning_light, owner_node)
+
+	var beat_seconds: float = EventBus.beat_interval
+	if beat_seconds <= 0.0:
+		beat_seconds = 0.5
+	var flash_ratio: float = clampf(missile_warning_flash_ratio, 0.05, 0.95)
+	var flash_duration: float = maxf(0.03, beat_seconds * flash_ratio)
+
+	var base_color: Color = missile_warning_light_color
+	var peak_alpha: float = clampf(missile_warning_peak_alpha, 0.0, 1.0)
+	var off_color: Color = Color(base_color.r, base_color.g, base_color.b, 0.0)
+	var on_color: Color = Color(base_color.r, base_color.g, base_color.b, peak_alpha)
+
+	warning_light.modulate = off_color
+	if warning_light.get_tree() == null:
+		return
+	var flash_tween: Tween = warning_light.create_tween()
+	flash_tween.tween_property(warning_light, "modulate", on_color, flash_duration * 0.35).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	flash_tween.tween_property(warning_light, "modulate", off_color, flash_duration * 0.65).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+
+
+func _get_missile_warning_light_texture() -> Texture2D:
+	var texture_size_px: int = clampi(int(round(missile_warning_radius_px * 4.0)), 48, 256)
+	var signature: String = "%d|%.3f" % [texture_size_px, missile_warning_falloff_power]
+	if _missile_warning_light_texture != null and _missile_warning_light_texture_signature == signature:
+		return _missile_warning_light_texture
+
+	_missile_warning_light_texture_signature = signature
+
+	var image: Image = Image.create(texture_size_px, texture_size_px, false, Image.FORMAT_RGBA8)
+	var center: Vector2 = Vector2(float(texture_size_px) * 0.5, float(texture_size_px) * 0.5)
+	var radius: float = maxf(1.0, float(texture_size_px) * 0.5)
+	var falloff_power: float = maxf(0.6, missile_warning_falloff_power)
+
+	for y in range(texture_size_px):
+		for x in range(texture_size_px):
+			var sample_pos: Vector2 = Vector2(float(x) + 0.5, float(y) + 0.5)
+			var d_norm: float = center.distance_to(sample_pos) / radius
+			if d_norm >= 1.0:
+				image.set_pixel(x, y, Color(1.0, 1.0, 1.0, 0.0))
+				continue
+
+			var t: float = 1.0 - d_norm
+			var alpha: float = pow(t, falloff_power)
+			alpha += smoothstep(0.62, 1.0, t) * 0.22
+			alpha = clampf(alpha, 0.0, 1.0)
+			image.set_pixel(x, y, Color(1.0, 1.0, 1.0, alpha))
+
+	_missile_warning_light_texture = ImageTexture.create_from_image(image)
+	return _missile_warning_light_texture
+
+
+func _configure_warning_light_sprite(warning_light: Sprite2D, owner_node: Node2D) -> void:
+	if warning_light == null:
+		return
+
+	warning_light.texture = _get_missile_warning_light_texture()
+	warning_light.centered = true
+	warning_light.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	warning_light.z_index = 10
+
+	var diameter_px: float = maxf(2.0, missile_warning_radius_px * 2.0 * maxf(0.1, missile_warning_light_scale))
+	var texture_width: float = maxf(1.0, warning_light.texture.get_size().x)
+	var local_scale: float = diameter_px / texture_width
+
+	var owner_scale_x: float = 1.0
+	var owner_scale_y: float = 1.0
+	if owner_node != null:
+		owner_scale_x = absf(owner_node.scale.x)
+		owner_scale_y = absf(owner_node.scale.y)
+	var owner_scale_avg: float = maxf(0.001, (owner_scale_x + owner_scale_y) * 0.5)
+
+	warning_light.scale = Vector2.ONE * (local_scale / owner_scale_avg)
+	var base_color: Color = missile_warning_light_color
+	warning_light.modulate = Color(base_color.r, base_color.g, base_color.b, 0.0)
+
+	if missile_warning_additive_blend:
+		var add_material: CanvasItemMaterial = warning_light.material as CanvasItemMaterial
+		if add_material == null:
+			add_material = CanvasItemMaterial.new()
+			warning_light.material = add_material
+		add_material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	else:
+		warning_light.material = null
+
+
+func _update_missile_warning_preview() -> void:
+	if not missile_warning_preview_on_boss or not missile_warning_enabled:
+		_clear_missile_warning_preview()
+		return
+
+	if _missile_warning_preview_light == null or not is_instance_valid(_missile_warning_preview_light):
+		_missile_warning_preview_light = Sprite2D.new()
+		_missile_warning_preview_light.name = "MissileWarningPreview"
+		add_child(_missile_warning_preview_light)
+		_missile_warning_preview_token += 1
+		_start_missile_warning_preview_blink(_missile_warning_preview_token)
+
+	if _missile_warning_preview_light == null or not is_instance_valid(_missile_warning_preview_light):
+		return
+
+	_missile_warning_preview_light.position = missile_warning_preview_offset
+	_configure_warning_light_sprite(_missile_warning_preview_light, self)
+
+
+func _start_missile_warning_preview_blink(token: int) -> void:
+	if token != _missile_warning_preview_token:
+		return
+	if _missile_warning_preview_light == null or not is_instance_valid(_missile_warning_preview_light):
+		return
+
+	_blink_warning_light_once(_missile_warning_preview_light, self)
+
+	var beat_seconds: float = EventBus.beat_interval
+	if beat_seconds <= 0.0:
+		beat_seconds = 0.5
+
+	get_tree().create_timer(beat_seconds).timeout.connect(func() -> void:
+		if token != _missile_warning_preview_token:
 			return
-		if not is_instance_valid(missile):
+		if not missile_warning_preview_on_boss:
 			return
-		# 第二拍开始：瞬移到左上/右上屏幕外边缘。
-		missile.global_position = teleport_target
-		# 第二拍起始放大 2 倍。
-		missile.scale *= 2.0
-		var player_target: Vector2 = _get_current_target_position(outward_target)
-		_orient_missile_to_direction(missile, player_target - missile.global_position)
-		var phase2_tween: Tween = missile.create_tween()
-		phase2_tween.tween_property(missile, "global_position", player_target, phase2_duration).set_trans(Tween.TRANS_LINEAR).set_ease(Tween.EASE_IN_OUT)
-		phase2_tween.tween_callback(func() -> void:
-			if token != _missile_effect_token:
-				if is_instance_valid(missile):
-					missile.queue_free()
-				_active_missiles.erase(missile)
-				return
-			if is_instance_valid(missile):
-				missile.queue_free()
-			_active_missiles.erase(missile)
-		)
+		if _missile_warning_preview_light == null or not is_instance_valid(_missile_warning_preview_light):
+			return
+		_start_missile_warning_preview_blink(token)
 	)
+
+
+func _clear_missile_warning_preview() -> void:
+	_missile_warning_preview_token += 1
+	if _missile_warning_preview_light != null and is_instance_valid(_missile_warning_preview_light):
+		_missile_warning_preview_light.queue_free()
+	_missile_warning_preview_light = null
 
 
 func _pick_missile_launch_node() -> Node2D:
@@ -2214,12 +2504,19 @@ func _play_missile_launcher_recoil(launch_node: Node2D, outward_dir: Vector2) ->
 
 	recoil_tween.tween_property(recoil_node, "position", recoil_local_target, maxf(0.01, missile_launcher_recoil_out_duration)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	recoil_tween.tween_property(recoil_node, "position", origin_local, maxf(0.01, missile_launcher_recoil_return_duration)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	recoil_tween.tween_callback(func() -> void:
-		if launch_node == _missile_left_node:
-			_missile_left_recoil_tween = null
-		elif launch_node == _missile_right_node:
-			_missile_right_recoil_tween = null
-	)
+	var launch_side: int = -1
+	if launch_node == _missile_left_node:
+		launch_side = MISSILE_SIDE_LEFT
+	elif launch_node == _missile_right_node:
+		launch_side = MISSILE_SIDE_RIGHT
+	recoil_tween.tween_callback(_on_missile_launcher_recoil_finished.bind(launch_side))
+
+
+func _on_missile_launcher_recoil_finished(launch_side: int) -> void:
+	if launch_side == MISSILE_SIDE_LEFT:
+		_missile_left_recoil_tween = null
+	elif launch_side == MISSILE_SIDE_RIGHT:
+		_missile_right_recoil_tween = null
 
 
 func _reset_missile_launcher_recoil() -> void:
@@ -2314,10 +2611,15 @@ func _spawn_player_afterimage() -> void:
 	var life: float = maxf(0.05, player_dash_afterimage_lifetime)
 	var fade_tween: Tween = ghost.create_tween()
 	fade_tween.tween_property(ghost, "modulate:a", 0.0, life).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	fade_tween.tween_callback(func() -> void:
-		if is_instance_valid(ghost):
-			ghost.queue_free()
-	)
+	var ghost_instance_id: int = ghost.get_instance_id()
+	fade_tween.tween_callback(_on_player_afterimage_fade_finished.bind(ghost_instance_id))
+
+
+func _on_player_afterimage_fade_finished(ghost_instance_id: int) -> void:
+	var ghost_obj: Object = instance_from_id(ghost_instance_id)
+	var ghost_node: Node = ghost_obj as Node
+	if ghost_node != null and is_instance_valid(ghost_node):
+		ghost_node.queue_free()
 
 
 func _stop_player_dash_afterimage() -> void:

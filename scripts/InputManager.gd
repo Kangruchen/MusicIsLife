@@ -14,8 +14,8 @@ enum JudgmentType {
 enum AttackType {
 	LIGHT,     # 轻攻击（第一条轨道，J键/GUARD）
 	HEAVY,     # 重攻击（第二条轨道，I键/HIT）
-	HEAL,      # 回复（第三条轨道，L键/DODGE）
-	ENHANCE    # 强化（什么都不做）
+	HEAL,      # 回复（攻击阶段无输入默认动作）
+	ENHANCE    # 蓄力（第三条轨道，L键/DODGE）
 }
 
 # 游戏阶段状态机
@@ -45,6 +45,12 @@ const ACTION_MAPPING := {
 @export_group("判定")
 @export var ignore_empty_press_without_nearby_notes: bool = false
 @export_range(0.01, 0.5, 0.01) var empty_press_note_check_window: float = 0.15
+@export_group("防御命中特效")
+@export var defense_guard_hit_effect_scene: PackedScene = preload("res://scenes/laser_hit.tscn")
+@export var defense_missile_hit_effect_scene: PackedScene = preload("res://scenes/missile_hit.tscn")
+@export_node_path("Node2D") var defense_hit_effect_anchor_path: NodePath
+@export_node_path("Node2D") var defense_hit_effect_boss_path: NodePath = NodePath("../Boss")
+@export var defense_hit_effect_offset: Vector2 = Vector2(-24.0, 0.0)
 
 @onready var track_manager: Node = get_node("../TrackManager")
 @onready var music_player: Node = get_node("../MusicPlayer")
@@ -71,6 +77,8 @@ var _beat_generation: int = 0            # 每拍递增，用于使过期回调�
 var _attack_beat_abs_times: PackedFloat64Array = PackedFloat64Array()  # 预计算的每拍绝对时间
 var _next_beat_idx: int = 0  # 下一个待处理的拍子索引
 var _attack_beat_input_states: Dictionary = {}  # key=判定拍编号(1-based), value=该拍是否已有输入/占用
+var _defense_hit_effect_anchor: Node2D = null
+var _defense_hit_effect_boss: Node2D = null
 
 
 func _ready() -> void:
@@ -85,7 +93,7 @@ func _ready() -> void:
 	attack_beat_timer.one_shot = true
 	add_child(attack_beat_timer)
 	
-	# auto_enhance 已改为在 _on_attack_beat 内同步处理，不再使用独立 Timer
+	# auto_heal 已改为在 _on_attack_beat 内同步处理，不再使用独立 Timer
 	# 创建三个音效播放器
 	audio_player_guard = AudioStreamPlayer.new()
 	audio_player_hit = AudioStreamPlayer.new()
@@ -216,6 +224,8 @@ func _handle_input(track_type: Note.NoteType) -> void:
 		closest_note.destroy()
 		if judgment == JudgmentType.MISS:
 			_apply_miss_audio_effect()
+		if judgment != JudgmentType.MISS:
+			_spawn_defense_hit_effect(track_type)
 		EventBus.judgment_made.emit(track_type, judgment, timing_diff)
 		print("判定: ", _get_judgment_text(judgment), " (", int(min_time_diff * 1000), "ms)")
 		return
@@ -240,6 +250,8 @@ func _handle_input(track_type: Note.NoteType) -> void:
 		track_manager.tracked_notes.erase(closest_tracked)
 		if judgment == JudgmentType.MISS:
 			_apply_miss_audio_effect()
+		if judgment != JudgmentType.MISS:
+			_spawn_defense_hit_effect(track_type)
 		EventBus.judgment_made.emit(track_type, judgment, timing_diff)
 		print("判定: ", _get_judgment_text(judgment), " (", int(min_tracked_diff * 1000), "ms)")
 		return
@@ -288,6 +300,141 @@ func _has_any_nearby_note(current_time: float, window: float) -> bool:
 			return true
 
 	return false
+
+
+func _spawn_defense_hit_effect(note_type: Note.NoteType) -> void:
+	if current_phase != PhaseState.DEFENSE:
+		return
+
+	var effect_scene: PackedScene = _get_defense_hit_effect_scene(note_type)
+	if effect_scene == null:
+		return
+
+	var effect_instance: Node2D = effect_scene.instantiate() as Node2D
+	if effect_instance == null:
+		return
+
+	var scene_root: Node = get_tree().current_scene
+	if scene_root == null:
+		scene_root = get_parent()
+	if scene_root == null:
+		effect_instance.queue_free()
+		return
+
+	scene_root.add_child(effect_instance)
+	effect_instance.global_position = _get_defense_hit_effect_position(note_type)
+	_play_defense_hit_effect_and_auto_free(effect_instance)
+
+
+func _get_defense_hit_effect_scene(note_type: Note.NoteType) -> PackedScene:
+	match note_type:
+		Note.NoteType.GUARD:
+			return defense_guard_hit_effect_scene
+		Note.NoteType.HIT:
+			return defense_missile_hit_effect_scene
+		Note.NoteType.DODGE:
+			return null
+		_:
+			return null
+
+
+func _get_defense_hit_effect_position(note_type: Note.NoteType) -> Vector2:
+	if note_type == Note.NoteType.HIT:
+		var missile_pos: Variant = _get_missile_hit_effect_position_from_boss()
+		if missile_pos is Vector2:
+			return missile_pos as Vector2
+
+	var anchor: Node2D = _resolve_defense_hit_effect_anchor()
+	if anchor != null:
+		return anchor.global_position + defense_hit_effect_offset
+	return defense_hit_effect_offset
+
+
+func _get_missile_hit_effect_position_from_boss() -> Variant:
+	var boss_node: Node2D = _resolve_defense_hit_effect_boss()
+	if boss_node == null:
+		return null
+	if boss_node.has_method("get_missile_hit_effect_position"):
+		return boss_node.call("get_missile_hit_effect_position")
+	return null
+
+
+func _resolve_defense_hit_effect_anchor() -> Node2D:
+	if _defense_hit_effect_anchor != null and is_instance_valid(_defense_hit_effect_anchor):
+		return _defense_hit_effect_anchor
+
+	if not defense_hit_effect_anchor_path.is_empty():
+		_defense_hit_effect_anchor = get_node_or_null(defense_hit_effect_anchor_path) as Node2D
+		if _defense_hit_effect_anchor != null:
+			return _defense_hit_effect_anchor
+
+	var scene_root: Node = get_tree().current_scene
+	if scene_root != null:
+		_defense_hit_effect_anchor = scene_root.find_child("Character", true, false) as Node2D
+
+	return _defense_hit_effect_anchor
+
+
+func _resolve_defense_hit_effect_boss() -> Node2D:
+	if _defense_hit_effect_boss != null and is_instance_valid(_defense_hit_effect_boss):
+		return _defense_hit_effect_boss
+
+	if not defense_hit_effect_boss_path.is_empty():
+		_defense_hit_effect_boss = get_node_or_null(defense_hit_effect_boss_path) as Node2D
+		if _defense_hit_effect_boss != null:
+			return _defense_hit_effect_boss
+
+	var scene_root: Node = get_tree().current_scene
+	if scene_root != null:
+		_defense_hit_effect_boss = scene_root.find_child("Boss", true, false) as Node2D
+
+	return _defense_hit_effect_boss
+
+
+func _play_defense_hit_effect_and_auto_free(effect_instance: Node2D) -> void:
+	if effect_instance == null or not is_instance_valid(effect_instance):
+		return
+	var effect_instance_id: int = effect_instance.get_instance_id()
+
+	var anim_sprite: AnimatedSprite2D = effect_instance.find_child("AnimatedSprite2D", true, false) as AnimatedSprite2D
+	if anim_sprite != null and anim_sprite.sprite_frames != null:
+		var anim_name: StringName = &"default"
+		if not anim_sprite.sprite_frames.has_animation(anim_name):
+			var anim_names: PackedStringArray = anim_sprite.sprite_frames.get_animation_names()
+			if anim_names.is_empty():
+				effect_instance.queue_free()
+				return
+			anim_name = StringName(anim_names[0])
+
+		anim_sprite.animation_finished.connect(_on_defense_hit_effect_anim_finished.bind(effect_instance_id), CONNECT_ONE_SHOT)
+		anim_sprite.play(anim_name)
+		return
+
+	var animation_player: AnimationPlayer = effect_instance.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	if animation_player != null:
+		var animation_list: PackedStringArray = animation_player.get_animation_list()
+		if not animation_list.is_empty():
+			var first_anim: StringName = StringName(animation_list[0])
+			animation_player.animation_finished.connect(_on_defense_hit_effect_player_finished.bind(effect_instance_id), CONNECT_ONE_SHOT)
+			animation_player.play(first_anim)
+			return
+
+	effect_instance.queue_free()
+
+
+func _on_defense_hit_effect_anim_finished(effect_instance_id: int) -> void:
+	_free_node_by_instance_id(effect_instance_id)
+
+
+func _on_defense_hit_effect_player_finished(_finished_name: StringName, effect_instance_id: int) -> void:
+	_free_node_by_instance_id(effect_instance_id)
+
+
+func _free_node_by_instance_id(node_instance_id: int) -> void:
+	var target_obj: Object = instance_from_id(node_instance_id)
+	var target_node: Node = target_obj as Node
+	if target_node != null and is_instance_valid(target_node):
+		target_node.queue_free()
 
 
 ## 计算判定等级
@@ -430,7 +577,7 @@ func _handle_attack_phase_input(event: InputEvent) -> void:
 				Note.NoteType.HIT:
 					attack_type = AttackType.HEAVY
 				Note.NoteType.DODGE:
-					attack_type = AttackType.HEAL
+					attack_type = AttackType.ENHANCE
 
 			var beat_used: bool = bool(_attack_beat_input_states.get(judge_beat, false))
 			if beat_used:
@@ -503,8 +650,8 @@ func _on_attack_beat_timed(beat_idx: int) -> void:
 	
 	# 输入阶段（拍 1 ~ INPUT_BEATS）
 	if current_beat_in_attack <= GameConstants.INPUT_BEATS:
-		# 判定拍结束时（反拍）若无输入则自动蓄力。
-		_schedule_auto_enhance_for_beat(current_beat_in_attack, current_beat_start_time)
+		# 判定拍结束时（反拍）若无输入则自动回复。
+		_schedule_auto_heal_for_beat(current_beat_in_attack, current_beat_start_time)
 
 		# 生成下一个节拍标记视觉音符（覆盖拍 3 ~ 16）
 		if current_beat_in_attack < (GameConstants.INPUT_BEATS - 1):
@@ -559,7 +706,7 @@ func _get_attack_name(attack_type: AttackType) -> String:
 		AttackType.HEAL:
 			return "回复"
 		AttackType.ENHANCE:
-			return "强化"
+			return "蓄力"
 		_:
 			return "未知"
 
@@ -588,7 +735,7 @@ func _log_attack_drum_alignment(tag: String) -> void:
 		" dist_to_accent=", "%.4f" % distance_to_nearest_accent)
 
 
-func _schedule_auto_enhance_for_beat(beat_number: int, beat_start_time: float) -> void:
+func _schedule_auto_heal_for_beat(beat_number: int, beat_start_time: float) -> void:
 	if beat_number < 1 or beat_number > GameConstants.INPUT_BEATS:
 		return
 
@@ -611,7 +758,7 @@ func _schedule_auto_enhance_for_beat(beat_number: int, beat_start_time: float) -
 		if current_beat_in_attack == beat_number:
 			current_beat_has_input = true
 
-		EventBus.attack_performed.emit(AttackType.ENHANCE)
-		_log_attack_drum_alignment("auto_enhance")
-		print("自动强化（拍", beat_number, "，本拍无输入）")
+		EventBus.attack_performed.emit(AttackType.HEAL)
+		_log_attack_drum_alignment("auto_heal")
+		print("自动回复（拍", beat_number, "，本拍无输入）")
 	)

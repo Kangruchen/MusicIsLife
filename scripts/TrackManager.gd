@@ -6,6 +6,9 @@ extends Node
 const NOTE_VISUAL_SCENE := preload("res://scenes/NoteVisual.tscn")
 const BLING_SCENE := preload("res://scenes/bling.tscn")
 const PREJUDGE_KEY_HINT_SCRIPT := preload("res://scripts/PrejudgeKeyHint.gd")
+const SETTINGS_FILE_PATH: String = "user://settings.cfg"
+const SETTINGS_GAMEPLAY_SECTION: String = "gameplay"
+const SETTINGS_PREJUDGE_HINT_MODE_KEY: String = "prejudge_key_hint_display_mode"
 
 # Bling 特效配置
 const BLING_BASE_X: float = 50.0  # 特效基础X坐标（屏幕左侧）
@@ -143,6 +146,9 @@ var _external_anim_tokens: Dictionary = {
 var _effect_runtime_token: int = 0
 var _hint_runtime_token: int = 0
 var _active_key_hints: Array[Node2D] = []
+var _hint_mode_toast_label: Label = null
+var _hint_mode_toast_tween: Tween = null
+var _hint_mode_toast_token: int = 0
 var _defense_hint_shown_counts: Dictionary = {
 	Note.NoteType.GUARD: 0,
 	Note.NoteType.HIT: 0,
@@ -151,6 +157,7 @@ var _defense_hint_shown_counts: Dictionary = {
 
 
 func _ready() -> void:
+	_load_prejudge_hint_settings()
 	_reset_defense_hint_counts()
 
 	# 根据实际视口宽度动态计算音符生成X坐标（屏幕右侧外100px）
@@ -211,6 +218,103 @@ func _ready() -> void:
 		if external_sprite:
 			external_sprite.stop()
 			external_sprite.visible = false
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	var key_event: InputEventKey = event as InputEventKey
+	if key_event == null:
+		return
+	if not key_event.pressed or key_event.echo:
+		return
+	if key_event.keycode != KEY_F5:
+		return
+
+	_toggle_prejudge_hint_display_mode()
+	get_viewport().set_input_as_handled()
+
+
+func _load_prejudge_hint_settings() -> void:
+	var config: ConfigFile = ConfigFile.new()
+	var err: int = config.load(SETTINGS_FILE_PATH)
+	if err != OK:
+		return
+
+	var saved_mode: int = int(config.get_value(
+		SETTINGS_GAMEPLAY_SECTION,
+		SETTINGS_PREJUDGE_HINT_MODE_KEY,
+		prejudge_key_hint_display_mode
+	))
+	prejudge_key_hint_display_mode = clampi(saved_mode, 0, 1)
+
+
+func _save_prejudge_hint_settings() -> void:
+	var config: ConfigFile = ConfigFile.new()
+	var load_err: int = config.load(SETTINGS_FILE_PATH)
+	if load_err != OK and load_err != ERR_FILE_NOT_FOUND:
+		return
+
+	config.set_value(
+		SETTINGS_GAMEPLAY_SECTION,
+		SETTINGS_PREJUDGE_HINT_MODE_KEY,
+		prejudge_key_hint_display_mode
+	)
+	config.save(SETTINGS_FILE_PATH)
+
+
+func _toggle_prejudge_hint_display_mode() -> void:
+	prejudge_key_hint_display_mode = 1 if prejudge_key_hint_display_mode == 0 else 0
+	_reset_defense_hint_counts()
+	_save_prejudge_hint_settings()
+
+	var mode_text: String = "全程显示" if prejudge_key_hint_display_mode == 0 else "部分显示"
+	_show_hint_mode_status_toast(mode_text)
+	print("[HintMode] 按键提示模式已切换为: ", mode_text, " (F5)")
+
+
+func _show_hint_mode_status_toast(mode_text: String) -> void:
+	if game_ui == null:
+		return
+
+	if _hint_mode_toast_label == null or not is_instance_valid(_hint_mode_toast_label):
+		_hint_mode_toast_label = Label.new()
+		_hint_mode_toast_label.name = "HintModeToastLabel"
+		_hint_mode_toast_label.text = ""
+		_hint_mode_toast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_hint_mode_toast_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_hint_mode_toast_label.add_theme_font_size_override("font_size", 24)
+		_hint_mode_toast_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.72, 1.0))
+		_hint_mode_toast_label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.9))
+		_hint_mode_toast_label.add_theme_constant_override("shadow_offset_x", 2)
+		_hint_mode_toast_label.add_theme_constant_override("shadow_offset_y", 2)
+		_hint_mode_toast_label.anchor_left = 0.0
+		_hint_mode_toast_label.anchor_right = 1.0
+		_hint_mode_toast_label.anchor_top = 0.0
+		_hint_mode_toast_label.anchor_bottom = 0.0
+		_hint_mode_toast_label.offset_top = 68.0
+		_hint_mode_toast_label.offset_bottom = 108.0
+		_hint_mode_toast_label.visible = false
+		game_ui.add_child(_hint_mode_toast_label)
+
+	if _hint_mode_toast_tween != null:
+		_hint_mode_toast_tween.kill()
+		_hint_mode_toast_tween = null
+
+	_hint_mode_toast_token += 1
+	var token: int = _hint_mode_toast_token
+	_hint_mode_toast_label.text = "按键提示模式: " + mode_text
+	_hint_mode_toast_label.modulate = Color(1.0, 1.0, 1.0, 1.0)
+	_hint_mode_toast_label.visible = true
+
+	_hint_mode_toast_tween = create_tween()
+	_hint_mode_toast_tween.tween_interval(0.7)
+	_hint_mode_toast_tween.tween_property(_hint_mode_toast_label, "modulate:a", 0.0, 0.25)
+	_hint_mode_toast_tween.finished.connect(func() -> void:
+		if token != _hint_mode_toast_token:
+			return
+		if _hint_mode_toast_label != null and is_instance_valid(_hint_mode_toast_label):
+			_hint_mode_toast_label.visible = false
+		_hint_mode_toast_tween = null
+	)
 
 
 func _process(_delta: float) -> void:
@@ -394,8 +498,6 @@ func _check_and_spawn_notes_by_time(now_time: float) -> void:
 			scheduled_notes.erase(note)
 			_missile_request_sent_notes.erase(note)
 			_charge_request_sent_notes.erase(note)
-			if note.type == Note.NoteType.HIT:
-				_hit_note_side_map.erase(note)
 
 
 func _is_attack_visual_ready_for_note(note_type: Note.NoteType) -> bool:
@@ -553,10 +655,6 @@ func _should_silently_drop_runtime_note(note: Note) -> bool:
 	if note.type == Note.NoteType.HIT:
 		var marked_side: int = int(_hit_note_side_map.get(note, MISSILE_SIDE_LEFT))
 		if _is_missile_side_destroyed(marked_side):
-			return true
-
-	if note.type == Note.NoteType.HIT or note.type == Note.NoteType.DODGE:
-		if not _is_attack_visual_ready_for_note(note.type):
 			return true
 
 	return false
@@ -914,15 +1012,27 @@ func _spawn_warn(note: Note, warn_scene: PackedScene, counter: int) -> void:
 	# 1拍后自动销毁
 	var warn_duration: float = EventBus.beat_interval
 	var token: int = _effect_runtime_token
-	get_tree().create_timer(warn_duration).timeout.connect(func() -> void:
-		if token != _effect_runtime_token:
-			return
-		if instance and is_instance_valid(instance):
-			instance.queue_free()
-		_active_warns.erase(instance)
-	)
+	var warn_instance_id: int = instance.get_instance_id()
+	get_tree().create_timer(warn_duration).timeout.connect(_on_warn_effect_timeout.bind(token, warn_instance_id))
 	
 	print("[Warn] %s | counter=%d | duration=%.4fs" % [note.get_type_string(), counter, warn_duration])
+
+
+func _on_warn_effect_timeout(token: int, warn_instance_id: int) -> void:
+	if token != _effect_runtime_token:
+		return
+	_queue_free_node_by_instance_id(warn_instance_id)
+	_erase_active_warn_by_id(warn_instance_id)
+
+
+func _erase_active_warn_by_id(warn_instance_id: int) -> void:
+	for i in range(_active_warns.size() - 1, -1, -1):
+		var warn_node: Node = _active_warns[i] as Node
+		if warn_node == null or not is_instance_valid(warn_node):
+			_active_warns.remove_at(i)
+			continue
+		if warn_node.get_instance_id() == warn_instance_id:
+			_active_warns.remove_at(i)
 
 
 ## 生成主轨道动画（立即播放，通过速度缩放使 attack_end_frame 对齐判定时刻）
@@ -1017,7 +1127,8 @@ func _spawn_main_animation(note: Note, target_beats: int, counter: int) -> void:
 			])
 	
 	# 连接动画完成信号，播放结束后自动销毁
-	anim_sprite.animation_finished.connect(func() -> void: instance.queue_free())
+	var instance_id: int = instance.get_instance_id()
+	anim_sprite.animation_finished.connect(_on_track_effect_animation_finished.bind(instance_id))
 	
 	# === 计算播放位置 ===
 	# 根据音符类型获取对应的位置节点数组
@@ -1045,16 +1156,16 @@ func _spawn_main_animation(note: Note, target_beats: int, counter: int) -> void:
 	if play_start_delay > 0.01:
 		anim_sprite.visible = false
 		var delayed_play_token: int = _effect_runtime_token
-		get_tree().create_timer(play_start_delay).timeout.connect(func() -> void:
-			if delayed_play_token != _effect_runtime_token or _attack_phase_blocked:
-				if instance and is_instance_valid(instance):
-					instance.queue_free()
-				return
-			if not is_instance_valid(anim_sprite):
-				return
-			anim_sprite.visible = true
-			anim_sprite.speed_scale = anim_speed_scale
-			anim_sprite.play(resolved_anim_name)
+		var instance_id_for_delay: int = instance.get_instance_id()
+		var anim_sprite_id_for_delay: int = anim_sprite.get_instance_id()
+		get_tree().create_timer(play_start_delay).timeout.connect(
+			_on_main_animation_delayed_play_timeout.bind(
+				delayed_play_token,
+				instance_id_for_delay,
+				anim_sprite_id_for_delay,
+				anim_speed_scale,
+				resolved_anim_name
+			)
 		)
 	else:
 		anim_sprite.speed_scale = anim_speed_scale
@@ -1072,6 +1183,35 @@ func _spawn_main_animation(note: Note, target_beats: int, counter: int) -> void:
 	if not _active_blings.has(note.type):
 		_active_blings[note.type] = []
 	_active_blings[note.type].append(instance)
+
+
+func _on_track_effect_animation_finished(instance_id: int) -> void:
+	var node_obj: Object = instance_from_id(instance_id)
+	var node: Node = node_obj as Node
+	if node != null and is_instance_valid(node):
+		node.queue_free()
+
+
+func _on_main_animation_delayed_play_timeout(delayed_play_token: int, instance_id: int, anim_sprite_id: int, anim_speed_scale: float, resolved_anim_name: String) -> void:
+	if delayed_play_token != _effect_runtime_token or _attack_phase_blocked:
+		_queue_free_node_by_instance_id(instance_id)
+		return
+
+	var anim_obj: Object = instance_from_id(anim_sprite_id)
+	var anim_sprite: AnimatedSprite2D = anim_obj as AnimatedSprite2D
+	if anim_sprite == null or not is_instance_valid(anim_sprite):
+		return
+
+	anim_sprite.visible = true
+	anim_sprite.speed_scale = anim_speed_scale
+	anim_sprite.play(resolved_anim_name)
+
+
+func _queue_free_node_by_instance_id(instance_id: int) -> void:
+	var node_obj: Object = instance_from_id(instance_id)
+	var node: Node = node_obj as Node
+	if node != null and is_instance_valid(node):
+		node.queue_free()
 
 
 ## 指定轨道是否配置了外部 AnimatedSprite2D 路径
@@ -1152,36 +1292,55 @@ func _play_external_track_animation(note: Note, target_beats: int, configured_an
 
 	var play_duration: float = maxf(0.05, target_duration - start_delay)
 	var runtime_token: int = _effect_runtime_token
-
-	var play_func := func() -> void:
-		if _external_anim_tokens[note.type] != token:
-			return
-		if runtime_token != _effect_runtime_token or _attack_phase_blocked:
-			return
-		if not is_instance_valid(anim_sprite):
-			return
-
-		anim_sprite.visible = true
-		anim_sprite.stop()
-		anim_sprite.frame = 0
-		anim_sprite.frame_progress = 0.0
-		anim_sprite.speed_scale = 1.0
-		anim_sprite.play(anim_name)
-
-		get_tree().create_timer(play_duration).timeout.connect(func() -> void:
-			if _external_anim_tokens[note.type] != token:
-				return
-			if runtime_token != _effect_runtime_token:
-				return
-			if is_instance_valid(anim_sprite):
-				anim_sprite.stop()
-				anim_sprite.visible = false
-		)
+	var note_type: int = int(note.type)
+	var anim_sprite_id: int = anim_sprite.get_instance_id()
 
 	if start_delay > 0.01:
-		get_tree().create_timer(start_delay).timeout.connect(play_func)
+		get_tree().create_timer(start_delay).timeout.connect(
+			_on_external_anim_start_timeout.bind(note_type, token, runtime_token, anim_sprite_id, anim_name, play_duration)
+		)
 	else:
-		play_func.call()
+		_start_external_track_animation(note_type, token, runtime_token, anim_sprite_id, anim_name, play_duration)
+
+
+func _on_external_anim_start_timeout(note_type: int, token: int, runtime_token: int, anim_sprite_id: int, anim_name: String, play_duration: float) -> void:
+	_start_external_track_animation(note_type, token, runtime_token, anim_sprite_id, anim_name, play_duration)
+
+
+func _start_external_track_animation(note_type: int, token: int, runtime_token: int, anim_sprite_id: int, anim_name: String, play_duration: float) -> void:
+	if _external_anim_tokens[note_type] != token:
+		return
+	if runtime_token != _effect_runtime_token or _attack_phase_blocked:
+		return
+
+	var anim_obj: Object = instance_from_id(anim_sprite_id)
+	var anim_sprite: AnimatedSprite2D = anim_obj as AnimatedSprite2D
+	if anim_sprite == null or not is_instance_valid(anim_sprite):
+		return
+
+	anim_sprite.visible = true
+	anim_sprite.stop()
+	anim_sprite.frame = 0
+	anim_sprite.frame_progress = 0.0
+	anim_sprite.speed_scale = 1.0
+	anim_sprite.play(anim_name)
+
+	get_tree().create_timer(play_duration).timeout.connect(
+		_on_external_anim_stop_timeout.bind(note_type, token, runtime_token, anim_sprite_id)
+	)
+
+
+func _on_external_anim_stop_timeout(note_type: int, token: int, runtime_token: int, anim_sprite_id: int) -> void:
+	if _external_anim_tokens[note_type] != token:
+		return
+	if runtime_token != _effect_runtime_token:
+		return
+
+	var anim_obj: Object = instance_from_id(anim_sprite_id)
+	var anim_sprite: AnimatedSprite2D = anim_obj as AnimatedSprite2D
+	if anim_sprite != null and is_instance_valid(anim_sprite):
+		anim_sprite.stop()
+		anim_sprite.visible = false
 
 
 ## 解析可用动画名：优先请求名，失败后回退到轨道默认名，再回退到第一个可用动画

@@ -282,7 +282,7 @@ script = ExtResource("2_char")
 light_mask = 2
 texture_filter = 1
 sprite_frames = SubResource("SpriteFrames_imt6f")
-animation = &"Idle"
+animation = &"Attack2"
 metadata/_aseprite_wizard_interface_config_ = {
 "animation_section": true,
 "layer_section": true,

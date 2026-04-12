@@ -276,6 +276,9 @@ func _on_attack_action(attack_type: int) -> void:
 		return
 	if _state != PlayerState.ATTACK:
 		return
+	if attack_type == ATTACK_TYPE_HEAL:
+		# 攻击阶段无输入触发的回复只做结算，不播放角色攻击动画。
+		return
 
 	if attack_type == ATTACK_TYPE_ENHANCE:
 		_is_next_attack_charged = true

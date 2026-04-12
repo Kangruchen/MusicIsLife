@@ -1,12 +1,12 @@
 { "frames": [
    {
-    "filename": "Boss_body.aseprite",
-    "frame": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
-    "sourceSize": { "w": 1920, "h": 1080 },
-    "duration": 100
+	"filename": "Boss_body.aseprite",
+	"frame": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": { "x": 0, "y": 0, "w": 1920, "h": 1080 },
+	"sourceSize": { "w": 1920, "h": 1080 },
+	"duration": 100
    }
  ],
  "meta": {

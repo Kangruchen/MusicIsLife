@@ -8,9 +8,9 @@
 [resource]
 script = ExtResource("4_script")
 laser_sfx = ExtResource("1_laser")
-laser_volume_db = -10.0
+laser_volume_db = -5.0
 missile_sfx = ExtResource("3_qitmn")
-missile_volume_db = -10.0
+missile_volume_db = -5.0
 charge_bullet_sfx = ExtResource("1_6xrq8")
-charge_bullet_volume_db = -10.0
+charge_bullet_volume_db = -5.0
 charge_bullet_start_frame = 0.0
