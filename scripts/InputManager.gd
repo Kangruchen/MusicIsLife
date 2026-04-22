@@ -158,7 +158,7 @@ func _process(_delta: float) -> void:
 	if current_phase != PhaseState.ATTACK:
 		return
 	
-	var now: float = Time.get_ticks_msec() / 1000.0
+	var now: float = _get_music_clock_time()
 	_advance_attack_beats_to_time(now)
 
 
@@ -519,7 +519,7 @@ func start_attack_phase(duration: float, bi: float, first_beat_abs_time: float) 
 	current_phase = PhaseState.ATTACK
 	attack_beat_interval = bi
 	current_beat_in_attack = 0  # 代表输入拍第1拍（尚未到来）
-	attack_phase_start_time = Time.get_ticks_msec() / 1000.0
+	attack_phase_start_time = _get_music_clock_time()
 	# 每拍窗口定义为 [重音前半拍, 重音后半拍)，因此拍起点 = 重音时刻 - 半拍。
 	current_beat_start_time = first_beat_abs_time - 0.5 * bi
 	current_beat_has_input = false
@@ -556,7 +556,7 @@ func _handle_attack_phase_input(event: InputEvent) -> void:
 			return
 
 	# 先将攻击拍状态追到当前时刻，避免输入事件先于 _process 导致落在旧拍状态。
-	var synced_now: float = Time.get_ticks_msec() / 1000.0
+	var synced_now: float = _get_music_clock_time()
 	_advance_attack_beats_to_time(synced_now)
 
 	# 检测按键动作
@@ -741,7 +741,7 @@ func _schedule_auto_heal_for_beat(beat_number: int, beat_start_time: float) -> v
 
 	var token: int = _beat_generation
 	var beat_end_time: float = beat_start_time + attack_beat_interval
-	var now: float = Time.get_ticks_msec() / 1000.0
+	var now: float = _get_music_clock_time()
 	var delay: float = maxf(0.0, beat_end_time - now)
 
 	get_tree().create_timer(delay).timeout.connect(func() -> void:
@@ -762,3 +762,9 @@ func _schedule_auto_heal_for_beat(beat_number: int, beat_start_time: float) -> v
 		_log_attack_drum_alignment("auto_heal")
 		print("自动回复（拍", beat_number, "，本拍无输入）")
 	)
+
+
+func _get_music_clock_time() -> float:
+	if music_player == null:
+		return 0.0
+	return float(music_player.get_playback_position()) + AudioServer.get_time_to_next_mix()

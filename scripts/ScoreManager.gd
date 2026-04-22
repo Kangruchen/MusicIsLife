@@ -261,9 +261,9 @@ func _on_boss_energy_depleted() -> void:
 	EventBus.show_beat_track_requested.emit()
 	EventBus.show_pause_countdown_requested.emit(bi)
 	
-	# 计算第一输入拍的绝对时间（所有音符共享同一时间网格）
-	var depletion_time: float = Time.get_ticks_msec() / 1000.0
-	var first_beat_abs_time: float = depletion_time + 4.0 * bi  # 输入拍第1拍
+	# 基于音乐时钟计算第一输入拍时间（秒）：不依赖系统时钟，避免进出阶段漂移。
+	var depletion_music_time: float = _get_music_clock_time()
+	var first_beat_abs_time: float = depletion_music_time + 4.0 * bi  # 输入拍第1拍（音乐时间轴）
 	var note1_target: float = first_beat_abs_time
 	var note2_target: float = first_beat_abs_time + bi
 	# 在准备阶段第3拍开始时生成第一个音符
@@ -292,25 +292,14 @@ func _on_boss_energy_depleted() -> void:
 		_start_attack_phase(attack_duration + return_countdown_duration, bi, _fba)
 	)
 	
-	# 暂停音乐（保留鼓点，让drum跳到指定小节）
+	# 进入攻击阶段混音：分轨时仅保留 bass，单轨时保持完整 BGM。
 	if music_player:
-		if music_player.has_method("pause_music_keep_drum"):
-			var measure_time: float = beat_manager.offset + GameConstants.DRUM_START_BEAT * bi
-			music_player.pause_music_keep_drum(measure_time)
-		else:
-			music_player.pause_music()
-		
-		# 提前淡入恢复音乐
-		get_tree().create_timer(pause_duration - GameConstants.MUSIC_RESUME_LEAD_TIME).timeout.connect(func():
-			if is_game_over:
-				return
-			if music_player and music_player.has_method("resume_music"):
-				music_player.resume_music()
-		)
+		if music_player.has_method("begin_attack_mix_mode"):
+			music_player.begin_attack_mix_mode()
 	
 	# 启动计时器（完整时长）
 	pause_timer.start(pause_duration)
-	print("游戏已暂停 ", pause_duration, " 秒（", GameConstants.TOTAL_ATTACK_BEATS, " 拍），drum播放第9-13小节")
+	print("游戏已进入攻击阶段 ", pause_duration, " 秒（", GameConstants.TOTAL_ATTACK_BEATS, " 拍），音乐进度持续前进")
 
 
 ## 暂停结束的回调
@@ -333,6 +322,10 @@ func _on_pause_timeout() -> void:
 	# 恢复音符生成
 	if track_manager and track_manager.has_method("resume_note_spawning"):
 		track_manager.resume_note_spawning()
+
+	# 退出攻击阶段混音
+	if music_player and music_player.has_method("end_attack_mix_mode"):
+		music_player.end_attack_mix_mode()
 	
 	# 恢复 Boss 精力条（减去临时削减量）
 	var recovery_amount: float = max_boss_energy - temporary_energy_reduce
@@ -341,6 +334,14 @@ func _on_pause_timeout() -> void:
 	_emit_health_update()
 	
 	print("暂停结束，游戏继续 - BOSS精力恢复到:", recovery_amount, " (临时削减:", temporary_energy_reduce, ")")
+
+
+func _get_music_clock_time() -> float:
+	if music_player == null:
+		return 0.0
+	if music_player.has_method("get_playback_position"):
+		return float(music_player.get_playback_position()) + AudioServer.get_time_to_next_mix()
+	return 0.0
 
 
 ## 开始攻击阶段
