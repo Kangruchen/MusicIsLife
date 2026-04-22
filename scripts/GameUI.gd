@@ -35,6 +35,8 @@ const BEAT_TRACK_TOP_OFFSET: float = 28.0
 const BEAT_NOTE_TRAVEL_DISTANCE: float = BEAT_TRACK_WIDTH * 0.5
 const BEAT_TRACK_CENTER_X: float = BEAT_TRACK_WIDTH * 0.5
 
+@onready var music_player: Node = get_node_or_null("../GameManager/MusicPlayer")
+
 
 func _ready() -> void:
 	# 通过 EventBus 连接所有信号（替代 get_node 硬编码路径）
@@ -345,7 +347,7 @@ func _update_beat_note_positions() -> void:
 	if _beat_note_speed <= 0.0 or active_beat_notes.is_empty():
 		return
 	var hw: float = _beat_note_width / 2.0
-	var now: float = Time.get_ticks_msec() / 1000.0
+	var now: float = _get_beat_clock_time()
 	for note in active_beat_notes:
 		if not is_instance_valid(note):
 			continue
@@ -363,11 +365,17 @@ func _position_single_beat_note(note: ColorRect) -> void:
 	if _beat_note_speed <= 0.0:
 		return
 	var hw: float = _beat_note_width / 2.0
-	var now: float = Time.get_ticks_msec() / 1000.0
+	var now: float = _get_beat_clock_time()
 	var target_time: float = note.get_meta("target_time", 0.0)
 	var center_x: float = BEAT_TRACK_CENTER_X + (target_time - now) * _beat_note_speed
 	note.offset_left = center_x - hw
 	note.offset_right = center_x + hw
+
+
+func _get_beat_clock_time() -> float:
+	if music_player != null and music_player.has_method("get_playback_position"):
+		return float(music_player.get_playback_position()) + AudioServer.get_time_to_next_mix()
+	return Time.get_ticks_msec() / 1000.0
 
 
 ## 显示返回倒计时
