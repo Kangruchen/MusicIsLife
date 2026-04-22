@@ -92,7 +92,7 @@ position = Vector2(0, 130)
 
 [node name="MusicPlayer" type="Node" parent="GameManager"]
 script = ExtResource("1_h5v3q")
-music_path = "uid://bxaoaflu31joj"
+music_path = "uid://dxab1vst4q675"
 enable_miss_audio_effect = true
 miss_sound = ExtResource("6_cvmbd")
 miss_sound_volume_db = -15.0
@@ -140,7 +140,7 @@ dodge_player_health_good = 0.0
 dodge_player_health_miss = -20.0
 max_player_health = 120.0
 max_boss_health = 2000.0
-max_boss_energy = 75.0
+max_boss_energy = 1.0
 attack_config = ExtResource("12_qmy6f")
 
 [node name="Boss" parent="." instance=ExtResource("16_cvmbd")]
