@@ -96,6 +96,7 @@ func _ready() -> void:
 	EventBus.judgment_made.connect(_on_judgment_made)
 	EventBus.attack_performed.connect(_on_attack_performed)
 	EventBus.attack_hit_confirmed.connect(_on_attack_hit_confirmed)
+	EventBus.boss_defeated.connect(_on_boss_defeated)
 	
 	# 延迟一帧广播初始血量（确保 GameUI 已连接 EventBus）
 	call_deferred("_emit_health_update")
@@ -305,6 +306,8 @@ func _on_boss_energy_depleted() -> void:
 ## 暂停结束的回调
 func _on_pause_timeout() -> void:
 	if is_game_over:
+		return
+	if current_boss_health <= 0.0:
 		return
 
 	is_paused_for_attack = false
@@ -580,3 +583,44 @@ func _trigger_player_game_over() -> void:
 
 	player_died.emit()
 	EventBus.player_died.emit()
+
+
+func _on_boss_defeated() -> void:
+	if is_game_over:
+		return
+
+	is_game_over = true
+	pending_attack_hits.clear()
+	is_next_attack_charged = false
+
+	if pause_timer != null:
+		pause_timer.stop()
+
+	if is_paused_for_attack:
+		is_paused_for_attack = false
+
+		if input_manager and input_manager.has_method("force_end_attack_phase"):
+			input_manager.force_end_attack_phase()
+
+		if music_player and music_player.has_method("end_attack_mix_mode"):
+			music_player.end_attack_mix_mode()
+
+		EventBus.hide_attack_ui_requested.emit()
+		EventBus.hide_pause_effects_requested.emit()
+
+	if music_player and music_player.has_method("fade_out_all_for_death"):
+		music_player.fade_out_all_for_death()
+
+	if beat_manager and beat_manager.has_method("pause_beat_detection"):
+		beat_manager.pause_beat_detection()
+
+	if track_manager:
+		if track_manager.has_method("pause_note_spawning"):
+			track_manager.pause_note_spawning()
+		if track_manager.has_method("clear_all_notes"):
+			track_manager.clear_all_notes()
+
+	if input_manager and input_manager.has_method("pause_input"):
+		input_manager.pause_input()
+
+	print("Boss被击败！游戏结束。")

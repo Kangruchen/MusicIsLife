@@ -1079,6 +1079,9 @@ func _on_boss_defeated() -> void:
 	_charge_bullet_fired_this_cycle = false
 	_stop_charge_animation()
 	_clear_active_missiles()
+	_set_visual_frame(_middle_body_visual, middle_part_broken_frame)
+	_set_visual_frame(_left_missile_visual, left_part_broken_frame)
+	_set_visual_frame(_right_missile_visual, right_part_broken_frame)
 
 
 func _on_attack_phase_started() -> void:

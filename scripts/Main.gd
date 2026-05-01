@@ -160,7 +160,9 @@ func _clamp_camera_position(target_pos: Vector2, zoom_value: Vector2) -> Vector2
 
 
 func _input(event: InputEvent) -> void:
-	# 按O键切换到延迟校准场景
-	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_O:
-			get_tree().change_scene_to_file("res://scenes/OffsetCalibration.tscn")
+	if not event.is_pressed() or event.is_echo():
+		return
+	if event.is_action_pressed("offset"):
+		get_tree().change_scene_to_file("res://scenes/OffsetCalibration.tscn")
+	elif event.is_action_pressed("restart"):
+		get_tree().reload_current_scene()

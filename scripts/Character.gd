@@ -161,35 +161,25 @@ func _process(_delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	var key_event: InputEventKey = event as InputEventKey
-	if key_event == null:
-		return
-	if not key_event.pressed or key_event.echo:
+	if not event.is_pressed() or event.is_echo():
 		return
 
-	if debug_hitbox_hotkey_enabled and key_event.keycode == KEY_F6:
+	if debug_hitbox_hotkey_enabled and event.is_action_pressed("debug_hitbox"):
 		debug_show_combat_hitboxes = not debug_show_combat_hitboxes
 		queue_redraw()
 		print("[HitboxDebug] 可视化: ", "ON" if debug_show_combat_hitboxes else "OFF")
 		get_viewport().set_input_as_handled()
 		return
 
-	if key_event.keycode == KEY_ESCAPE:
+	if event.is_action_pressed("menu"):
 		get_viewport().set_input_as_handled()
 		_return_to_main_menu()
 		return
 
-	if not _death_restart_input_enabled:
+	if event.is_action_pressed("restart"):
+		get_viewport().set_input_as_handled()
+		_quick_restart_current_scene()
 		return
-	if not _is_dead:
-		return
-
-	match key_event.keycode:
-		KEY_R:
-			get_viewport().set_input_as_handled()
-			_quick_restart_current_scene()
-		_:
-			pass
 
 
 func _draw() -> void:
@@ -966,7 +956,7 @@ func _show_death_restart_hints() -> void:
 	_hide_death_restart_hints()
 
 	_death_hint_line_top = Label.new()
-	_death_hint_line_top.text = "Press R to restart"
+	_death_hint_line_top.text = "按 %s 重新开始" % GameConstants.get_action_key_label("restart", "R")
 	_death_hint_line_top.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_death_hint_line_top.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_death_hint_line_top.add_theme_font_size_override("font_size", 26)
@@ -982,7 +972,7 @@ func _show_death_restart_hints() -> void:
 	_death_fx_layer.add_child(_death_hint_line_top)
 
 	_death_hint_line_bottom = Label.new()
-	_death_hint_line_bottom.text = "Press Esc to return to main menu"
+	_death_hint_line_bottom.text = "按 %s 返回主菜单" % GameConstants.get_action_key_label("menu", "Esc")
 	_death_hint_line_bottom.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_death_hint_line_bottom.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_death_hint_line_bottom.add_theme_font_size_override("font_size", 22)

@@ -696,7 +696,27 @@ func _on_attack_phase_end() -> void:
 	EventBus.attack_phase_ended.emit()
 
 
-## 获取攻击类型名称
+func force_end_attack_phase() -> void:
+	if current_phase != PhaseState.ATTACK:
+		return
+
+	current_phase = PhaseState.DEFENSE
+	_beat_generation += 1
+	_attack_beat_abs_times.clear()
+	_attack_beat_input_states.clear()
+	_current_beat_forced_occupied = false
+	_heavy_skip_next_beat = false
+
+	if attack_phase_timer != null:
+		attack_phase_timer.stop()
+	if attack_beat_timer != null:
+		attack_beat_timer.stop()
+
+	EventBus.attack_movement_enabled_changed.emit(false)
+	EventBus.hide_attack_ui_requested.emit()
+	EventBus.attack_phase_ended.emit()
+
+
 func _get_attack_name(attack_type: AttackType) -> String:
 	match attack_type:
 		AttackType.LIGHT:

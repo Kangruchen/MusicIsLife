@@ -26,8 +26,10 @@ var is_next_attack_charged: bool = false  # 下次攻击是否为蓄力版本
 var beat_track_container: Control = null
 var beat_judgment_line: ColorRect = null
 var active_beat_notes: Array[ColorRect] = []  # 当前活动的节拍标记
-var _beat_note_speed: float = 0.0  # 所有节拍音符的统一移动速度（px/秒）
-var _beat_note_width: float = 0.0  # 所有节拍音符的统一宽度（px）
+var _beat_note_speed: float = 0.0
+var _beat_note_width: float = 0.0
+var _victory_label: Label = null
+var _is_boss_defeated: bool = false
 
 const BEAT_TRACK_WIDTH: float = 560.0
 const BEAT_TRACK_HEIGHT: float = 40.0
@@ -57,6 +59,7 @@ func _ready() -> void:
 	EventBus.show_pause_countdown_requested.connect(_on_show_pause_countdown)
 	EventBus.play_beat_flash_requested.connect(_on_play_beat_flash)
 	EventBus.hide_pause_effects_requested.connect(hide_pause_effects)
+	EventBus.boss_defeated.connect(_on_boss_defeated)
 
 	show() # 游戏开始时将UI设为可见
 	
@@ -177,6 +180,8 @@ func _show_pause_countdown_impl(bi: float) -> void:
 
 ## EventBus 包装：接收 beat_interval 和 beat_count 参数
 func _on_play_beat_flash(bi: float, beat_count: int) -> void:
+	if _is_boss_defeated:
+		return
 	_play_beat_flash_impl(bi, beat_count)
 
 
@@ -506,3 +511,60 @@ func _add_charge_visual_effect(note: ColorRect) -> void:
 		tween.parallel().tween_property(border, "color:a", 1.0, 0.5)
 	for border in borders:
 		tween.parallel().tween_property(border, "color:a", 0.3, 0.5)
+
+
+func _on_boss_defeated() -> void:
+	_is_boss_defeated = true
+
+	hide_pause_effects()
+	hide_attack_ui()
+
+	if beat_flash_effect:
+		beat_flash_effect.color.a = 0.0
+		beat_flash_effect.visible = false
+
+	if _victory_label != null and is_instance_valid(_victory_label):
+		_victory_label.queue_free()
+	_victory_label = Label.new()
+	_victory_label.name = "VictoryLabel"
+	_victory_label.add_theme_font_size_override("font_size", 72)
+	_victory_label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2))
+	_victory_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0))
+	_victory_label.add_theme_constant_override("outline_size", 6)
+	_victory_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_victory_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_victory_label.anchor_left = 0.0
+	_victory_label.anchor_top = 0.35
+	_victory_label.anchor_right = 1.0
+	_victory_label.anchor_bottom = 0.55
+	_victory_label.text = "通关！"
+	_victory_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_victory_label)
+
+	var restart_hint: Label = Label.new()
+	restart_hint.name = "RestartHint"
+	restart_hint.add_theme_font_size_override("font_size", 28)
+	restart_hint.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
+	restart_hint.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0))
+	restart_hint.add_theme_constant_override("outline_size", 4)
+	restart_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	restart_hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	restart_hint.anchor_left = 0.0
+	restart_hint.anchor_top = 0.55
+	restart_hint.anchor_right = 1.0
+	restart_hint.anchor_bottom = 0.65
+	restart_hint.text = "按 %s 重新开始" % GameConstants.get_action_key_label("restart", "R")
+	restart_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(restart_hint)
+
+	_victory_label.modulate.a = 0.0
+	var fade_in: Tween = create_tween()
+	fade_in.set_ease(Tween.EASE_OUT)
+	fade_in.set_trans(Tween.TRANS_SINE)
+	fade_in.tween_property(_victory_label, "modulate:a", 1.0, 0.8)
+
+	restart_hint.modulate.a = 0.0
+	var hint_fade: Tween = create_tween()
+	hint_fade.set_ease(Tween.EASE_OUT)
+	hint_fade.set_trans(Tween.TRANS_SINE)
+	hint_fade.tween_property(restart_hint, "modulate:a", 1.0, 0.8).set_delay(1.0)
