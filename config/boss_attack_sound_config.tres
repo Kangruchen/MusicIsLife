@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="BossAttackSoundConfig" load_steps=5 format=3 uid="uid://4nno7d7l88ub"]
+
+[ext_resource type="AudioStream" uid="uid://c551fjik1avxu" path="res://assets/SFX/chargefull.wav" id="1_6xrq8"]
+[ext_resource type="AudioStream" uid="uid://dy7owihsmnyq2" path="res://assets/SFX/laserfull.wav" id="1_laser"]
+[ext_resource type="AudioStream" uid="uid://bxa4sfdhp4wam" path="res://assets/SFX/missilefull.wav" id="3_qitmn"]
+[ext_resource type="Script" uid="uid://dvqabbakhn5v" path="res://scripts/BossAttackSoundConfig.gd" id="4_script"]
+
+[resource]
+script = ExtResource("4_script")
+laser_sfx = ExtResource("1_laser")
+laser_volume_db = -5.0
+missile_sfx = ExtResource("3_qitmn")
+missile_volume_db = -5.0
+charge_bullet_sfx = ExtResource("1_6xrq8")
+charge_bullet_volume_db = -5.0
+charge_bullet_start_frame = 0.0

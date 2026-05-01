@@ -1,0 +1,93 @@
+[gd_scene load_steps=10 format=4 uid="uid://dr5lsqd46k7ns"]
+
+[sub_resource type="PortableCompressedTexture2D" id="PortableCompressedTexture2D_yy318"]
+_data = PackedByteArray("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")
+size_override = Vector2(1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_1jka3"]
+atlas = SubResource("PortableCompressedTexture2D_yy318")
+region = Rect2(0, 0, 640, 360)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_xv5dc"]
+atlas = SubResource("PortableCompressedTexture2D_yy318")
+region = Rect2(640, 0, 640, 360)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_rgd84"]
+atlas = SubResource("PortableCompressedTexture2D_yy318")
+region = Rect2(1280, 0, 640, 360)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_i3qps"]
+atlas = SubResource("PortableCompressedTexture2D_yy318")
+region = Rect2(0, 360, 640, 360)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_1wwod"]
+atlas = SubResource("PortableCompressedTexture2D_yy318")
+region = Rect2(640, 360, 640, 360)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_hep3c"]
+atlas = SubResource("PortableCompressedTexture2D_yy318")
+region = Rect2(1280, 360, 640, 360)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ppv1u"]
+atlas = SubResource("PortableCompressedTexture2D_yy318")
+region = Rect2(0, 720, 640, 360)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_pfvo1"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_1jka3")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_xv5dc")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_rgd84")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_i3qps")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_1wwod")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_hep3c")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_ppv1u")
+}],
+"loop": false,
+"name": &"default",
+"speed": 15.0
+}]
+
+[node name="MissileHit" type="Node2D"]
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+texture_filter = 1
+position = Vector2(0, -3)
+scale = Vector2(0.75, 0.75)
+sprite_frames = SubResource("SpriteFrames_pfvo1")
+frame = 6
+frame_progress = 1.0
+metadata/_aseprite_wizard_interface_config_ = {
+"animation_section": true,
+"layer_section": true,
+"output_section": true,
+"pending_changes": {},
+"slice_section": true
+}
+metadata/_aseprite_wizard_config_ = {
+"embed_tex": true,
+"layers": [],
+"o_ex_p": "",
+"o_folder": "",
+"o_name": "",
+"only_visible": false,
+"scale": "1.0",
+"should_round_fps": true,
+"slice": "",
+"source": "res://assets/VFX/MissileHit.aseprite",
+"source_uid": 3163625927395815775
+}
+metadata/_aseprite_wizard_source_file_hash_ = "22ade6330b7a5960888b64654877ae68"

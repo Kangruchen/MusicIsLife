@@ -1,0 +1,127 @@
+[gd_scene load_steps=15 format=3 uid="uid://6o6cnudua672"]
+
+[ext_resource type="Texture2D" uid="uid://bqgejafdalqmj" path="res://assets/environment/工厂背景.png" id="1_c13y7"]
+[ext_resource type="PackedScene" uid="uid://da8ttcx4kdymg" path="res://scenes/character.tscn" id="2_8ho6b"]
+[ext_resource type="Script" uid="uid://e8i1qf3cicia" path="res://scripts/TutorialPlatformPlayer.gd" id="3_tutorial_player"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_ground"]
+size = Vector2(4246, 40)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_6yjpi"]
+size = Vector2(2907, 20)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_ckvwl"]
+size = Vector2(296, 20)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_nlqja"]
+size = Vector2(20, 124)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_ph3nu"]
+size = Vector2(31.782238, 4.430827)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_4kmhl"]
+size = Vector2(30.264616, 7.021118)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_cq4me"]
+size = Vector2(10.89446, 6.2460127)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_wall"]
+size = Vector2(40, 1204)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_gbqnl"]
+size = Vector2(20, 328)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_ceiling"]
+size = Vector2(4236, 40)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_player"]
+size = Vector2(70, 140)
+
+[node name="Tutorial" type="Node2D"]
+
+[node name="Background" type="Sprite2D" parent="."]
+z_index = -10
+position = Vector2(1200, -420)
+scale = Vector2(0.333, 0.333)
+texture = ExtResource("1_c13y7")
+
+[node name="LevelGeometry" type="StaticBody2D" parent="."]
+
+[node name="Ground" type="CollisionShape2D" parent="LevelGeometry"]
+position = Vector2(1192, 170)
+shape = SubResource("RectangleShape2D_ground")
+
+[node name="Ground2" type="CollisionShape2D" parent="LevelGeometry"]
+position = Vector2(515.5, -453)
+shape = SubResource("RectangleShape2D_6yjpi")
+
+[node name="Ground3" type="CollisionShape2D" parent="LevelGeometry"]
+position = Vector2(2117, -453)
+shape = SubResource("RectangleShape2D_ckvwl")
+one_way_collision = true
+
+[node name="Ground4" type="CollisionShape2D" parent="LevelGeometry"]
+position = Vector2(2257, -525)
+shape = SubResource("RectangleShape2D_nlqja")
+
+[node name="Stair2" type="CollisionShape2D" parent="LevelGeometry"]
+position = Vector2(2098.0002, -289.00003)
+rotation = 2.2911122
+scale = Vector2(15.0396805, -4.8051047)
+shape = SubResource("RectangleShape2D_ph3nu")
+one_way_collision = true
+
+[node name="Stair1" type="CollisionShape2D" parent="LevelGeometry"]
+position = Vector2(1936.6877, 16.05194)
+rotation = -2.3998044
+scale = Vector2(15.039682, -4.8051047)
+shape = SubResource("RectangleShape2D_4kmhl")
+one_way_collision = true
+
+[node name="StairMid" type="CollisionShape2D" parent="LevelGeometry"]
+position = Vector2(1865.0754, -118.99363)
+rotation = -3.1415925
+scale = Vector2(15.039682, -4.8051047)
+shape = SubResource("RectangleShape2D_cq4me")
+one_way_collision = true
+
+[node name="LeftWall" type="CollisionShape2D" parent="LevelGeometry"]
+position = Vector2(-948.885, -415)
+shape = SubResource("RectangleShape2D_wall")
+
+[node name="LeftWall2" type="CollisionShape2D" parent="LevelGeometry"]
+position = Vector2(1778, -292)
+shape = SubResource("RectangleShape2D_gbqnl")
+
+[node name="RightWall" type="CollisionShape2D" parent="LevelGeometry"]
+position = Vector2(3356, -407)
+shape = SubResource("RectangleShape2D_wall")
+
+[node name="Ceiling" type="CollisionShape2D" parent="LevelGeometry"]
+position = Vector2(1197, -995)
+shape = SubResource("RectangleShape2D_ceiling")
+
+[node name="Player" type="CharacterBody2D" parent="."]
+position = Vector2(-365, 106)
+script = ExtResource("3_tutorial_player")
+move_speed = 500.0
+walkable_slope_angle_degrees = 60.0
+move_action_left = null
+move_action_right = null
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Player"]
+position = Vector2(0, -30)
+shape = SubResource("RectangleShape2D_player")
+
+[node name="CharacterVisual" parent="Player" instance=ExtResource("2_8ho6b")]
+position = Vector2(0, -26)
+script = null
+
+[node name="Camera2D" type="Camera2D" parent="Player"]
+zoom = Vector2(0.6, 0.6)
+limit_left = -930
+limit_top = -985
+limit_right = 3345
+limit_bottom = 175
+position_smoothing_enabled = true
+position_smoothing_speed = 6.0

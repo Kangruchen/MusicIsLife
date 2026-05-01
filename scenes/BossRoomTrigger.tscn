@@ -1,0 +1,13 @@
+[gd_scene load_steps=3 format=3 uid="uid://c7t8r7q8q8q8"]
+
+[ext_resource type="Script" path="res://scripts/BossRoomTrigger.gd" id="1_a1b2c"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_b3c4d"]
+size = Vector2(200, 200)
+
+[node name="BossRoomTrigger" type="Area2D"]
+script = ExtResource("1_a1b2c")
+enable_debug_test = true
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_b3c4d")

@@ -1,6 +1,7 @@
-[gd_scene load_steps=23 format=3 uid="uid://bcm01qchxk50h"]
+[gd_scene load_steps=42 format=3 uid="uid://bcm01qchxk50h"]
 
 [ext_resource type="Texture2D" uid="uid://b6apsncosx3dn" path="res://assets/VFX/laser_sheet.png" id="1_xmihv"]
+[ext_resource type="Texture2D" uid="uid://dxx5sus5aaj27" path="res://assets/VFX/laser_sheet_re.png" id="2_a7dhc"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_jjj73"]
 atlas = ExtResource("1_xmihv")
@@ -82,6 +83,78 @@ region = Rect2(0, 18252, 1920, 1014)
 atlas = ExtResource("1_xmihv")
 region = Rect2(0, 19266, 1920, 1014)
 
+[sub_resource type="AtlasTexture" id="AtlasTexture_hjani"]
+atlas = ExtResource("2_a7dhc")
+region = Rect2(0, 0, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_2pg23"]
+atlas = ExtResource("2_a7dhc")
+region = Rect2(0, 1080, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_g66gc"]
+atlas = ExtResource("2_a7dhc")
+region = Rect2(0, 2160, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_tibpg"]
+atlas = ExtResource("2_a7dhc")
+region = Rect2(0, 3240, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_pyrps"]
+atlas = ExtResource("2_a7dhc")
+region = Rect2(0, 4320, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_gnkxm"]
+atlas = ExtResource("2_a7dhc")
+region = Rect2(0, 5400, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_uj2k7"]
+atlas = ExtResource("2_a7dhc")
+region = Rect2(0, 6480, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_c44xs"]
+atlas = ExtResource("2_a7dhc")
+region = Rect2(0, 7560, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_57sba"]
+atlas = ExtResource("2_a7dhc")
+region = Rect2(0, 8640, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_2dopv"]
+atlas = ExtResource("2_a7dhc")
+region = Rect2(0, 9720, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ivrc4"]
+atlas = ExtResource("2_a7dhc")
+region = Rect2(0, 10800, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_xjluc"]
+atlas = ExtResource("2_a7dhc")
+region = Rect2(0, 11880, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_46d3r"]
+atlas = ExtResource("2_a7dhc")
+region = Rect2(0, 12960, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_bsc6j"]
+atlas = ExtResource("2_a7dhc")
+region = Rect2(0, 14040, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_suvwr"]
+atlas = ExtResource("2_a7dhc")
+region = Rect2(0, 15120, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_0wg5e"]
+atlas = ExtResource("2_a7dhc")
+region = Rect2(0, 16200, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_l436d"]
+atlas = ExtResource("2_a7dhc")
+region = Rect2(0, 17280, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_1018j"]
+atlas = ExtResource("2_a7dhc")
+region = Rect2(0, 18360, 1920, 1080)
+
 [sub_resource type="SpriteFrames" id="SpriteFrames_hjani"]
 animations = [{
 "frames": [{
@@ -148,15 +221,75 @@ animations = [{
 "loop": false,
 "name": &"laser",
 "speed": 20.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_hjani")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_2pg23")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_g66gc")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_tibpg")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_pyrps")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_gnkxm")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_uj2k7")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_c44xs")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_57sba")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_2dopv")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_ivrc4")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_xjluc")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_46d3r")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_bsc6j")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_suvwr")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_0wg5e")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_l436d")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_1018j")
+}],
+"loop": false,
+"name": &"laser_re",
+"speed": 20.0
 }]
 
 [node name="Laser" type="Node2D"]
-scale = Vector2(0.4, 0.4)
+z_index = 1
+scale = Vector2(0.333, 0.333)
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
 modulate = Color(1.8247963, 1.8247963, 1.8247963, 1)
-position = Vector2(0, -125)
+position = Vector2(0, -57.5)
 sprite_frames = SubResource("SpriteFrames_hjani")
-animation = &"laser"
-frame = 19
+animation = &"laser_re"
+frame = 17
 frame_progress = 1.0

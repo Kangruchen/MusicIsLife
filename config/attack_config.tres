@@ -1,6 +1,9 @@
-[gd_resource type="Resource" script_class="AttackConfig" load_steps=2 format=3 uid="uid://c1vhiqdiogunj"]
+[gd_resource type="Resource" script_class="AttackConfig" load_steps=5 format=3 uid="uid://c1vhiqdiogunj"]
 
+[ext_resource type="AudioStream" uid="uid://ckrntp0n0y84t" path="res://assets/SFX/dodgedrum.wav" id="1_mg7cs"]
 [ext_resource type="Script" uid="uid://cf65ou7jc2yx3" path="res://scripts/AttackConfig.gd" id="1_u3dsp"]
+[ext_resource type="AudioStream" uid="uid://c7g0kn075r0fi" path="res://assets/SFX/hitdrum.wav" id="2_u3wol"]
+[ext_resource type="AudioStream" uid="uid://bqawaag18yohl" path="res://assets/SFX/guarddrum.wav" id="3_u3wol"]
 
 [resource]
 script = ExtResource("1_u3dsp")
@@ -14,3 +17,10 @@ charged_light_boss_damage = 30.0
 charged_light_boss_energy_max_reduce = 0.0
 charged_heavy_player_health_cost = 15.0
 charged_heavy_boss_energy_max_reduce = 5.0
+light_sfx = ExtResource("3_u3wol")
+light_sfx_volume_db = 5.0
+heavy_sfx = ExtResource("2_u3wol")
+heavy_sfx_volume_db = 5.0
+heal_sfx_volume_db = 5.0
+enhance_sfx = ExtResource("1_mg7cs")
+enhance_sfx_volume_db = 5.0

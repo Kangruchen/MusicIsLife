@@ -67,10 +67,8 @@ func _process(delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	# 按O键返回主场景
-	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_O:
-			_return_to_main()
+	if event.is_action_pressed("offset"):
+		_return_to_main()
 
 
 ## 生成一个新音符

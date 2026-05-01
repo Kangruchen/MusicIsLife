@@ -21,4 +21,20 @@ const GREAT_WINDOW: float = 0.100     ## 100 ms
 const GOOD_WINDOW: float = 0.150      ## 150 ms
 
 # === MISS 判定 ===
-const MISS_THRESHOLD: float = 0.200   ## 超过判定线后 200 ms 算 MISS
+const MISS_THRESHOLD: float = 0.150   ## 音符过判定线 150 ms 后算 MISS
+
+
+static func get_action_key_label(action: String, fallback: String = "") -> String:
+	var events: Array = InputMap.action_get_events(action)
+	if events.is_empty():
+		return fallback
+	for ev in events:
+		if ev is InputEventKey:
+			var key_ev: InputEventKey = ev as InputEventKey
+			var code: int = key_ev.physical_keycode if key_ev.physical_keycode != 0 else key_ev.keycode
+			if code == 0:
+				continue
+			var label: String = OS.get_keycode_string(code)
+			if not label.is_empty():
+				return label
+	return fallback

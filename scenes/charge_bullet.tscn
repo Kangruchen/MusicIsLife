@@ -1,0 +1,61 @@
+[gd_scene load_steps=9 format=3 uid="uid://csmphmhbshjbx"]
+
+[ext_resource type="Texture2D" uid="uid://dd6lns8d2ws5m" path="res://assets/VFX/chargebullet.png" id="1_t56pl"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_fssq4"]
+atlas = ExtResource("1_t56pl")
+region = Rect2(0, 0, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_s576j"]
+atlas = ExtResource("1_t56pl")
+region = Rect2(1920, 0, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ta7om"]
+atlas = ExtResource("1_t56pl")
+region = Rect2(3840, 0, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_h0umo"]
+atlas = ExtResource("1_t56pl")
+region = Rect2(0, 1080, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_omqci"]
+atlas = ExtResource("1_t56pl")
+region = Rect2(1920, 1080, 1920, 1080)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_axpju"]
+atlas = ExtResource("1_t56pl")
+region = Rect2(3840, 1080, 1920, 1080)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_d6v2a"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_fssq4")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_s576j")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_ta7om")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_h0umo")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_omqci")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_axpju")
+}],
+"loop": true,
+"name": &"default",
+"speed": 10.0
+}]
+
+[node name="ChargeBullet" type="Node2D"]
+scale = Vector2(0.2, 0.2)
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+sprite_frames = SubResource("SpriteFrames_d6v2a")
+autoplay = "default"
+frame_progress = 0.29162458

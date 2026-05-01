@@ -4,6 +4,7 @@ applyTo: '**'
 Provide project context and coding guidelines that AI should follow when generating code, answering questions, or reviewing changes.
 
 当编写新代码时或我要求你重构或审查代码时，请遵循以下原则：
+请使用第一性原理思考。你不能总是假设我非常清楚自己想要什么和该怎么得到。请保持审慎，从原始需求和问题出发，如果动机和目标不清晰，停下来和我讨论。如果目标清晰但是路径不是最短，告诉我，并且建议更好的办法。
 类型提示: 为所有变量、函数参数和返回值添加静态类型提示。这对于代码补全和错误检查至关重要。
 示例: `var health: int = 100` 或 `func take_damage(amount: int) -> void:`
 命名约定:

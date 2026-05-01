@@ -9,6 +9,7 @@ extends Node
 # Miss 音效开关
 @export var enable_miss_audio_effect: bool = false
 @export var miss_sound: AudioStream = null  # Miss 时播放的音效
+@export_range(-80.0, 24.0, 0.1) var miss_sound_volume_db: float = 0.0
 
 # Lowpass Filter 配置
 const NORMAL_CUTOFF: float = 20000.0  # 正常频率
@@ -22,6 +23,11 @@ const MISS_VOLUME_DB: float = -10.46  # Miss时的音量 (-10.46 dB ≈ 30%)
 var lowpass_filter: AudioEffectLowPassFilter = null
 var filter_tween: Tween = null
 var volume_tween: Tween = null
+var _attack_mix_tween: Tween = null
+var _attack_mix_active: bool = false
+var _cached_main_volume_db: float = 0.0
+var _cached_drum_volume_db: float = 0.0
+var _cached_bass_volume_db: float = 0.0
 
 # 攻击阶段专用 drum 轨道路径
 const ATTACK_DRUM_PATH: String = "res://assets/music/AISample/AISample_drum.mp3"
@@ -62,6 +68,7 @@ func _ready() -> void:
 	# 加载 miss 音效
 	if miss_sound:
 		miss_sfx_player.stream = miss_sound
+	miss_sfx_player.volume_db = miss_sound_volume_db
 	
 	# 获取 Lowpass Filter 引用
 	var bus_index: int = AudioServer.get_bus_index("Master")
@@ -155,6 +162,27 @@ func stop_music() -> void:
 	bass_player.stop()
 
 
+## 死亡演出：平滑淡出所有音乐轨道
+func fade_out_all_for_death(duration: float = 1.2, target_volume_db: float = -40.0) -> void:
+	var fade_duration: float = maxf(0.05, duration)
+	var target_db: float = clampf(target_volume_db, -80.0, 0.0)
+
+	if volume_tween != null:
+		volume_tween.kill()
+
+	volume_tween = create_tween()
+	volume_tween.set_parallel(true)
+	volume_tween.set_ease(Tween.EASE_OUT)
+	volume_tween.set_trans(Tween.TRANS_SINE)
+
+	if main_player != null:
+		volume_tween.tween_property(main_player, "volume_db", target_db, fade_duration)
+	if drum_player != null:
+		volume_tween.tween_property(drum_player, "volume_db", target_db, fade_duration)
+	if bass_player != null:
+		volume_tween.tween_property(bass_player, "volume_db", target_db, fade_duration)
+
+
 ## 暂停音乐播放（保留播放位置）
 func pause_music() -> void:
 	main_player.stream_paused = true
@@ -165,106 +193,63 @@ func pause_music() -> void:
 
 ## Boss精力耗尽时的特殊暂停（只保留drum轨道）
 func pause_music_keep_drum(drum_seek_time: float = -1.0) -> void:
-	# 记录当前播放位置（用于恢复）
-	if main_player.stream and main_player.playing:
-		paused_position = main_player.get_playback_position()
-	elif bass_player.stream and bass_player.playing:
-		paused_position = bass_player.get_playback_position()
-	
-	# 立即暂停 main 和 bass 播放
-	main_player.stream_paused = true
-	bass_player.stream_paused = true
-	
-	# 暂存原始 drum 轨道（用于攻击阶段结束后恢复）
-	_pre_attack_drum_stream = drum_player.stream
-	_pre_attack_drum_volume_db = drum_player.volume_db
-	
-	# 始终切换为攻击阶段专用 drum 轨道（不受音乐配置影响）
-	var attack_drum_stream: AudioStream = load(ATTACK_DRUM_PATH)
-	if attack_drum_stream:
-		drum_player.stop()
-		drum_player.stream = attack_drum_stream
-		drum_player.volume_db = NORMAL_VOLUME_DB
-		drum_player.play()
-		if drum_seek_time >= 0.0:
-			drum_player.seek(drum_seek_time)
-		print("已切换至攻击阶段专用 drum 轨道，跳转至: ", drum_seek_time, " 秒")
-	else:
-		push_warning("无法加载攻击阶段 drum 轨道: ", ATTACK_DRUM_PATH)
-		if drum_seek_time >= 0.0 and drum_player.stream:
-			drum_player.seek(drum_seek_time)
-	
-	# 创建淡出 Tween（0.5秒）- 用于平滑音量变化
-	var fadeout_tween: Tween = create_tween()
-	fadeout_tween.set_parallel(true)
-	fadeout_tween.set_ease(Tween.EASE_OUT)
-	fadeout_tween.set_trans(Tween.TRANS_CUBIC)
-	
-	# Main 和 Bass 音量淡出到静音（0.5秒）
-	fadeout_tween.tween_property(main_player, "volume_db", -80.0, 0.5)
-	fadeout_tween.tween_property(bass_player, "volume_db", -80.0, 0.5)
-	
-	# 稍微提升 Drum 音量来突出节奏
-	var drum_boost_vol: float = min(drum_player.volume_db + 6.0, 0.0)
-	fadeout_tween.tween_property(drum_player, "volume_db", drum_boost_vol, 0.5)
-	
-	print("Main和Bass已立即暂停，音量淡出中")
+	begin_attack_mix_mode()
 
 
 ## 恢复音乐播放（提前0.5秒调用以便淡入）
 func resume_music() -> void:
-	# 先让所有轨道设置为静音
-	main_player.volume_db = -80.0
-	bass_player.volume_db = -80.0
-	
-	# 获取正常音量
-	var main_normal_vol: float = music_config.main_volume_db if music_config else NORMAL_VOLUME_DB
-	var drum_normal_vol: float = music_config.drum_volume_db if music_config else NORMAL_VOLUME_DB
-	var bass_normal_vol: float = music_config.bass_volume_db if music_config else NORMAL_VOLUME_DB
-	
-	# 先降低鼓点音量，为同步做准备
-	var drum_sync_tween: Tween = create_tween()
-	drum_sync_tween.set_ease(Tween.EASE_OUT)
-	drum_sync_tween.tween_property(drum_player, "volume_db", -80.0, 0.25)
-	
-	# 0.25秒后所有轨道同时同步到目标位置（在音量最低时跳转）
-	drum_sync_tween.tween_callback(func():
-		if paused_position > 0.0:
-			# 解除 main 和 bass 的暂停状态
-			main_player.stream_paused = false
-			bass_player.stream_paused = false
-			
-			# 恢复原始 drum 轨道（攻击阶段结束后切回原配置）
-			drum_player.stop()
-			drum_player.stream = _pre_attack_drum_stream
-			if _pre_attack_drum_stream:
-				drum_player.play()
-			print("drum 轨道已恢复为原始配置")
-			
-			# 所有轨道同时 seek 到目标位置
-			if main_player.stream:
-				main_player.seek(paused_position)
-			if bass_player.stream:
-				bass_player.seek(paused_position)
-			if drum_player.stream:
-				drum_player.seek(paused_position)
-			
-			print("所有轨道已同步到目标位置: ", paused_position)
-			paused_position = 0.0
-	)
-	
-	# 创建淡入 Tween（0.5秒）
-	var fadein_tween: Tween = create_tween()
-	fadein_tween.set_parallel(true)
-	fadein_tween.set_ease(Tween.EASE_IN)
-	fadein_tween.set_trans(Tween.TRANS_CUBIC)
-	
-	# 从静音淡入到正常音量（0.5秒）
-	fadein_tween.tween_property(main_player, "volume_db", main_normal_vol, 0.5)
-	fadein_tween.tween_property(bass_player, "volume_db", bass_normal_vol, 0.5)
-	fadein_tween.tween_property(drum_player, "volume_db", drum_normal_vol, 0.5)
-	
-	print("音乐淡入恢复中（0.5秒），所有轨道将平滑同步")
+	end_attack_mix_mode()
+
+
+func begin_attack_mix_mode() -> void:
+	# 单轨模式（未分轨）不改混音，保持完整 BGM。
+	if music_config == null:
+		return
+	if bass_player == null or bass_player.stream == null:
+		return
+
+	_cached_main_volume_db = main_player.volume_db if main_player != null else 0.0
+	_cached_drum_volume_db = drum_player.volume_db if drum_player != null else 0.0
+	_cached_bass_volume_db = bass_player.volume_db
+
+	if _attack_mix_tween != null:
+		_attack_mix_tween.kill()
+
+	_attack_mix_tween = create_tween()
+	_attack_mix_tween.set_parallel(true)
+	_attack_mix_tween.set_ease(Tween.EASE_OUT)
+	_attack_mix_tween.set_trans(Tween.TRANS_CUBIC)
+
+	if main_player != null and main_player.stream:
+		_attack_mix_tween.tween_property(main_player, "volume_db", -80.0, 0.12)
+	if drum_player != null and drum_player.stream:
+		_attack_mix_tween.tween_property(drum_player, "volume_db", -80.0, 0.12)
+	if bass_player.stream:
+		_attack_mix_tween.tween_property(bass_player, "volume_db", _cached_bass_volume_db, 0.12)
+
+	_attack_mix_active = true
+
+
+func end_attack_mix_mode() -> void:
+	if not _attack_mix_active:
+		return
+
+	if _attack_mix_tween != null:
+		_attack_mix_tween.kill()
+
+	_attack_mix_tween = create_tween()
+	_attack_mix_tween.set_parallel(true)
+	_attack_mix_tween.set_ease(Tween.EASE_IN)
+	_attack_mix_tween.set_trans(Tween.TRANS_CUBIC)
+
+	if main_player != null and main_player.stream:
+		_attack_mix_tween.tween_property(main_player, "volume_db", _cached_main_volume_db, 0.12)
+	if drum_player != null and drum_player.stream:
+		_attack_mix_tween.tween_property(drum_player, "volume_db", _cached_drum_volume_db, 0.12)
+	if bass_player != null and bass_player.stream:
+		_attack_mix_tween.tween_property(bass_player, "volume_db", _cached_bass_volume_db, 0.12)
+
+	_attack_mix_active = false
 
 
 ## 获取当前播放位置（使用主轨道作为参考）
@@ -297,6 +282,13 @@ func set_drum_volume(volume_db: float) -> void:
 ## 设置贝斯轨道音量
 func set_bass_volume(volume_db: float) -> void:
 	bass_player.volume_db = volume_db
+
+
+## 获取鼓轨当前播放位置（带音频混音提前量）
+func get_drum_playback_position() -> float:
+	if drum_player and drum_player.stream and drum_player.playing:
+		return drum_player.get_playback_position() + AudioServer.get_time_to_next_mix()
+	return -1.0
 
 
 ## 切换主旋律轨道开关
@@ -372,6 +364,7 @@ func apply_miss_effect() -> void:
 func apply_track_miss_effect(note_type: int) -> void:
 	# 播放 miss 音效
 	if miss_sfx_player and miss_sfx_player.stream:
+		miss_sfx_player.volume_db = miss_sound_volume_db
 		miss_sfx_player.play()
 	
 	# 获取各轨道的正常音量

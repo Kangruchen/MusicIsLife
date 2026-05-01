@@ -29,3 +29,59 @@ class_name AttackConfig
 # === 回复配置 ===
 @export_group("回复")
 @export var heal_amount: float = 20.0  # 回复血量
+
+# === 攻击动作音效配置 ===
+@export_group("攻击动作音效")
+@export var attack_sfx_bus: StringName = &"Master"
+
+@export_subgroup("轻攻击")
+@export var light_sfx: AudioStream = null
+@export_range(-40.0, 12.0, 0.1) var light_sfx_volume_db: float = 0.0
+
+@export_subgroup("重攻击")
+@export var heavy_sfx: AudioStream = null
+@export_range(-40.0, 12.0, 0.1) var heavy_sfx_volume_db: float = 0.0
+
+@export_subgroup("蓄力轻攻击")
+@export var charged_light_sfx: AudioStream = null
+@export_range(-40.0, 12.0, 0.1) var charged_light_sfx_volume_db: float = 0.0
+
+@export_subgroup("蓄力重攻击")
+@export var charged_heavy_sfx: AudioStream = null
+@export_range(-40.0, 12.0, 0.1) var charged_heavy_sfx_volume_db: float = 0.0
+
+@export_subgroup("回复")
+@export var heal_sfx: AudioStream = null
+@export_range(-40.0, 12.0, 0.1) var heal_sfx_volume_db: float = 0.0
+
+@export_subgroup("蓄力")
+@export var enhance_sfx: AudioStream = null
+@export_range(-40.0, 12.0, 0.1) var enhance_sfx_volume_db: float = 0.0
+
+
+func get_attack_sfx(attack_type: int, is_charged: bool) -> AudioStream:
+	match attack_type:
+		0:  # LIGHT
+			return charged_light_sfx if is_charged and charged_light_sfx != null else light_sfx
+		1:  # HEAVY
+			return charged_heavy_sfx if is_charged and charged_heavy_sfx != null else heavy_sfx
+		2:  # HEAL
+			return heal_sfx
+		3:  # ENHANCE
+			return enhance_sfx
+		_:
+			return null
+
+
+func get_attack_sfx_volume_db(attack_type: int, is_charged: bool) -> float:
+	match attack_type:
+		0:  # LIGHT
+			return charged_light_sfx_volume_db if is_charged and charged_light_sfx != null else light_sfx_volume_db
+		1:  # HEAVY
+			return charged_heavy_sfx_volume_db if is_charged and charged_heavy_sfx != null else heavy_sfx_volume_db
+		2:  # HEAL
+			return heal_sfx_volume_db
+		3:  # ENHANCE
+			return enhance_sfx_volume_db
+		_:
+			return 0.0

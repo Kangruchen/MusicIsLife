@@ -18,6 +18,10 @@ class_name CharacterAnimConfig
 @export var light_attack_anim: String = ""
 ## 重攻击动画（I键/HIT）
 @export var heavy_attack_anim: String = ""
+## 蓄力轻攻击动画（ENHANCE 后的 LIGHT）
+@export var charged_light_attack_anim: String = ""
+## 蓄力重攻击动画（ENHANCE 后的 HEAVY）
+@export var charged_heavy_attack_anim: String = ""
 ## 蓄力动画（无输入时自动触发）
 @export var charge_anim: String = ""
 ## 恢复动画（L键/DODGE）
@@ -27,6 +31,10 @@ class_name CharacterAnimConfig
 @export_group("基础")
 ## 待机动画名称
 @export var idle_anim: String = "idle"
+## 移动动画名称
+@export var move_anim: String = ""
+## 失败/死亡动画名称
+@export var fail_anim: String = ""
 
 
 ## 获取防御阶段动画名称
@@ -46,3 +54,16 @@ func get_attack_anim(attack_type: int) -> String:
 		2: return heal_anim           # HEAL
 		3: return charge_anim         # ENHANCE
 	return ""
+
+
+## 获取攻击阶段动画名称（按蓄力状态分流）
+func get_attack_anim_with_charge(attack_type: int, is_charged: bool) -> String:
+	if is_charged:
+		match attack_type:
+			0:
+				if not charged_light_attack_anim.is_empty():
+					return charged_light_attack_anim
+			1:
+				if not charged_heavy_attack_anim.is_empty():
+					return charged_heavy_attack_anim
+	return get_attack_anim(attack_type)
