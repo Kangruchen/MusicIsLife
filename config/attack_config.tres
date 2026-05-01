@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AttackConfig" load_steps=2 format=3 uid="uid://c1vhiqdiogunj"]
+
+[ext_resource type="Script" uid="uid://cf65ou7jc2yx3" path="res://scripts/AttackConfig.gd" id="1_u3dsp"]
+
+[resource]
+script = ExtResource("1_u3dsp")
+light_player_health_cost = 0.0
+light_boss_energy_max_reduce = 0.0
+heavy_player_health_cost = 5.0
+heavy_boss_damage = 30.0
+heavy_boss_energy_max_reduce = 2.0
+charged_light_player_health_cost = -5.0
+charged_light_boss_damage = 30.0
+charged_light_boss_energy_max_reduce = 0.0
+charged_heavy_player_health_cost = 15.0
+charged_heavy_boss_energy_max_reduce = 5.0
