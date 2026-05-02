@@ -6,7 +6,7 @@
 [ext_resource type="PackedScene" uid="uid://c8jx3vn5qwm4r" path="res://scenes/GameUI.tscn" id="3_game_ui"]
 [ext_resource type="Script" uid="uid://olseljrkaswj" path="res://scripts/TrackManager.gd" id="4_track_mgr"]
 [ext_resource type="Script" uid="uid://dgu5lxyijp7a0" path="res://scripts/InputManager.gd" id="5_input_mgr"]
-[ext_resource type="AudioStream" uid="uid://mw64aohjctaa" path="res://assets/SFX/miss1.wav" id="6_cvmbd"]
+[ext_resource type="AudioStream" uid="uid://bk3gkvbv728kp" path="res://assets/SFX/miss1.wav" id="6_cvmbd"]
 [ext_resource type="Script" uid="uid://1spmii0kmgww" path="res://scripts/ScoreManager.gd" id="6_score_mgr"]
 [ext_resource type="Resource" uid="uid://brd58vvvmh20v" path="res://config/key_sound_config.tres" id="7_key_sound"]
 [ext_resource type="Resource" uid="uid://tka37j3asl60" path="res://config/key_sound_config_boss.tres" id="8_bjd11"]

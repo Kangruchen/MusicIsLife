@@ -1,8 +1,8 @@
 [gd_scene load_steps=15 format=3 uid="uid://df3a1jhkv5551"]
 
-[ext_resource type="Texture2D" uid="uid://btwvdaklbc8y0" path="res://assets/VFX/bling_blue.png" id="1_wrrf1"]
-[ext_resource type="Texture2D" uid="uid://4fel1y0k2ejj" path="res://assets/VFX/bling_green.png" id="2_ddope"]
-[ext_resource type="Texture2D" uid="uid://doiipeo1ao3j7" path="res://assets/VFX/bling_red.png" id="3_rk08m"]
+[ext_resource type="Texture2D" uid="uid://f4ecd1eauihv" path="res://assets/VFX/bling_blue.png" id="1_wrrf1"]
+[ext_resource type="Texture2D" uid="uid://cjloo6cxrsaom" path="res://assets/VFX/bling_green.png" id="2_ddope"]
+[ext_resource type="Texture2D" uid="uid://dfwf7bd42o7ks" path="res://assets/VFX/bling_red.png" id="3_rk08m"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_q2fw0"]
 

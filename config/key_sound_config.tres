@@ -1,8 +1,8 @@
 [gd_resource type="Resource" script_class="KeySoundConfig" load_steps=5 format=3 uid="uid://brd58vvvmh20v"]
 
-[ext_resource type="AudioStream" uid="uid://ckrntp0n0y84t" path="res://assets/SFX/dodgedrum.wav" id="1_4saig"]
-[ext_resource type="AudioStream" uid="uid://bqawaag18yohl" path="res://assets/SFX/guarddrum.wav" id="2_4saig"]
-[ext_resource type="AudioStream" uid="uid://c7g0kn075r0fi" path="res://assets/SFX/hitdrum.wav" id="3_4saig"]
+[ext_resource type="AudioStream" uid="uid://7n1vbkb2k41a" path="res://assets/SFX/dodgedrum.wav" id="1_4saig"]
+[ext_resource type="AudioStream" uid="uid://b40kly4fniq14" path="res://assets/SFX/guarddrum.wav" id="2_4saig"]
+[ext_resource type="AudioStream" uid="uid://23jovniegtws" path="res://assets/SFX/hitdrum.wav" id="3_4saig"]
 [ext_resource type="Script" uid="uid://bxoqksavyl5ps" path="res://scripts/KeySoundConfig.gd" id="4_7gc1v"]
 
 [resource]

@@ -1,7 +1,7 @@
 [gd_scene load_steps=42 format=3 uid="uid://bcm01qchxk50h"]
 
-[ext_resource type="Texture2D" uid="uid://b6apsncosx3dn" path="res://assets/VFX/laser_sheet.png" id="1_xmihv"]
-[ext_resource type="Texture2D" uid="uid://dxx5sus5aaj27" path="res://assets/VFX/laser_sheet_re.png" id="2_a7dhc"]
+[ext_resource type="Texture2D" uid="uid://bnss8br73fus2" path="res://assets/VFX/laser_sheet.png" id="1_xmihv"]
+[ext_resource type="Texture2D" uid="uid://desvwth01ki4a" path="res://assets/VFX/laser_sheet_re.png" id="2_a7dhc"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_jjj73"]
 atlas = ExtResource("1_xmihv")
