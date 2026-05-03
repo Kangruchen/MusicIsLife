@@ -27,9 +27,9 @@ enum PhaseState {
 
 # 判定时间窗口（秒）— 值与 GameConstants 同步
 const JUDGMENT_WINDOWS := {
-	JudgmentType.PERFECT: 0.050,  # GameConstants.PERFECT_WINDOW
-	JudgmentType.GREAT: 0.100,    # GameConstants.GREAT_WINDOW
-	JudgmentType.GOOD: 0.150,     # GameConstants.GOOD_WINDOW
+	JudgmentType.PERFECT: GameConstants.PERFECT_WINDOW,
+	JudgmentType.GREAT: GameConstants.GREAT_WINDOW,
+	JudgmentType.GOOD: GameConstants.GOOD_WINDOW,
 }
 
 # 动作映射到音符类型
@@ -40,7 +40,6 @@ const ACTION_MAPPING := {
 }
 
 # 按键音效配置
-@export var key_sound_config: KeySoundConfig = null
 @export var debug_attack_drum_alignment: bool = false
 @export_group("判定")
 @export var ignore_empty_press_without_nearby_notes: bool = false
@@ -54,11 +53,6 @@ const ACTION_MAPPING := {
 
 @onready var track_manager: Node = get_node("../TrackManager")
 @onready var music_player: Node = get_node("../MusicPlayer")
-
-# 音效播放器（用于播放按键音效）
-var audio_player_guard: AudioStreamPlayer = null
-var audio_player_hit: AudioStreamPlayer = null
-var audio_player_dodge: AudioStreamPlayer = null
 
 # 当前阶段
 var current_phase: PhaseState = PhaseState.DEFENSE
@@ -93,64 +87,27 @@ func _ready() -> void:
 	attack_beat_timer.one_shot = true
 	add_child(attack_beat_timer)
 	
-	# auto_heal 已改为在 _on_attack_beat 内同步处理，不再使用独立 Timer
-	# 创建三个音效播放器
-	audio_player_guard = AudioStreamPlayer.new()
-	audio_player_hit = AudioStreamPlayer.new()
-	audio_player_dodge = AudioStreamPlayer.new()
-	
-	# 添加到场景树
-	add_child(audio_player_guard)
-	add_child(audio_player_hit)
-	add_child(audio_player_dodge)
-	
-	# 设置音效播放器参数
-	audio_player_guard.bus = "Master"
-	audio_player_hit.bus = "Master"
-	audio_player_dodge.bus = "Master"
-	
-	# 如果有配置文件，加载音效
-	_setup_key_sounds()
-	
-	# 通过 EventBus 监听 MISS 触发（由 TrackManager 发射）
 	EventBus.miss_triggered.connect(_on_miss_triggered)
 
 
-## 配置按键音效
-func _setup_key_sounds() -> void:
-	if not key_sound_config:
-		return
-	
-	# 加载音效到对应的播放器，并设置各自的音量
-	if key_sound_config.guard_sound:
-		audio_player_guard.stream = key_sound_config.guard_sound
-		audio_player_guard.volume_db = key_sound_config.guard_volume_db
-	
-	if key_sound_config.hit_sound:
-		audio_player_hit.stream = key_sound_config.hit_sound
-		audio_player_hit.volume_db = key_sound_config.hit_volume_db
-	
-	if key_sound_config.dodge_sound:
-		audio_player_dodge.stream = key_sound_config.dodge_sound
-		audio_player_dodge.volume_db = key_sound_config.dodge_volume_db
-
-
-## 播放按键音效
 func _play_key_sound(note_type: Note.NoteType) -> void:
-	if not key_sound_config:
+	if GameConfigs.sound == null:
 		return
-	
-	var player: AudioStreamPlayer = null
-	match note_type:
-		Note.NoteType.GUARD:
-			player = audio_player_guard
-		Note.NoteType.HIT:
-			player = audio_player_hit
-		Note.NoteType.DODGE:
-			player = audio_player_dodge
-	
-	if player and player.stream:
-		player.play()
+	if GameConfigs.sound.boss_phase_key_sound_muted and current_phase == PhaseState.ATTACK:
+		return
+	var pool: RandomSoundPool = GameConfigs.sound.get_key_sound(note_type)
+	if pool == null:
+		return
+	SFXManager.play_pool(pool, GameConfigs.sound.sfx_bus)
+
+
+func _play_defense_sound(note_type: Note.NoteType, is_miss: bool) -> void:
+	if GameConfigs.sound == null or GameConfigs.sound.player_defense == null:
+		return
+	var pool: RandomSoundPool = GameConfigs.sound.player_defense.get_miss_sound(note_type) if is_miss else GameConfigs.sound.player_defense.get_success_sound(note_type)
+	if pool == null:
+		return
+	SFXManager.play_pool(pool, GameConfigs.sound.player_defense.sfx_bus)
 
 
 func _process(_delta: float) -> void:
@@ -222,10 +179,12 @@ func _handle_input(track_type: Note.NoteType) -> void:
 		_play_key_sound(track_type)
 		closest_note.is_active = false
 		closest_note.destroy()
-		if judgment == JudgmentType.MISS:
+		var is_miss: bool = judgment == JudgmentType.MISS
+		if is_miss:
 			_apply_miss_audio_effect()
-		if judgment != JudgmentType.MISS:
+		else:
 			_spawn_defense_hit_effect(track_type)
+		_play_defense_sound(track_type, is_miss)
 		EventBus.judgment_made.emit(track_type, judgment, timing_diff)
 		print("判定: ", _get_judgment_text(judgment), " (", int(min_time_diff * 1000), "ms)")
 		return
@@ -248,10 +207,12 @@ func _handle_input(track_type: Note.NoteType) -> void:
 		var timing_diff: float = current_time - closest_tracked.beat_time
 		_play_key_sound(track_type)
 		track_manager.tracked_notes.erase(closest_tracked)
-		if judgment == JudgmentType.MISS:
+		var is_miss: bool = judgment == JudgmentType.MISS
+		if is_miss:
 			_apply_miss_audio_effect()
-		if judgment != JudgmentType.MISS:
+		else:
 			_spawn_defense_hit_effect(track_type)
+		_play_defense_sound(track_type, is_miss)
 		EventBus.judgment_made.emit(track_type, judgment, timing_diff)
 		print("判定: ", _get_judgment_text(judgment), " (", int(min_tracked_diff * 1000), "ms)")
 		return

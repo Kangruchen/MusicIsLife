@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="JudgmentConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/JudgmentConfig.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+guard_boss_damage_perfect = 4.0
+guard_boss_damage_great = 2.0
+guard_boss_damage_good = 1.0
+guard_boss_damage_miss = 0.0
+guard_player_health_perfect = 4.0
+guard_player_health_great = 2.0
+guard_player_health_good = 0.0
+guard_player_health_miss = -15.0
+hit_boss_damage_perfect = 7.0
+hit_boss_damage_great = 4.0
+hit_boss_damage_good = 2.0
+hit_boss_damage_miss = 0.0
+hit_player_health_perfect = 2.0
+hit_player_health_great = 1.0
+hit_player_health_good = 0.0
+hit_player_health_miss = -10.0
+dodge_boss_damage_perfect = 10.0
+dodge_boss_damage_great = 0.0
+dodge_boss_damage_good = 0.0
+dodge_boss_damage_miss = 0.0
+dodge_player_health_perfect = 0.0
+dodge_player_health_great = 0.0
+dodge_player_health_good = 0.0
+dodge_player_health_miss = -20.0
+max_player_health = 120.0
+max_boss_health = 1.0
+max_boss_energy = 1.0

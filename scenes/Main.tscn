@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3 uid="uid://b4ymn7qwvj5hq"]
+[gd_scene load_steps=16 format=3 uid="uid://b4ymn7qwvj5hq"]
 
 [ext_resource type="Script" uid="uid://hla1t03lkrwg" path="res://scripts/MusicPlayer.gd" id="1_h5v3q"]
 [ext_resource type="Script" uid="uid://dnajos3fm0bkl" path="res://scripts/Main.gd" id="1_main"]
@@ -6,12 +6,8 @@
 [ext_resource type="PackedScene" uid="uid://c8jx3vn5qwm4r" path="res://scenes/GameUI.tscn" id="3_game_ui"]
 [ext_resource type="Script" uid="uid://olseljrkaswj" path="res://scripts/TrackManager.gd" id="4_track_mgr"]
 [ext_resource type="Script" uid="uid://dgu5lxyijp7a0" path="res://scripts/InputManager.gd" id="5_input_mgr"]
-[ext_resource type="AudioStream" uid="uid://bk3gkvbv728kp" path="res://assets/SFX/miss1.wav" id="6_cvmbd"]
 [ext_resource type="Script" uid="uid://1spmii0kmgww" path="res://scripts/ScoreManager.gd" id="6_score_mgr"]
-[ext_resource type="Resource" uid="uid://brd58vvvmh20v" path="res://config/key_sound_config.tres" id="7_key_sound"]
-[ext_resource type="Resource" uid="uid://tka37j3asl60" path="res://config/key_sound_config_boss.tres" id="8_bjd11"]
 [ext_resource type="Resource" uid="uid://cmtg6v8fmuctn" path="res://config/track_animation_config.tres" id="8_mwfav"]
-[ext_resource type="Resource" uid="uid://c1vhiqdiogunj" path="res://config/attack_config.tres" id="12_qmy6f"]
 [ext_resource type="PackedScene" uid="uid://da8ttcx4kdymg" path="res://scenes/character.tscn" id="13_qmy6f"]
 [ext_resource type="PackedScene" uid="uid://pmk3seuwqaru" path="res://scenes/boss.tscn" id="16_cvmbd"]
 [ext_resource type="Resource" uid="uid://cfen4ocwo62iw" path="res://config/character_anim_config.tres" id="17_charanim"]
@@ -94,8 +90,6 @@ position = Vector2(0, 130)
 script = ExtResource("1_h5v3q")
 music_path = "uid://cyvxtvuk4kkc5"
 enable_miss_audio_effect = true
-miss_sound = ExtResource("6_cvmbd")
-miss_sound_volume_db = -15.0
 
 [node name="BeatManager" type="Node" parent="GameManager"]
 script = ExtResource("2_b4ymn")
@@ -103,45 +97,19 @@ bpm = 0.0
 generate_test_chart = false
 chart_sm_path = "res://assets/charts/New Demo/New Demo.sm"
 
-[node name="TrackManager" type="Node" parent="GameManager" node_paths=PackedStringArray("guard_position_nodes", "game_ui")]
+[node name="TrackManager" type="Node" parent="GameManager" node_paths=PackedStringArray("game_ui")]
 script = ExtResource("4_track_mgr")
-key_sound_config = ExtResource("8_bjd11")
 track_animation_config = ExtResource("8_mwfav")
-guard_position_nodes = [NodePath("../../PositionNodes/Laser1"), NodePath("../../PositionNodes/Laser2")]
-game_ui = NodePath("../../GameUI")
 prejudge_key_hint_display_mode = 0
+game_ui = NodePath("../../GameUI")
 
 [node name="InputManager" type="Node" parent="GameManager"]
 script = ExtResource("5_input_mgr")
-key_sound_config = ExtResource("7_key_sound")
 debug_attack_drum_alignment = true
 ignore_empty_press_without_nearby_notes = true
 
 [node name="ScoreManager" type="Node" parent="GameManager"]
 script = ExtResource("6_score_mgr")
-guard_boss_damage_perfect = 4.0
-guard_boss_damage_great = 2.0
-guard_boss_damage_good = 1.0
-guard_player_health_perfect = 4.0
-guard_player_health_great = 2.0
-guard_player_health_good = 0.0
-guard_player_health_miss = -15.0
-hit_boss_damage_perfect = 7.0
-hit_boss_damage_great = 4.0
-hit_boss_damage_good = 2.0
-hit_player_health_perfect = 2.0
-hit_player_health_great = 1.0
-hit_player_health_good = 0.0
-hit_player_health_miss = -10.0
-dodge_boss_damage_perfect = 10.0
-dodge_player_health_perfect = 0.0
-dodge_player_health_great = 0.0
-dodge_player_health_good = 0.0
-dodge_player_health_miss = -20.0
-max_player_health = 120.0
-max_boss_health = 1.0
-max_boss_energy = 1.0
-attack_config = ExtResource("12_qmy6f")
 
 [node name="Boss" parent="." instance=ExtResource("16_cvmbd")]
 light_mask = 0

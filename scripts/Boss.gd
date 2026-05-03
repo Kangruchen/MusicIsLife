@@ -97,9 +97,6 @@ enum BossState {
 @export var debug_missile_timing: bool = false
 @export var debug_charge_timing: bool = false
 
-@export_group("Boss 攻击音效")
-@export var boss_attack_sound_config: BossAttackSoundConfig = preload("res://config/boss_attack_sound_config.tres")
-
 @export_group("Animation")
 @export_node_path("AnimationPlayer") var animation_player_path: NodePath
 @export_node_path("AnimatedSprite2D") var animated_sprite_path: NodePath
@@ -220,7 +217,7 @@ var _charge_animation_started_in_cycle: bool = false
 var _middle_part_damage_accumulated: float = 0.0
 var _left_part_damage_accumulated: float = 0.0
 var _right_part_damage_accumulated: float = 0.0
-var _boss_attack_audio_players: Dictionary = {}
+var _boss_attack_beat_index: Dictionary = {}
 var _boss_attack_sound_token: int = 0
 var _debug_last_override_enabled: bool = false
 var _debug_last_middle_destroyed: bool = false
@@ -243,7 +240,6 @@ const MISSILE_SIDE_RIGHT: int = 1
 func _ready() -> void:
 	_rng.randomize()
 	_spawn_position = global_position
-	_setup_attack_audio_player()
 	_resolve_animation_nodes()
 	_resolve_aim_nodes()
 	_reset_part_health()
@@ -351,52 +347,21 @@ func _resolve_aim_nodes() -> void:
 			_target_character = parent_node.get_node_or_null("Character") as Node2D
 
 
-func _setup_attack_audio_player() -> void:
-	# 预热三个独立播放器，避免不同攻击音效互相覆盖。
-	_get_attack_audio_player(BossAttackSoundConfig.ATTACK_LASER)
-	_get_attack_audio_player(BossAttackSoundConfig.ATTACK_MISSILE)
-	_get_attack_audio_player(BossAttackSoundConfig.ATTACK_CHARGE_BULLET)
-
-
-func _get_attack_audio_player(attack_type: int) -> AudioStreamPlayer:
-	if _boss_attack_audio_players.has(attack_type):
-		var cached: AudioStreamPlayer = _boss_attack_audio_players[attack_type] as AudioStreamPlayer
-		if cached != null and is_instance_valid(cached):
-			return cached
-
-	var player: AudioStreamPlayer = AudioStreamPlayer.new()
-	player.name = "BossAttackAudio_%d" % attack_type
-	player.bus = "Master"
-	if boss_attack_sound_config != null and not String(boss_attack_sound_config.sfx_bus).is_empty():
-		player.bus = String(boss_attack_sound_config.sfx_bus)
-	add_child(player)
-	_boss_attack_audio_players[attack_type] = player
-	return player
-
-
 func _play_boss_attack_sound(attack_type: int) -> void:
-	if boss_attack_sound_config == null:
+	if GameConfigs.sound == null or GameConfigs.sound.boss_sounds == null:
 		return
-	var player: AudioStreamPlayer = _get_attack_audio_player(attack_type)
-	if player == null:
+	var beat_index: int = int(_boss_attack_beat_index.get(attack_type, 0))
+	var pool: RandomSoundPool = GameConfigs.sound.boss_sounds.get_sound_for_beat(attack_type, beat_index)
+	if pool == null:
 		return
-
-	var stream: AudioStream = boss_attack_sound_config.get_attack_sfx(attack_type)
-	if stream == null:
-		return
-
-	var bus_name: String = String(boss_attack_sound_config.sfx_bus)
-	if not bus_name.is_empty():
-		player.bus = bus_name
-	player.stream = stream
-	player.volume_db = boss_attack_sound_config.get_attack_sfx_volume_db(attack_type)
-	player.pitch_scale = maxf(0.01, boss_attack_sound_config.get_attack_sfx_pitch_scale(attack_type))
-	player.stop()
-	player.play(maxf(0.0, boss_attack_sound_config.get_attack_sfx_start_offset_sec(attack_type)))
+	var cfg: BossAttackTypeSoundConfig = GameConfigs.sound.boss_sounds.get_config(attack_type)
+	var bus: StringName = cfg.sfx_bus if cfg != null else &"SFX"
+	SFXManager.play_pool(pool, bus)
+	_boss_attack_beat_index[attack_type] = beat_index + 1
 
 
 func _schedule_boss_attack_sound_from_sprite(attack_type: int, sprite: AnimatedSprite2D) -> void:
-	if boss_attack_sound_config == null:
+	if GameConfigs.sound == null or GameConfigs.sound.boss_sounds == null:
 		return
 	if sprite == null or sprite.sprite_frames == null:
 		_play_boss_attack_sound(attack_type)
@@ -412,8 +377,19 @@ func _schedule_boss_attack_sound_from_sprite(attack_type: int, sprite: AnimatedS
 		_play_boss_attack_sound(attack_type)
 		return
 
+	var cfg: BossAttackTypeSoundConfig = GameConfigs.sound.boss_sounds.get_config(attack_type)
+	if cfg == null:
+		_play_boss_attack_sound(attack_type)
+		return
+
 	var start_frame: int = clampi(sprite.frame, 0, frame_count - 1)
-	var trigger_frame: int = clampi(boss_attack_sound_config.get_attack_sfx_start_frame(attack_type), 0, frame_count - 1)
+	var default_pool: RandomSoundPool = cfg.default_sound
+	var trigger_frame: int = start_frame
+	if default_pool != null and not default_pool.is_empty() and default_pool.sounds.size() > 0:
+		var first_entry: SoundEntry = default_pool.sounds[0]
+		if first_entry != null:
+			trigger_frame = clampi(int(first_entry.time_offset * 60.0), start_frame, frame_count - 1)
+
 	var delay: float = 0.0
 	if trigger_frame > start_frame:
 		delay = _get_sprite_animation_partial_duration(sprite.sprite_frames, anim_name, start_frame, trigger_frame - 1)
@@ -443,10 +419,8 @@ func _find_timing_sprite(root: Node) -> AnimatedSprite2D:
 
 func _invalidate_boss_attack_sounds() -> void:
 	_boss_attack_sound_token += 1
-	for value in _boss_attack_audio_players.values():
-		var player: AudioStreamPlayer = value as AudioStreamPlayer
-		if player != null and is_instance_valid(player):
-			player.stop()
+	_boss_attack_beat_index.clear()
+	SFXManager.invalidate_delayed()
 
 
 func _connect_global_signals() -> void:

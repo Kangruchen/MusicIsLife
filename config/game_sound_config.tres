@@ -1,0 +1,209 @@
+[gd_resource type="Resource" script_class="GameSoundConfig" load_steps=33 format=3]
+
+[ext_resource type="AudioStream" uid="uid://7n1vbkb2k41a" path="res://assets/SFX/dodgedrum.wav" id="1_dodge"]
+[ext_resource type="AudioStream" uid="uid://b40kly4fniq14" path="res://assets/SFX/guarddrum.wav" id="2_guard"]
+[ext_resource type="AudioStream" uid="uid://23jovniegtws" path="res://assets/SFX/hitdrum.wav" id="3_hit"]
+[ext_resource type="AudioStream" uid="uid://bcc0tiyvk304b" path="res://assets/SFX/chargefull.wav" id="4_charge"]
+[ext_resource type="AudioStream" uid="uid://twemusldji6k" path="res://assets/SFX/laserfull.wav" id="5_laser"]
+[ext_resource type="AudioStream" uid="uid://ddwba2khha5lf" path="res://assets/SFX/missilefull.wav" id="6_missile"]
+[ext_resource type="AudioStream" uid="uid://b5bantqvxokw2" path="res://assets/SFX/hit.wav" id="7_hit"]
+[ext_resource type="AudioStream" uid="uid://dfkuj0i3j5fp" path="res://assets/SFX/block.wav" id="8_block"]
+[ext_resource type="AudioStream" uid="uid://bk3gkvbv728kp" path="res://assets/SFX/miss1.wav" id="9_miss"]
+[ext_resource type="Script" path="res://scripts/GameSoundConfig.gd" id="10_script"]
+[ext_resource type="Script" uid="uid://dvqabbakhn5v" path="res://scripts/BossAttackSoundConfig.gd" id="11_boss_script"]
+[ext_resource type="Script" path="res://scripts/BossAttackTypeSoundConfig.gd" id="12_boss_type_script"]
+[ext_resource type="Script" path="res://scripts/PlayerAttackSoundConfig.gd" id="13_atk_script"]
+[ext_resource type="Script" path="res://scripts/PlayerDefenseSoundConfig.gd" id="14_def_script"]
+[ext_resource type="Script" path="res://scripts/RandomSoundPool.gd" id="15_pool_script"]
+[ext_resource type="Script" path="res://scripts/SoundEntry.gd" id="16_entry_script"]
+
+[sub_resource type="Resource" script_class="SoundEntry" id="SE_key_guard"]
+script = ExtResource("16_entry_script")
+stream = ExtResource("2_guard")
+volume_db = 0.0
+pitch_scale = 1.0
+time_offset = 0.0
+
+[sub_resource type="Resource" script_class="SoundEntry" id="SE_key_hit"]
+script = ExtResource("16_entry_script")
+stream = ExtResource("3_hit")
+volume_db = 0.0
+pitch_scale = 1.0
+time_offset = 0.0
+
+[sub_resource type="Resource" script_class="SoundEntry" id="SE_key_dodge"]
+script = ExtResource("16_entry_script")
+stream = ExtResource("1_dodge")
+volume_db = 0.0
+pitch_scale = 1.0
+time_offset = 0.0
+
+[sub_resource type="Resource" script_class="SoundEntry" id="SE_laser"]
+script = ExtResource("16_entry_script")
+stream = ExtResource("5_laser")
+volume_db = -5.0
+pitch_scale = 1.0
+time_offset = 0.0
+
+[sub_resource type="Resource" script_class="SoundEntry" id="SE_missile"]
+script = ExtResource("16_entry_script")
+stream = ExtResource("6_missile")
+volume_db = -5.0
+pitch_scale = 1.0
+time_offset = 0.0
+
+[sub_resource type="Resource" script_class="SoundEntry" id="SE_charge"]
+script = ExtResource("16_entry_script")
+stream = ExtResource("4_charge")
+volume_db = -5.0
+pitch_scale = 1.0
+time_offset = 0.0
+
+[sub_resource type="Resource" script_class="SoundEntry" id="SE_atk_light"]
+script = ExtResource("16_entry_script")
+stream = ExtResource("2_guard")
+volume_db = 5.0
+pitch_scale = 1.0
+time_offset = 0.0
+
+[sub_resource type="Resource" script_class="SoundEntry" id="SE_atk_heavy"]
+script = ExtResource("16_entry_script")
+stream = ExtResource("3_hit")
+volume_db = 5.0
+pitch_scale = 1.0
+time_offset = 0.0
+
+[sub_resource type="Resource" script_class="SoundEntry" id="SE_atk_enhance"]
+script = ExtResource("16_entry_script")
+stream = ExtResource("1_dodge")
+volume_db = 5.0
+pitch_scale = 1.0
+time_offset = 0.0
+
+[sub_resource type="Resource" script_class="SoundEntry" id="SE_def_guard_ok"]
+script = ExtResource("16_entry_script")
+stream = ExtResource("8_block")
+volume_db = 0.0
+pitch_scale = 1.0
+time_offset = 0.0
+
+[sub_resource type="Resource" script_class="SoundEntry" id="SE_def_hit_ok"]
+script = ExtResource("16_entry_script")
+stream = ExtResource("7_hit")
+volume_db = 0.0
+pitch_scale = 1.0
+time_offset = 0.0
+
+[sub_resource type="Resource" script_class="RandomSoundPool" id="Pool_key_guard"]
+script = ExtResource("15_pool_script")
+sounds = [SubResource("SE_key_guard")]
+
+[sub_resource type="Resource" script_class="RandomSoundPool" id="Pool_key_hit"]
+script = ExtResource("15_pool_script")
+sounds = [SubResource("SE_key_hit")]
+
+[sub_resource type="Resource" script_class="RandomSoundPool" id="Pool_key_dodge"]
+script = ExtResource("15_pool_script")
+sounds = [SubResource("SE_key_dodge")]
+
+[sub_resource type="Resource" script_class="RandomSoundPool" id="Pool_laser"]
+script = ExtResource("15_pool_script")
+sounds = [SubResource("SE_laser")]
+
+[sub_resource type="Resource" script_class="RandomSoundPool" id="Pool_missile"]
+script = ExtResource("15_pool_script")
+sounds = [SubResource("SE_missile")]
+
+[sub_resource type="Resource" script_class="RandomSoundPool" id="Pool_charge"]
+script = ExtResource("15_pool_script")
+sounds = [SubResource("SE_charge")]
+
+[sub_resource type="Resource" script_class="RandomSoundPool" id="Pool_atk_light"]
+script = ExtResource("15_pool_script")
+sounds = [SubResource("SE_atk_light")]
+
+[sub_resource type="Resource" script_class="RandomSoundPool" id="Pool_atk_heavy"]
+script = ExtResource("15_pool_script")
+sounds = [SubResource("SE_atk_heavy")]
+
+[sub_resource type="Resource" script_class="RandomSoundPool" id="Pool_atk_enhance"]
+script = ExtResource("15_pool_script")
+sounds = [SubResource("SE_atk_enhance")]
+
+[sub_resource type="Resource" script_class="RandomSoundPool" id="Pool_def_guard_ok"]
+script = ExtResource("15_pool_script")
+sounds = [SubResource("SE_def_guard_ok")]
+
+[sub_resource type="Resource" script_class="RandomSoundPool" id="Pool_def_hit_ok"]
+script = ExtResource("15_pool_script")
+sounds = [SubResource("SE_def_hit_ok")]
+
+[sub_resource type="Resource" script_class="BossAttackTypeSoundConfig" id="BossType_laser"]
+script = ExtResource("12_boss_type_script")
+default_sound = SubResource("Pool_laser")
+beat_sounds = []
+sfx_bus = &"SFX"
+
+[sub_resource type="Resource" script_class="BossAttackTypeSoundConfig" id="BossType_missile"]
+script = ExtResource("12_boss_type_script")
+default_sound = SubResource("Pool_missile")
+beat_sounds = []
+sfx_bus = &"SFX"
+
+[sub_resource type="Resource" script_class="BossAttackTypeSoundConfig" id="BossType_charge"]
+script = ExtResource("12_boss_type_script")
+default_sound = SubResource("Pool_charge")
+beat_sounds = []
+sfx_bus = &"SFX"
+
+[sub_resource type="Resource" script_class="BossAttackSoundConfig" id="BossSounds"]
+script = ExtResource("11_boss_script")
+laser_config = SubResource("BossType_laser")
+missile_config = SubResource("BossType_missile")
+charge_bullet_config = SubResource("BossType_charge")
+
+[sub_resource type="Resource" script_class="PlayerAttackSoundConfig" id="PlayerAttack"]
+script = ExtResource("13_atk_script")
+sfx_bus = &"SFX"
+light_attack = SubResource("Pool_atk_light")
+heavy_attack = SubResource("Pool_atk_heavy")
+charged_light_attack = null
+charged_heavy_attack = null
+heal = null
+enhance = SubResource("Pool_atk_enhance")
+
+[sub_resource type="Resource" script_class="PlayerDefenseSoundConfig" id="PlayerDefense"]
+script = ExtResource("14_def_script")
+sfx_bus = &"SFX"
+guard_success = SubResource("Pool_def_guard_ok")
+guard_miss = null
+hit_success = SubResource("Pool_def_hit_ok")
+hit_miss = null
+dodge_success = null
+dodge_miss = null
+
+[resource]
+script = ExtResource("10_script")
+sfx_bus = &"SFX"
+key_guard_sound = SubResource("Pool_key_guard")
+key_hit_sound = SubResource("Pool_key_hit")
+key_dodge_sound = SubResource("Pool_key_dodge")
+boss_phase_key_sound_muted = true
+boss_sounds = SubResource("BossSounds")
+player_attack = SubResource("PlayerAttack")
+light_player_health_cost = 0.0
+light_boss_damage = 0.0
+light_boss_energy_max_reduce = 0.0
+heavy_player_health_cost = 5.0
+heavy_boss_damage = 30.0
+heavy_boss_energy_max_reduce = 2.0
+charged_light_player_health_cost = -5.0
+charged_light_boss_damage = 30.0
+charged_light_boss_energy_max_reduce = 0.0
+charged_heavy_player_health_cost = 15.0
+charged_heavy_boss_damage = 0.0
+charged_heavy_boss_energy_max_reduce = 5.0
+heal_amount = 20.0
+player_defense = SubResource("PlayerDefense")
+miss_sound = ExtResource("9_miss")
+miss_sound_volume_db = -15.0

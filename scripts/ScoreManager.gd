@@ -1,65 +1,15 @@
 extends Node
 ## 分数管理器 - 管理玩家分数、血量、Boss体力
 
-# AttackConfig 已通过 class_name 注册为全局类型，无需 preload
-
-# 信号（保留用于本地监听）
 signal player_died()
 signal boss_defeated()
-
-# === GUARD 音符配置 ===
-@export_group("GUARD 音符 (防御) - J键第一轨道")
-@export var guard_boss_damage_perfect: float = 5.0
-@export var guard_boss_damage_great: float = 3.0
-@export var guard_boss_damage_good: float = 2.0
-@export var guard_boss_damage_miss: float = 0.0
-
-@export var guard_player_health_perfect: float = 10.0
-@export var guard_player_health_great: float = 7.0
-@export var guard_player_health_good: float = 4.0
-@export var guard_player_health_miss: float = -20.0
-
-# === HIT 音符配置 ===
-@export_group("HIT 音符 (攻击) - I键第二轨道")
-@export var hit_boss_damage_perfect: float = 15.0
-@export var hit_boss_damage_great: float = 10.0
-@export var hit_boss_damage_good: float = 5.0
-@export var hit_boss_damage_miss: float = 0.0
-
-@export var hit_player_health_perfect: float = 3.0
-@export var hit_player_health_great: float = 2.0
-@export var hit_player_health_good: float = 1.0
-@export var hit_player_health_miss: float = -15.0
-
-# === DODGE 音符配置 ===
-@export_group("DODGE 音符 (闪避) - L键第三轨道")
-@export var dodge_boss_damage_perfect: float = 8.0
-@export var dodge_boss_damage_great: float = 5.0
-@export var dodge_boss_damage_good: float = 3.0
-@export var dodge_boss_damage_miss: float = 0.0
-
-@export var dodge_player_health_perfect: float = 5.0
-@export var dodge_player_health_great: float = 3.0
-@export var dodge_player_health_good: float = 2.0
-@export var dodge_player_health_miss: float = -10.0
-
-# === 基础配置 ===
-@export_group("血量上限")
-@export var max_player_health: float = 100.0
-@export var max_boss_health: float = 500.0
-@export var max_boss_energy: float = 100.0  # Boss 精力条最大值
-
-# === 攻击阶段配置 ===
-@export_group("攻击阶段")
-@export var attack_config: AttackConfig = null  # 攻击配置资源
 
 var current_player_health: float = 0.0
 var current_boss_health: float = 0.0
 var current_boss_energy: float = 0.0
-var temporary_energy_reduce: float = 0.0  # 本次攻击阶段的临时精力削减量
+var temporary_energy_reduce: float = 0.0
 var is_next_attack_charged: bool = false  # 下次攻击是否为蓄力版本
 var pending_attack_hits: Array[Dictionary] = []
-var attack_sfx_player: AudioStreamPlayer = null
 var is_game_over: bool = false
 
 const PENDING_ATTACK_TIMEOUT: float = 0.6
@@ -77,16 +27,10 @@ var pause_timer: Timer = null
 
 
 func _ready() -> void:
-	# 初始化血量值
-	current_player_health = max_player_health
-	current_boss_health = max_boss_health
-	current_boss_energy = max_boss_energy
+	current_player_health = GameConfigs.judgment.max_player_health
+	current_boss_health = GameConfigs.judgment.max_boss_health
+	current_boss_energy = GameConfigs.judgment.max_boss_energy
 
-	attack_sfx_player = AudioStreamPlayer.new()
-	attack_sfx_player.bus = "Master"
-	add_child(attack_sfx_player)
-	
-	# 创建暂停计时器
 	pause_timer = Timer.new()
 	pause_timer.one_shot = true
 	pause_timer.timeout.connect(_on_pause_timeout)
@@ -104,9 +48,9 @@ func _ready() -> void:
 
 ## 广播所有血量/精力状态到 EventBus
 func _emit_health_update() -> void:
-	EventBus.player_health_updated.emit(current_player_health, max_player_health)
-	EventBus.boss_health_updated.emit(current_boss_health, max_boss_health)
-	EventBus.boss_energy_updated.emit(current_boss_energy, max_boss_energy)
+	EventBus.player_health_updated.emit(current_player_health, GameConfigs.judgment.max_player_health)
+	EventBus.boss_health_updated.emit(current_boss_health, GameConfigs.judgment.max_boss_health)
+	EventBus.boss_energy_updated.emit(current_boss_energy, GameConfigs.judgment.max_boss_energy)
 
 
 ## 判定触发回调
@@ -125,13 +69,13 @@ func _on_judgment_made(track: int, judgment: int, _timing_diff: float) -> void:
 			music_player.apply_track_miss_effect(track)
 	
 	# 根据音符类型和判定等级获取数值
-	var energy_cost: float = _get_boss_damage(track, judgment)
-	var health_change: float = _get_player_health_change(track, judgment)
+	var energy_cost: float = GameConfigs.judgment.get_boss_damage(track, judgment)
+	var health_change: float = GameConfigs.judgment.get_player_health_change(track, judgment)
 	
 	# 减少Boss精力
 	var old_energy: float = current_boss_energy
 	current_boss_energy -= energy_cost
-	current_boss_energy = clampf(current_boss_energy, 0.0, max_boss_energy)
+	current_boss_energy = clampf(current_boss_energy, 0.0, GameConfigs.judgment.max_boss_energy)
 	
 	# 检测精力条是否被打空
 	if old_energy > 0.0 and current_boss_energy <= 0.0:
@@ -141,7 +85,7 @@ func _on_judgment_made(track: int, judgment: int, _timing_diff: float) -> void:
 	
 	# 改变玩家血量
 	current_player_health += health_change
-	current_player_health = clampf(current_player_health, 0.0, max_player_health)
+	current_player_health = clampf(current_player_health, 0.0, GameConfigs.judgment.max_player_health)
 	
 	# 通过 EventBus 广播血量变化
 	_emit_health_update()
@@ -156,54 +100,6 @@ func _on_judgment_made(track: int, judgment: int, _timing_diff: float) -> void:
 		print("Boss 被击败！")
 
 
-## 获取对Boss的伤害值
-func _get_boss_damage(track: int, judgment: int) -> float:
-	match track:
-		Note.NoteType.GUARD:
-			match judgment:
-				0: return guard_boss_damage_perfect
-				1: return guard_boss_damage_great
-				2: return guard_boss_damage_good
-				3: return guard_boss_damage_miss
-		Note.NoteType.HIT:
-			match judgment:
-				0: return hit_boss_damage_perfect
-				1: return hit_boss_damage_great
-				2: return hit_boss_damage_good
-				3: return hit_boss_damage_miss
-		Note.NoteType.DODGE:
-			match judgment:
-				0: return dodge_boss_damage_perfect
-				1: return dodge_boss_damage_great
-				2: return dodge_boss_damage_good
-				3: return dodge_boss_damage_miss
-	return 0.0
-
-
-## 获取玩家血量变化值
-func _get_player_health_change(track: int, judgment: int) -> float:
-	match track:
-		Note.NoteType.GUARD:
-			match judgment:
-				0: return guard_player_health_perfect
-				1: return guard_player_health_great
-				2: return guard_player_health_good
-				3: return guard_player_health_miss
-		Note.NoteType.HIT:
-			match judgment:
-				0: return hit_player_health_perfect
-				1: return hit_player_health_great
-				2: return hit_player_health_good
-				3: return hit_player_health_miss
-		Note.NoteType.DODGE:
-			match judgment:
-				0: return dodge_player_health_perfect
-				1: return dodge_player_health_great
-				2: return dodge_player_health_good
-				3: return dodge_player_health_miss
-	return 0.0
-
-
 ## 更新血量条显示（通过 EventBus 广播）
 func _update_health_bars() -> void:
 	_emit_health_update()
@@ -211,9 +107,9 @@ func _update_health_bars() -> void:
 
 ## 重置游戏
 func reset_game() -> void:
-	current_player_health = max_player_health
-	current_boss_health = max_boss_health
-	current_boss_energy = max_boss_energy
+	current_player_health = GameConfigs.judgment.max_player_health
+	current_boss_health = GameConfigs.judgment.max_boss_health
+	current_boss_energy = GameConfigs.judgment.max_boss_energy
 	temporary_energy_reduce = 0.0
 	is_next_attack_charged = false
 	_update_health_bars()
@@ -331,7 +227,7 @@ func _on_pause_timeout() -> void:
 		music_player.end_attack_mix_mode()
 	
 	# 恢复 Boss 精力条（减去临时削减量）
-	var recovery_amount: float = max_boss_energy - temporary_energy_reduce
+	var recovery_amount: float = GameConfigs.judgment.max_boss_energy - temporary_energy_reduce
 	recovery_amount = max(recovery_amount, 10.0)  # 最小保留10点
 	current_boss_energy = recovery_amount
 	_emit_health_update()
@@ -372,8 +268,8 @@ func _on_attack_performed(attack_type: int) -> void:
 	if is_game_over:
 		return
 
-	if not attack_config:
-		print("警告：未配置攻击数据 (attack_config)")
+	if not GameConfigs.sound:
+		print("警告：未配置攻击数据 (GameConfigs.sound)")
 		return
 
 	_cleanup_pending_attack_hits()
@@ -388,17 +284,17 @@ func _on_attack_performed(attack_type: int) -> void:
 			if is_next_attack_charged:
 				# 蓄力轻攻击
 				_play_attack_action_sfx(attack_type, true)
-				player_cost = attack_config.charged_light_player_health_cost
-				boss_damage = attack_config.charged_light_boss_damage
-				energy_max_reduce = attack_config.charged_light_boss_energy_max_reduce
+				player_cost = GameConfigs.sound.charged_light_player_health_cost
+				boss_damage = GameConfigs.sound.charged_light_boss_damage
+				energy_max_reduce = GameConfigs.sound.charged_light_boss_energy_max_reduce
 				print("发动蓄力轻攻击 - 消耗:", player_cost, " 伤害:", boss_damage, " 精力上限减少:", energy_max_reduce)
 				is_next_attack_charged = false  # 消耗蓄力状态
 			else:
 				# 普通轻攻击
 				_play_attack_action_sfx(attack_type, false)
-				player_cost = attack_config.light_player_health_cost
-				boss_damage = attack_config.light_boss_damage
-				energy_max_reduce = attack_config.light_boss_energy_max_reduce
+				player_cost = GameConfigs.sound.light_player_health_cost
+				boss_damage = GameConfigs.sound.light_boss_damage
+				energy_max_reduce = GameConfigs.sound.light_boss_energy_max_reduce
 				print("发动轻攻击 - 消耗:", player_cost, " 伤害:", boss_damage, " 精力上限减少:", energy_max_reduce)
 			
 			# 消耗在出手时结算，伤害在命中判定框时结算。
@@ -414,17 +310,17 @@ func _on_attack_performed(attack_type: int) -> void:
 			if is_next_attack_charged:
 				# 蓄力重攻击
 				_play_attack_action_sfx(attack_type, true)
-				player_cost = attack_config.charged_heavy_player_health_cost
-				boss_damage = attack_config.charged_heavy_boss_damage
-				energy_max_reduce = attack_config.charged_heavy_boss_energy_max_reduce
+				player_cost = GameConfigs.sound.charged_heavy_player_health_cost
+				boss_damage = GameConfigs.sound.charged_heavy_boss_damage
+				energy_max_reduce = GameConfigs.sound.charged_heavy_boss_energy_max_reduce
 				print("发动蓄力重攻击 - 消耗:", player_cost, " 伤害:", boss_damage, " 精力上限减少:", energy_max_reduce)
 				is_next_attack_charged = false  # 消耗蓄力状态
 			else:
 				# 普通重攻击
 				_play_attack_action_sfx(attack_type, false)
-				player_cost = attack_config.heavy_player_health_cost
-				boss_damage = attack_config.heavy_boss_damage
-				energy_max_reduce = attack_config.heavy_boss_energy_max_reduce
+				player_cost = GameConfigs.sound.heavy_player_health_cost
+				boss_damage = GameConfigs.sound.heavy_boss_damage
+				energy_max_reduce = GameConfigs.sound.heavy_boss_energy_max_reduce
 				print("发动重攻击 - 消耗:", player_cost, " 伤害:", boss_damage, " 精力上限减少:", energy_max_reduce)
 			
 			# 消耗在出手时结算，伤害在命中判定框时结算。
@@ -439,7 +335,7 @@ func _on_attack_performed(attack_type: int) -> void:
 		2:  # HEAL
 			# 回复
 			_play_attack_action_sfx(attack_type, false)
-			heal_amount = attack_config.heal_amount
+			heal_amount = GameConfigs.sound.heal_amount
 			current_player_health += heal_amount
 			print("发动回复 - 恢复:", heal_amount)
 		
@@ -453,8 +349,8 @@ func _on_attack_performed(attack_type: int) -> void:
 				print("已处于蓄力状态，连续蓄力仅重复播放音效")
 	
 	# 限制数值范围
-	current_player_health = clampf(current_player_health, 0.0, max_player_health)
-	current_boss_health = clampf(current_boss_health, 0.0, max_boss_health)
+	current_player_health = clampf(current_player_health, 0.0, GameConfigs.judgment.max_player_health)
+	current_boss_health = clampf(current_boss_health, 0.0, GameConfigs.judgment.max_boss_health)
 	
 	# 通过 EventBus 广播血量变化
 	_emit_health_update()
@@ -499,7 +395,7 @@ func _on_attack_hit_confirmed(attack_type: int, _target: Variant) -> void:
 
 	var old_boss_health: float = current_boss_health
 	current_boss_health -= damage
-	current_boss_health = clampf(current_boss_health, 0.0, max_boss_health)
+	current_boss_health = clampf(current_boss_health, 0.0, GameConfigs.judgment.max_boss_health)
 	var applied_damage: float = maxf(0.0, old_boss_health - current_boss_health)
 	_emit_health_update()
 	print("攻击命中 - 造成伤害:", damage)
@@ -544,17 +440,12 @@ func _cleanup_pending_attack_hits() -> void:
 
 
 func _play_attack_action_sfx(attack_type: int, is_charged: bool) -> void:
-	if attack_config == null or attack_sfx_player == null:
+	if GameConfigs.sound == null or GameConfigs.sound.player_attack == null:
 		return
-
-	var sfx_stream: AudioStream = attack_config.get_attack_sfx(attack_type, is_charged)
-	if sfx_stream == null:
+	var pool: RandomSoundPool = GameConfigs.sound.player_attack.get_sound(attack_type, is_charged)
+	if pool == null:
 		return
-
-	attack_sfx_player.stream = sfx_stream
-	attack_sfx_player.volume_db = attack_config.get_attack_sfx_volume_db(attack_type, is_charged)
-	attack_sfx_player.bus = String(attack_config.attack_sfx_bus)
-	attack_sfx_player.play()
+	SFXManager.play_pool(pool, GameConfigs.sound.player_attack.sfx_bus)
 
 
 func _trigger_player_game_over() -> void:

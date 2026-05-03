@@ -1,16 +1,54 @@
-[gd_resource type="Resource" script_class="BossAttackSoundConfig" load_steps=5 format=3 uid="uid://4nno7d7l88ub"]
+[gd_resource type="Resource" script_class="BossAttackSoundConfig" load_steps=17 format=3 uid="uid://c0ip1xr73tmif"]
 
-[ext_resource type="AudioStream" uid="uid://bcc0tiyvk304b" path="res://assets/SFX/chargefull.wav" id="1_6xrq8"]
-[ext_resource type="AudioStream" uid="uid://twemusldji6k" path="res://assets/SFX/laserfull.wav" id="1_laser"]
-[ext_resource type="AudioStream" uid="uid://ddwba2khha5lf" path="res://assets/SFX/missilefull.wav" id="3_qitmn"]
+[ext_resource type="AudioStream" uid="uid://bcc0tiyvk304b" path="res://assets/SFX/chargefull.wav" id="1_charge"]
+[ext_resource type="AudioStream" uid="uid://twemusldji6k" path="res://assets/SFX/laserfull.wav" id="2_laser"]
+[ext_resource type="AudioStream" uid="uid://ddwba2khha5lf" path="res://assets/SFX/missilefull.wav" id="3_missile"]
 [ext_resource type="Script" uid="uid://dvqabbakhn5v" path="res://scripts/BossAttackSoundConfig.gd" id="4_script"]
+[ext_resource type="Script" uid="uid://dcp5enehvpkx2" path="res://scripts/BossAttackTypeSoundConfig.gd" id="5_type_script"]
+[ext_resource type="Script" uid="uid://ob7fbkla0xou" path="res://scripts/RandomSoundPool.gd" id="6_pool_script"]
+[ext_resource type="Script" uid="uid://clysxn6ecnrao" path="res://scripts/SoundEntry.gd" id="7_entry_script"]
+
+[sub_resource type="Resource" id="SoundEntry_charge"]
+script = ExtResource("7_entry_script")
+stream = ExtResource("1_charge")
+volume_db = -5.0
+
+[sub_resource type="Resource" id="RandomSoundPool_charge"]
+script = ExtResource("6_pool_script")
+sounds = Array[ExtResource("7_entry_script")]([SubResource("SoundEntry_charge")])
+
+[sub_resource type="Resource" id="BossAttackTypeSoundConfig_charge"]
+script = ExtResource("5_type_script")
+default_sound = SubResource("RandomSoundPool_charge")
+
+[sub_resource type="Resource" id="SoundEntry_laser"]
+script = ExtResource("7_entry_script")
+stream = ExtResource("2_laser")
+volume_db = -5.0
+
+[sub_resource type="Resource" id="RandomSoundPool_laser"]
+script = ExtResource("6_pool_script")
+sounds = Array[ExtResource("7_entry_script")]([SubResource("SoundEntry_laser")])
+
+[sub_resource type="Resource" id="BossAttackTypeSoundConfig_laser"]
+script = ExtResource("5_type_script")
+default_sound = SubResource("RandomSoundPool_laser")
+
+[sub_resource type="Resource" id="SoundEntry_missile"]
+script = ExtResource("7_entry_script")
+stream = ExtResource("3_missile")
+volume_db = -5.0
+
+[sub_resource type="Resource" id="RandomSoundPool_missile"]
+script = ExtResource("6_pool_script")
+sounds = Array[ExtResource("7_entry_script")]([SubResource("SoundEntry_missile")])
+
+[sub_resource type="Resource" id="BossAttackTypeSoundConfig_missile"]
+script = ExtResource("5_type_script")
+default_sound = SubResource("RandomSoundPool_missile")
 
 [resource]
 script = ExtResource("4_script")
-laser_sfx = ExtResource("1_laser")
-laser_volume_db = -5.0
-missile_sfx = ExtResource("3_qitmn")
-missile_volume_db = -5.0
-charge_bullet_sfx = ExtResource("1_6xrq8")
-charge_bullet_volume_db = -5.0
-charge_bullet_start_frame = 0.0
+laser_config = SubResource("BossAttackTypeSoundConfig_laser")
+missile_config = SubResource("BossAttackTypeSoundConfig_missile")
+charge_bullet_config = SubResource("BossAttackTypeSoundConfig_charge")

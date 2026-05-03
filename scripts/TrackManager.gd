@@ -40,7 +40,6 @@ const MISSILE_SIDE_RIGHT: int = 1
 # 音符生成位置X坐标（动态计算，在 _ready 中初始化）
 var spawn_x: float = 900.0
 
-# MISS 判定窗口 — 值与 GameConstants.MISS_THRESHOLD 同步
 const MISS_THRESHOLD: float = GameConstants.MISS_THRESHOLD
 
 # 音符视觉生成开关（暂时停用）
@@ -55,12 +54,6 @@ var _boss_node: Node2D = null
 var _boss_origin_position: Vector2 = Vector2.ZERO
 
 # 音符生成音效配置
-@export var key_sound_config: KeySoundConfig = null
-
-@export_group("Boss 攻击音效")
-@export var boss_attack_sound_config: BossAttackSoundConfig = preload("res://config/boss_attack_sound_config.tres")
-@export_group("")
-
 @export_group("Boss 导弹联动")
 @export_node_path("Node2D") var boss_node_path: NodePath = NodePath("../Boss")
 @export_range(0.0, 4.0, 0.25) var boss_charge_prepare_lead_beats: float = 0.75
@@ -117,11 +110,7 @@ var is_paused: bool = false  # 是否暂停生成音符
 var pause_start_time: float = 0.0  # 暂停开始的时间
 var _attack_phase_blocked: bool = false
 
-# 音符生成音效播放器
-var spawn_audio_player_hit: AudioStreamPlayer = null
-var spawn_audio_player_guard: AudioStreamPlayer = null
-var spawn_audio_player_dodge: AudioStreamPlayer = null
-var _boss_attack_audio_player: AudioStreamPlayer = null
+
 
 # 活跃的 Bling 特效追踪（按轨道分组，用于避免重叠）
 var _active_blings: Dictionary = {}
@@ -175,42 +164,7 @@ func _ready() -> void:
 		push_warning("[TrackManager] game_ui 未设置，请在编辑器中拖拽 GameUI 节点到 @export")
 	_resolve_boss_node()
 	
-	# 创建音符生成音效播放器
-	spawn_audio_player_hit = AudioStreamPlayer.new()
-	spawn_audio_player_guard = AudioStreamPlayer.new()
-	spawn_audio_player_dodge = AudioStreamPlayer.new()
-	
-	spawn_audio_player_guard.name = "SpawnAudioGuard"
-	spawn_audio_player_hit.name = "SpawnAudioHit"
-	spawn_audio_player_dodge.name = "SpawnAudioDodge"
-	
-	add_child(spawn_audio_player_guard)
-	add_child(spawn_audio_player_hit)
-	add_child(spawn_audio_player_dodge)
-	
-	spawn_audio_player_guard.bus = "Master"
-	spawn_audio_player_hit.bus = "Master"
-	spawn_audio_player_dodge.bus = "Master"
-
-	# Boss 攻击音效播放器（激光/导弹/蓄力子弹共用配置）
-	_boss_attack_audio_player = AudioStreamPlayer.new()
-	_boss_attack_audio_player.name = "BossAttackAudio"
-	_boss_attack_audio_player.bus = "Master"
-	if boss_attack_sound_config != null and not String(boss_attack_sound_config.sfx_bus).is_empty():
-		_boss_attack_audio_player.bus = String(boss_attack_sound_config.sfx_bus)
-	add_child(_boss_attack_audio_player)
-	
-	# 加载音符生成音效
-	if key_sound_config:
-		if key_sound_config.guard_sound:
-			spawn_audio_player_guard.stream = key_sound_config.guard_sound
-			spawn_audio_player_guard.volume_db = key_sound_config.guard_volume_db
-		if key_sound_config.hit_sound:
-			spawn_audio_player_hit.stream = key_sound_config.hit_sound
-			spawn_audio_player_hit.volume_db = key_sound_config.hit_volume_db
-		if key_sound_config.dodge_sound:
-			spawn_audio_player_dodge.stream = key_sound_config.dodge_sound
-			spawn_audio_player_dodge.volume_db = key_sound_config.dodge_volume_db
+	# 音符生成音效通过 SFXManager 播放，无需创建独立播放器
 
 	# 外部动画节点在待机时保持隐藏，避免常驻显示
 	for note_type in [Note.NoteType.GUARD, Note.NoteType.HIT, Note.NoteType.DODGE]:
@@ -803,8 +757,7 @@ func _invalidate_effect_callbacks() -> void:
 			sprite.stop()
 			sprite.visible = false
 
-	if _boss_attack_audio_player != null:
-		_boss_attack_audio_player.stop()
+	SFXManager.stop_all()
 
 
 ## 暂停音符生成
@@ -867,12 +820,8 @@ func _on_attack_phase_ended() -> void:
 	# 避免 attack_phase_ended（提前半拍）导致过早恢复。
 
 
-func _on_judgment_made(_track: int, judgment: int, _timing_diff: float) -> void:
-	# 成功判定瞬间让 Boss 攻击音效让位给按键音，MISS 不处理。
-	if judgment == 3:
-		return
-	if _boss_attack_audio_player != null:
-		_boss_attack_audio_player.stop()
+func _on_judgment_made(_track: int, _judgment: int, _timing_diff: float) -> void:
+	pass
 
 
 func _can_show_prejudge_hint(note_type: Note.NoteType) -> bool:
@@ -915,66 +864,6 @@ func _spawn_track_animation(note: Note) -> void:
 
 	# 第一拍直接播放主动画
 	_spawn_main_animation(note, main_target_beats, counter)
-
-
-func _schedule_boss_attack_sound_on_animation(
-		attack_type: int,
-		sprite_frames: SpriteFrames,
-		anim_name: String,
-		anim_speed_scale: float,
-		play_start_delay: float
-	) -> void:
-	if boss_attack_sound_config == null:
-		return
-	if _boss_attack_audio_player == null:
-		return
-	if sprite_frames == null:
-		return
-	if anim_name.is_empty() or not sprite_frames.has_animation(anim_name):
-		return
-
-	var stream: AudioStream = boss_attack_sound_config.get_attack_sfx(attack_type)
-	if stream == null:
-		return
-
-	var frame_count: int = sprite_frames.get_frame_count(anim_name)
-	var trigger_frame: int = clampi(boss_attack_sound_config.get_attack_sfx_start_frame(attack_type), 0, maxi(0, frame_count - 1))
-	var frame_delay: float = 0.0
-	if trigger_frame > 0:
-		frame_delay = _get_animation_duration(sprite_frames, anim_name, 0, trigger_frame - 1)
-		frame_delay /= maxf(0.01, anim_speed_scale)
-
-	var total_delay: float = maxf(0.0, play_start_delay) + frame_delay
-	if total_delay <= 0.001:
-		_play_boss_attack_sound(attack_type)
-		return
-
-	var token: int = _effect_runtime_token
-	get_tree().create_timer(total_delay).timeout.connect(func() -> void:
-		if token != _effect_runtime_token or _attack_phase_blocked:
-			return
-		_play_boss_attack_sound(attack_type)
-	)
-
-
-func _play_boss_attack_sound(attack_type: int) -> void:
-	if boss_attack_sound_config == null:
-		return
-	if _boss_attack_audio_player == null:
-		return
-
-	var stream: AudioStream = boss_attack_sound_config.get_attack_sfx(attack_type)
-	if stream == null:
-		return
-
-	var bus_name: String = String(boss_attack_sound_config.sfx_bus)
-	if not bus_name.is_empty():
-		_boss_attack_audio_player.bus = bus_name
-	_boss_attack_audio_player.stream = stream
-	_boss_attack_audio_player.volume_db = boss_attack_sound_config.get_attack_sfx_volume_db(attack_type)
-	_boss_attack_audio_player.pitch_scale = maxf(0.01, boss_attack_sound_config.get_attack_sfx_pitch_scale(attack_type))
-	_boss_attack_audio_player.stop()
-	_boss_attack_audio_player.play(maxf(0.0, boss_attack_sound_config.get_attack_sfx_start_offset_sec(attack_type)))
 
 
 ## 生成预警特效（在主动画之前显示，持续1拍后自动销毁）
@@ -1170,14 +1059,6 @@ func _spawn_main_animation(note: Note, target_beats: int, counter: int) -> void:
 	else:
 		anim_sprite.speed_scale = anim_speed_scale
 		anim_sprite.play(resolved_anim_name)
-	if note.type == Note.NoteType.GUARD:
-		_schedule_boss_attack_sound_on_animation(
-			BossAttackSoundConfig.ATTACK_LASER,
-			sprite_frames,
-			resolved_anim_name,
-			anim_speed_scale,
-			play_start_delay
-		)
 	
 	# 追踪活跃特效（用于默认 Bling 槽位避重）
 	if not _active_blings.has(note.type):
@@ -1408,16 +1289,11 @@ func _get_bling_x_offset(note_type: Note.NoteType) -> float:
 
 ## 播放音符生成音效
 func _play_spawn_sound(note_type: Note.NoteType) -> void:
-	if not key_sound_config:
+	if GameConfigs.sound == null:
 		return
-	
-	match note_type:
-		Note.NoteType.GUARD:
-			if spawn_audio_player_guard and spawn_audio_player_guard.stream:
-				spawn_audio_player_guard.play()
-		Note.NoteType.HIT:
-			if spawn_audio_player_hit and spawn_audio_player_hit.stream:
-				spawn_audio_player_hit.play()
-		Note.NoteType.DODGE:
-			if spawn_audio_player_dodge and spawn_audio_player_dodge.stream:
-				spawn_audio_player_dodge.play()
+	if GameConfigs.sound.boss_phase_key_sound_muted:
+		return
+	var pool: RandomSoundPool = GameConfigs.sound.get_key_sound(note_type)
+	if pool == null:
+		return
+	SFXManager.play_pool(pool, GameConfigs.sound.sfx_bus)
