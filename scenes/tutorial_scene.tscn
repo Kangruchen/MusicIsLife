@@ -1,0 +1,80 @@
+[gd_scene load_steps=19 format=3 uid="uid://c6yxi20pgmbbx"]
+
+[ext_resource type="Texture2D" uid="uid://bixshvvvi35xi" path="res://assets/environment/scene_tutorial/background.png" id="1_k1v41"]
+[ext_resource type="Texture2D" uid="uid://2luontrbyikd" path="res://assets/environment/scene_tutorial/machine.png" id="2_7ncn3"]
+[ext_resource type="Texture2D" uid="uid://cutjy5judloik" path="res://assets/environment/scene_tutorial/wall.png" id="3_hce6s"]
+[ext_resource type="Texture2D" uid="uid://chvahdojm7tsv" path="res://assets/environment/scene_tutorial/door_part.png" id="4_ley6y"]
+[ext_resource type="Texture2D" uid="uid://bc2gijrt3dahx" path="res://assets/environment/scene_tutorial/belt.png" id="5_8sa38"]
+[ext_resource type="Texture2D" uid="uid://bp22j1wqd0g1x" path="res://assets/environment/scene_tutorial/frame.png" id="6_hufqx"]
+[ext_resource type="Texture2D" uid="uid://ch1pmedxo2ylm" path="res://assets/environment/scene_tutorial/fan.png" id="7_x2sx6"]
+[ext_resource type="Texture2D" uid="uid://qd76gp5qkp38" path="res://assets/environment/scene_tutorial/stair_part.png" id="8_m7tq6"]
+[ext_resource type="Texture2D" uid="uid://cm4w4yqiqlrqy" path="res://assets/environment/scene_tutorial/stair_part_2.png" id="9_3sruk"]
+[ext_resource type="Texture2D" uid="uid://b17lkhr5atayi" path="res://assets/environment/scene_tutorial/stair_part_3.png" id="10_k6alh"]
+[ext_resource type="Texture2D" uid="uid://betjyrm44x7xh" path="res://assets/environment/scene_tutorial/stair_part_4.png" id="11_y8c5q"]
+[ext_resource type="Texture2D" uid="uid://hw5lc1v4fiww" path="res://assets/environment/scene_tutorial/warn_light.png" id="12_fuyrj"]
+[ext_resource type="Texture2D" uid="uid://b863twija10i0" path="res://assets/environment/scene_tutorial/doors.png" id="13_getnj"]
+[ext_resource type="Texture2D" uid="uid://b3d747xpw16ih" path="res://assets/environment/scene_tutorial/cannon.png" id="14_urkpt"]
+[ext_resource type="Texture2D" uid="uid://b1egjm3f33igc" path="res://assets/environment/scene_tutorial/shadow.png" id="15_6m8eg"]
+[ext_resource type="Texture2D" uid="uid://dovpo1keougv" path="res://assets/environment/scene_tutorial/gadgets.png" id="16_t3n2b"]
+[ext_resource type="Texture2D" uid="uid://bfr5vjyhpj2jy" path="res://assets/environment/scene_tutorial/elevator.png" id="17_50lb2"]
+[ext_resource type="Texture2D" uid="uid://bbt52vlcbqb4e" path="res://assets/environment/scene_tutorial/light.png" id="18_xptte"]
+
+[node name="tutorial_scene" type="Node2D"]
+
+[node name="Background" type="Sprite2D" parent="."]
+texture = ExtResource("1_k1v41")
+
+[node name="Machine" type="Sprite2D" parent="."]
+texture = ExtResource("2_7ncn3")
+
+[node name="Wall" type="Sprite2D" parent="."]
+texture = ExtResource("3_hce6s")
+
+[node name="DoorPart" type="Sprite2D" parent="."]
+texture = ExtResource("4_ley6y")
+
+[node name="Belt" type="Sprite2D" parent="."]
+texture = ExtResource("5_8sa38")
+
+[node name="Frame" type="Sprite2D" parent="."]
+texture = ExtResource("6_hufqx")
+
+[node name="Fan" type="Sprite2D" parent="."]
+texture = ExtResource("7_x2sx6")
+
+[node name="StairPart" type="Sprite2D" parent="."]
+texture = ExtResource("8_m7tq6")
+
+[node name="StairPart2" type="Sprite2D" parent="."]
+texture = ExtResource("9_3sruk")
+
+[node name="StairPart3" type="Sprite2D" parent="."]
+texture = ExtResource("10_k6alh")
+
+[node name="StairPart4" type="Sprite2D" parent="."]
+texture = ExtResource("11_y8c5q")
+
+[node name="WarnLight" type="Sprite2D" parent="."]
+texture = ExtResource("12_fuyrj")
+
+[node name="Doors" type="Sprite2D" parent="."]
+texture = ExtResource("13_getnj")
+
+[node name="Cannon" type="Sprite2D" parent="."]
+texture = ExtResource("14_urkpt")
+
+[node name="Shadow" type="Sprite2D" parent="."]
+texture = ExtResource("15_6m8eg")
+
+[node name="Shadow2" type="Sprite2D" parent="."]
+texture = ExtResource("15_6m8eg")
+
+[node name="Gadgets" type="Sprite2D" parent="."]
+texture = ExtResource("16_t3n2b")
+
+[node name="Elevator" type="Sprite2D" parent="."]
+texture = ExtResource("17_50lb2")
+
+[node name="Light" type="Sprite2D" parent="."]
+self_modulate = Color(1, 1, 1, 0.19607843)
+texture = ExtResource("18_xptte")

@@ -1,8 +1,9 @@
-[gd_scene load_steps=15 format=3 uid="uid://6o6cnudua672"]
+[gd_scene load_steps=16 format=3 uid="uid://6o6cnudua672"]
 
-[ext_resource type="Texture2D" uid="uid://bqgejafdalqmj" path="res://assets/environment/工厂背景.png" id="1_c13y7"]
+[ext_resource type="Texture2D" uid="uid://bqgejafdalqmj" path="res://assets/environment/scene_tutorial/工厂背景.png" id="1_c13y7"]
 [ext_resource type="PackedScene" uid="uid://da8ttcx4kdymg" path="res://scenes/character.tscn" id="2_8ho6b"]
 [ext_resource type="Script" uid="uid://e8i1qf3cicia" path="res://scripts/TutorialPlatformPlayer.gd" id="3_tutorial_player"]
+[ext_resource type="PackedScene" uid="uid://c6yxi20pgmbbx" path="res://scenes/tutorial_scene.tscn" id="4_4kmhl"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ground"]
 size = Vector2(4246, 40)
@@ -39,7 +40,11 @@ size = Vector2(70, 140)
 
 [node name="Tutorial" type="Node2D"]
 
+[node name="tutorial_scene" parent="." instance=ExtResource("4_4kmhl")]
+position = Vector2(1200, -420)
+
 [node name="Background" type="Sprite2D" parent="."]
+visible = false
 z_index = -10
 position = Vector2(1200, -420)
 scale = Vector2(0.333, 0.333)
@@ -125,3 +130,31 @@ limit_right = 3345
 limit_bottom = 175
 position_smoothing_enabled = true
 position_smoothing_speed = 6.0
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(1200, -420)
+scale = Vector2(0.333, 0.333)
+metadata/_aseprite_wizard_interface_config_ = {
+"animation_section": true,
+"layer_section": true,
+"output_section": true,
+"pending_changes": {
+"convert_fps_field": 60.0,
+"convert_ms_field": 16.0,
+"convert_to_fps": false,
+"embed_tex": true,
+"i_mode": 0,
+"keep_anim_length": false,
+"layers": [],
+"o_ex_p": "",
+"o_folder": "",
+"o_name": "",
+"only_visible": false,
+"player": "",
+"scale": "1.0",
+"slice": "",
+"source": "res://assets/environment/scene_tutorial/tutorial scene.aseprite",
+"source_uid": 4282479328865899821
+},
+"slice_section": true
+}
