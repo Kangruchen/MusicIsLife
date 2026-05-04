@@ -276,8 +276,10 @@ func apply_miss_effect() -> void:
 	if not lowpass_filter:
 		return
 
-	if GameConfigs.sound and GameConfigs.sound.miss_sound:
-		SFXManager.play_stream(GameConfigs.sound.miss_sound, GameConfigs.sound.miss_sound_volume_db)
+	if GameConfigs.sound and GameConfigs.sound.player_defense:
+		var pool: RandomSoundPool = GameConfigs.sound.player_defense.get_miss_sound(0)
+		if pool != null:
+			SFXManager.play_pool(pool, GameConfigs.sound.player_defense.sfx_bus)
 
 	if filter_tween:
 		filter_tween.kill()
@@ -309,8 +311,10 @@ func apply_miss_effect() -> void:
 
 
 func apply_track_miss_effect(note_type: int) -> void:
-	if GameConfigs.sound and GameConfigs.sound.miss_sound:
-		SFXManager.play_stream(GameConfigs.sound.miss_sound, GameConfigs.sound.miss_sound_volume_db)
+	if GameConfigs.sound and GameConfigs.sound.player_defense:
+		var pool: RandomSoundPool = GameConfigs.sound.player_defense.get_miss_sound(note_type)
+		if pool != null:
+			SFXManager.play_pool(pool, GameConfigs.sound.player_defense.sfx_bus)
 
 	var main_normal_vol: float = music_config.main_volume_db if music_config else NORMAL_VOLUME_DB
 	var bass_normal_vol: float = music_config.bass_volume_db if music_config else NORMAL_VOLUME_DB

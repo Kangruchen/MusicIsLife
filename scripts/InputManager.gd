@@ -176,12 +176,12 @@ func _handle_input(track_type: Note.NoteType) -> void:
 	if closest_note:
 		var judgment: JudgmentType = _calculate_judgment(min_time_diff)
 		var timing_diff: float = current_time - closest_note.target_time
-		_play_key_sound(track_type)
 		closest_note.is_active = false
 		closest_note.destroy()
 		var is_miss: bool = judgment == JudgmentType.MISS
 		if is_miss:
 			_apply_miss_audio_effect()
+			_play_key_sound(track_type)
 		else:
 			_spawn_defense_hit_effect(track_type)
 		_play_defense_sound(track_type, is_miss)
@@ -205,11 +205,11 @@ func _handle_input(track_type: Note.NoteType) -> void:
 	if closest_tracked:
 		var judgment: JudgmentType = _calculate_judgment(min_tracked_diff)
 		var timing_diff: float = current_time - closest_tracked.beat_time
-		_play_key_sound(track_type)
 		track_manager.tracked_notes.erase(closest_tracked)
 		var is_miss: bool = judgment == JudgmentType.MISS
 		if is_miss:
 			_apply_miss_audio_effect()
+			_play_key_sound(track_type)
 		else:
 			_spawn_defense_hit_effect(track_type)
 		_play_defense_sound(track_type, is_miss)

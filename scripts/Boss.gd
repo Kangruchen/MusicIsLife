@@ -900,6 +900,7 @@ func _try_fire_charge_bullet() -> void:
 	)
 	_spawn_charge_bullet(wait_duration, travel_duration, despawn_delay)
 	_charge_bullet_fired_this_cycle = true
+	_play_boss_attack_sound(BossAttackSoundConfig.ATTACK_CHARGE_BULLET)
 
 
 func _get_charge_timing_sprite() -> AnimatedSprite2D:

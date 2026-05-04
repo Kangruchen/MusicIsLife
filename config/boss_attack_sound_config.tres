@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="BossAttackSoundConfig" load_steps=17 format=3 uid="uid://c0ip1xr73tmif"]
+[gd_resource type="Resource" script_class="BossAttackSoundConfig" load_steps=17 format=3 uid="uid://bca4til1gfnnl"]
 
 [ext_resource type="AudioStream" uid="uid://bcc0tiyvk304b" path="res://assets/SFX/chargefull.wav" id="1_charge"]
 [ext_resource type="AudioStream" uid="uid://twemusldji6k" path="res://assets/SFX/laserfull.wav" id="2_laser"]
@@ -46,6 +46,7 @@ sounds = Array[ExtResource("7_entry_script")]([SubResource("SoundEntry_missile")
 [sub_resource type="Resource" id="BossAttackTypeSoundConfig_missile"]
 script = ExtResource("5_type_script")
 default_sound = SubResource("RandomSoundPool_missile")
+beat_sounds = Array[ExtResource("6_pool_script")]([null, null])
 
 [resource]
 script = ExtResource("4_script")

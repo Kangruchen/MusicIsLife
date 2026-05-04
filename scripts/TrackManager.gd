@@ -29,7 +29,7 @@ const BLING_ROW_ORDER: Dictionary = {
 
 # 生成提前量（拍数）
 const SPAWN_ADVANCE := {
-	Note.NoteType.GUARD: 2,  # 提前2拍（生成后1拍不动，1拍移动）(J键，第一轨道)
+	Note.NoteType.GUARD: 1,  # 提前1拍（生成即播动画）(J键，第一轨道)
 	Note.NoteType.HIT: 3,    # 提前3拍（生成后1拍不动，2拍移动）(I键，第二轨道)
 	Note.NoteType.DODGE: 3   # 提前3拍（生成后1拍不动，2拍移动）(L键，第三轨道)
 }
@@ -852,17 +852,12 @@ func _spawn_track_animation(note: Note) -> void:
 	if _attack_phase_blocked:
 		return
 
-	# 获取当前轮换计数器并递增（warn 和主动画共用同一计数器以保持位置配对）
 	var counter: int = _spawn_counters[note.type]
 	_spawn_counters[note.type] = counter + 1
 	
 	var advance_beats: int = SPAWN_ADVANCE[note.type]
 	var main_target_beats: int = advance_beats
 
-	# GUARD 激光不再播放预警：从第一拍开始直接播放。
-	# 关键帧对齐改为 1 拍窗口：attack_end_frame 在播放后第 1 拍到达，随后保持同速播完剩余帧。
-
-	# 第一拍直接播放主动画
 	_spawn_main_animation(note, main_target_beats, counter)
 
 
@@ -970,24 +965,10 @@ func _spawn_main_animation(note: Note, target_beats: int, counter: int) -> void:
 		return
 	
 	# === 计算播放速度 ===
-	# 默认使用“当前时刻到判定时刻”的真实剩余时间；
-	# GUARD 轨道额外采用“延迟开播 + 1拍对齐关键帧”：
-	# 在判定前1拍开始播放，并在1拍末尾到达 attack_end_frame。
 	var target_duration: float = target_beats * EventBus.beat_interval
 	var remaining_to_judge: float = note.beat_time - current_time
 	if remaining_to_judge > 0.0:
 		target_duration = remaining_to_judge
-	var play_start_delay: float = 0.0
-	if note.type == Note.NoteType.GUARD and EventBus.beat_interval > 0.0:
-		var one_beat: float = EventBus.beat_interval
-		if remaining_to_judge > one_beat:
-			play_start_delay = remaining_to_judge - one_beat
-			target_duration = one_beat
-		elif remaining_to_judge > 0.0:
-			# 若生成已晚于“判定前1拍”，则退化为尽量在判定时刻对齐。
-			target_duration = remaining_to_judge
-		else:
-			target_duration = one_beat
 	var anim_speed_scale: float = 1.0
 	var attack_end_delay: float = -1.0
 	
@@ -1042,23 +1023,18 @@ func _spawn_main_animation(note: Note, target_beats: int, counter: int) -> void:
 		instance.position = Vector2(BLING_BASE_X + x_offset, row_y)
 	
 	# === 播放动画，并应用速度缩放 ===
-	if play_start_delay > 0.01:
-		anim_sprite.visible = false
-		var delayed_play_token: int = _effect_runtime_token
-		var instance_id_for_delay: int = instance.get_instance_id()
-		var anim_sprite_id_for_delay: int = anim_sprite.get_instance_id()
-		get_tree().create_timer(play_start_delay).timeout.connect(
-			_on_main_animation_delayed_play_timeout.bind(
-				delayed_play_token,
-				instance_id_for_delay,
-				anim_sprite_id_for_delay,
-				anim_speed_scale,
-				resolved_anim_name
+	anim_sprite.speed_scale = anim_speed_scale
+	anim_sprite.play(resolved_anim_name)
+	_play_boss_attack_sound_for_note_type(note.type, true)
+	if note.type == Note.NoteType.GUARD and EventBus.beat_interval > 0.0:
+		var attack_delay: float = remaining_to_judge
+		if attack_delay > 0.01:
+			var attack_sound_token: int = _effect_runtime_token
+			get_tree().create_timer(attack_delay).timeout.connect(func() -> void:
+				if attack_sound_token != _effect_runtime_token or _attack_phase_blocked:
+					return
+				_play_boss_attack_sound_for_note_type(note.type, false)
 			)
-		)
-	else:
-		anim_sprite.speed_scale = anim_speed_scale
-		anim_sprite.play(resolved_anim_name)
 	
 	# 追踪活跃特效（用于默认 Bling 槽位避重）
 	if not _active_blings.has(note.type):
@@ -1071,22 +1047,6 @@ func _on_track_effect_animation_finished(instance_id: int) -> void:
 	var node: Node = node_obj as Node
 	if node != null and is_instance_valid(node):
 		node.queue_free()
-
-
-func _on_main_animation_delayed_play_timeout(delayed_play_token: int, instance_id: int, anim_sprite_id: int, anim_speed_scale: float, resolved_anim_name: String) -> void:
-	if delayed_play_token != _effect_runtime_token or _attack_phase_blocked:
-		_queue_free_node_by_instance_id(instance_id)
-		return
-
-	var anim_obj: Object = instance_from_id(anim_sprite_id)
-	var anim_sprite: AnimatedSprite2D = anim_obj as AnimatedSprite2D
-	if anim_sprite == null or not is_instance_valid(anim_sprite):
-		return
-
-	anim_sprite.visible = true
-	anim_sprite.speed_scale = anim_speed_scale
-	anim_sprite.play(resolved_anim_name)
-
 
 func _queue_free_node_by_instance_id(instance_id: int) -> void:
 	var node_obj: Object = instance_from_id(instance_id)
@@ -1297,3 +1257,28 @@ func _play_spawn_sound(note_type: Note.NoteType) -> void:
 	if pool == null:
 		return
 	SFXManager.play_pool(pool, GameConfigs.sound.sfx_bus)
+
+
+func _play_boss_attack_sound_for_note_type(note_type: Note.NoteType, is_warn: bool = false) -> void:
+	if GameConfigs.sound == null or GameConfigs.sound.boss_sounds == null:
+		return
+	var attack_type: int = -1
+	match note_type:
+		Note.NoteType.GUARD:
+			attack_type = BossAttackSoundConfig.ATTACK_LASER
+		_:
+			return
+	var cfg: BossAttackTypeSoundConfig = GameConfigs.sound.boss_sounds.get_config(attack_type)
+	if cfg == null:
+		return
+	var pool: RandomSoundPool
+	if is_warn and cfg.beat_sounds.size() > 0:
+		pool = cfg.beat_sounds[0]
+	elif not is_warn and cfg.beat_sounds.size() > 1:
+		pool = cfg.beat_sounds[1]
+	else:
+		pool = cfg.default_sound
+	if pool == null or pool.is_empty():
+		return
+	var bus: StringName = cfg.sfx_bus
+	SFXManager.play_pool(pool, bus)

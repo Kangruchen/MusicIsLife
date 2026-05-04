@@ -97,11 +97,12 @@ bpm = 0.0
 generate_test_chart = false
 chart_sm_path = "res://assets/charts/New Demo/New Demo.sm"
 
-[node name="TrackManager" type="Node" parent="GameManager" node_paths=PackedStringArray("game_ui")]
+[node name="TrackManager" type="Node" parent="GameManager" node_paths=PackedStringArray("guard_position_nodes", "game_ui")]
 script = ExtResource("4_track_mgr")
 track_animation_config = ExtResource("8_mwfav")
-prejudge_key_hint_display_mode = 0
+guard_position_nodes = [NodePath("../../PositionNodes/Laser1"), NodePath("../../PositionNodes/Laser2")]
 game_ui = NodePath("../../GameUI")
+prejudge_key_hint_display_mode = 0
 
 [node name="InputManager" type="Node" parent="GameManager"]
 script = ExtResource("5_input_mgr")
