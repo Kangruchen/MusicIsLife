@@ -1,9 +1,11 @@
-[gd_scene load_steps=16 format=3 uid="uid://6o6cnudua672"]
+[gd_scene load_steps=22 format=3 uid="uid://6o6cnudua672"]
 
-[ext_resource type="Texture2D" uid="uid://bqgejafdalqmj" path="res://assets/environment/scene_tutorial/工厂背景.png" id="1_c13y7"]
+[ext_resource type="Texture2D" uid="uid://bqgejafdalqmj" path="res://assets/environment/工厂背景.png" id="1_c13y7"]
 [ext_resource type="PackedScene" uid="uid://da8ttcx4kdymg" path="res://scenes/character.tscn" id="2_8ho6b"]
 [ext_resource type="Script" uid="uid://e8i1qf3cicia" path="res://scripts/TutorialPlatformPlayer.gd" id="3_tutorial_player"]
-[ext_resource type="PackedScene" uid="uid://c6yxi20pgmbbx" path="res://scenes/tutorial_scene.tscn" id="4_4kmhl"]
+[ext_resource type="Script" uid="uid://ca0r3f27db17c" path="res://scripts/dialog_trigger.gd" id="4_4kmhl"]
+[ext_resource type="PackedScene" uid="uid://bgai0ghblaof0" path="res://scenes/DialogueUI.tscn.tscn" id="5_cq4me"]
+[ext_resource type="Script" uid="uid://nfo3c4c1ywks" path="res://scenes/dialogue_ui.tscn.gd" id="6_6yjpi"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ground"]
 size = Vector2(4246, 40)
@@ -38,13 +40,35 @@ size = Vector2(4236, 40)
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_player"]
 size = Vector2(70, 140)
 
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_0epgs"]
+size = Vector2(126, 135)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_g2equ"]
+size = Vector2(119.5, 125.25)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_tbcdj"]
+size = Vector2(166.0625, 132)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_ej4tf"]
+size = Vector2(223.5, 95)
+
 [node name="Tutorial" type="Node2D"]
 
-[node name="tutorial_scene" parent="." instance=ExtResource("4_4kmhl")]
-position = Vector2(1200, -420)
+[node name="UILayer" type="CanvasLayer" parent="."]
+
+[node name="DialogueUi_tscn" parent="UILayer" node_paths=PackedStringArray("player_node") instance=ExtResource("5_cq4me")]
+size_flags_horizontal = 4
+size_flags_vertical = 4
+script = ExtResource("6_6yjpi")
+player_node = NodePath("../../Player")
+dialog_title = "教学提示"
+dialog1_text = "开始教学"
+dialog2_text = "教学（1）"
+dialog3_text = "教学（2）"
+dialog4_text = "教学（3）"
+typing_speed = 8
 
 [node name="Background" type="Sprite2D" parent="."]
-visible = false
 z_index = -10
 position = Vector2(1200, -420)
 scale = Vector2(0.333, 0.333)
@@ -106,7 +130,7 @@ shape = SubResource("RectangleShape2D_wall")
 position = Vector2(1197, -995)
 shape = SubResource("RectangleShape2D_ceiling")
 
-[node name="Player" type="CharacterBody2D" parent="."]
+[node name="Player" type="CharacterBody2D" parent="." groups=["player"]]
 position = Vector2(-365, 106)
 script = ExtResource("3_tutorial_player")
 move_speed = 500.0
@@ -131,30 +155,41 @@ limit_bottom = 175
 position_smoothing_enabled = true
 position_smoothing_speed = 6.0
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
-position = Vector2(1200, -420)
-scale = Vector2(0.333, 0.333)
-metadata/_aseprite_wizard_interface_config_ = {
-"animation_section": true,
-"layer_section": true,
-"output_section": true,
-"pending_changes": {
-"convert_fps_field": 60.0,
-"convert_ms_field": 16.0,
-"convert_to_fps": false,
-"embed_tex": true,
-"i_mode": 0,
-"keep_anim_length": false,
-"layers": [],
-"o_ex_p": "",
-"o_folder": "",
-"o_name": "",
-"only_visible": false,
-"player": "",
-"scale": "1.0",
-"slice": "",
-"source": "res://assets/environment/scene_tutorial/tutorial scene.aseprite",
-"source_uid": 4282479328865899821
-},
-"slice_section": true
-}
+[node name="Trigger1" type="Area2D" parent="." node_paths=PackedStringArray("dialogue_ui")]
+collision_layer = 0
+script = ExtResource("4_4kmhl")
+dialogue_ui = NodePath("../UILayer/DialogueUi_tscn")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Trigger1"]
+position = Vector2(-155, 75.5)
+shape = SubResource("RectangleShape2D_0epgs")
+
+[node name="Trigger2" type="Area2D" parent="." node_paths=PackedStringArray("dialogue_ui")]
+collision_layer = 0
+script = ExtResource("4_4kmhl")
+dialogue_id = 2
+dialogue_ui = NodePath("../UILayer/DialogueUi_tscn")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Trigger2"]
+position = Vector2(1010.75, 81.625)
+shape = SubResource("RectangleShape2D_g2equ")
+
+[node name="Trigger3" type="Area2D" parent="." node_paths=PackedStringArray("dialogue_ui")]
+collision_layer = 0
+script = ExtResource("4_4kmhl")
+dialogue_id = 3
+dialogue_ui = NodePath("../UILayer/DialogueUi_tscn")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Trigger3"]
+position = Vector2(2488, 64)
+shape = SubResource("RectangleShape2D_tbcdj")
+
+[node name="Trigger4" type="Area2D" parent="." node_paths=PackedStringArray("dialogue_ui")]
+collision_layer = 0
+script = ExtResource("4_4kmhl")
+dialogue_id = 4
+dialogue_ui = NodePath("../UILayer/DialogueUi_tscn")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Trigger4"]
+position = Vector2(1150.25, -518.5)
+shape = SubResource("RectangleShape2D_ej4tf")
