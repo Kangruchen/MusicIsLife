@@ -130,7 +130,6 @@ func _on_boss_energy_depleted() -> void:
 	var pause_duration: float = bi * GameConstants.TOTAL_ATTACK_BEATS
 	
 	print("\n========== 攻击阶段开始（共6小节", GameConstants.TOTAL_ATTACK_BEATS, "拍） ==========")
-	EventBus.attack_movement_enabled_changed.emit(true)
 	
 	# 为准备阶段添加节拍log
 	for i in range(1, GameConstants.COUNTDOWN_BEATS + 1):
@@ -157,7 +156,7 @@ func _on_boss_energy_depleted() -> void:
 	# 通过 EventBus 通知 UI 层（替代 get_node GameUI）
 	EventBus.show_beat_track_requested.emit()
 	EventBus.show_pause_countdown_requested.emit(bi)
-	
+
 	# 基于音乐时钟计算第一输入拍时间（秒）：不依赖系统时钟，避免进出阶段漂移。
 	var depletion_music_time: float = _get_music_clock_time()
 	var first_beat_abs_time: float = depletion_music_time + 4.0 * bi  # 输入拍第1拍（音乐时间轴）
@@ -181,21 +180,12 @@ func _on_boss_energy_depleted() -> void:
 			return
 		EventBus.play_beat_flash_requested.emit(bi, GameConstants.INPUT_BEATS)
 	)
-	# 提前半拍启动攻击阶段（传入 first_beat_abs_time 保证时间网格一证）
-	var _fba := first_beat_abs_time
-	get_tree().create_timer(countdown_duration - bi * GameConstants.FIRST_BEAT_DELAY_RATIO).timeout.connect(func():
-		if is_game_over:
-			return
-		_start_attack_phase(attack_duration + return_countdown_duration, bi, _fba)
-	)
-	
-	# 进入攻击阶段混音：分轨时仅保留 bass，单轨时保持完整 BGM。
-	if music_player:
-		if music_player.has_method("begin_attack_mix_mode"):
-			music_player.begin_attack_mix_mode()
-	
+	# 在准备阶段开始时，直接启动攻击阶段；真正可输入时机由 beat 事件与 movement enabled 控制
+	_start_attack_phase(attack_duration + return_countdown_duration, bi, first_beat_abs_time)
+
 	# 启动计时器（完整时长）
-	pause_timer.start(pause_duration)
+	if pause_timer != null:
+		pause_timer.start(pause_duration)
 	print("游戏已进入攻击阶段 ", pause_duration, " 秒（", GameConstants.TOTAL_ATTACK_BEATS, " 拍），音乐进度持续前进")
 
 
@@ -233,8 +223,6 @@ func _on_pause_timeout() -> void:
 	_emit_health_update()
 	
 	print("暂停结束，游戏继续 - BOSS精力恢复到:", recovery_amount, " (临时削减:", temporary_energy_reduce, ")")
-
-
 func _get_music_clock_time() -> float:
 	if music_player == null:
 		return 0.0

@@ -21,6 +21,7 @@ signal miss_triggered(track: int)
 signal attack_performed(attack_type: int)
 signal attack_hit_confirmed(attack_type: int, target: Variant)
 signal attack_hit_resolved(applied_damage: float, target: Variant)
+signal defense_feedback_finished
 signal attack_phase_started
 signal attack_phase_ended
 signal attack_movement_enabled_changed(enabled: bool)
@@ -59,6 +60,7 @@ func _suppress_unused_signal_warnings() -> void:
 	attack_performed.emit(0)
 	attack_hit_confirmed.emit(0, null)
 	attack_hit_resolved.emit(0.0, null)
+	defense_feedback_finished.emit()
 	attack_phase_started.emit()
 	attack_phase_ended.emit()
 	attack_movement_enabled_changed.emit(false)

@@ -27,3 +27,4 @@ dodge_player_health_good = 0.0
 dodge_player_health_miss = -20.0
 max_player_health = 120.0
 max_boss_health = 2000.0
+max_boss_energy = 5.0

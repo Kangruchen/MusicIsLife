@@ -60,6 +60,7 @@ var _is_dead: bool = false
 
 var _is_next_attack_charged: bool = false
 var _is_attack_anim_playing: bool = false
+var _pending_attack_phase_start_transition: bool = false
 var _pending_attack_phase_end_transition: bool = false
 var _facing_sign: float = -1.0
 var _prep_movement_enabled: bool = false
@@ -83,6 +84,7 @@ var _death_black_rect: ColorRect = null
 var _death_hint_line_top: Label = null
 var _death_hint_line_bottom: Label = null
 var _defense_miss_flash_tween: Tween = null
+var _status_flash_tween: Tween = null
 @onready var music_player_node: Node = get_node_or_null("../GameManager/MusicPlayer")
 @onready var main_camera: Camera2D = get_node_or_null("../Camera2D") as Camera2D
 
@@ -272,6 +274,7 @@ func _on_attack_action(attack_type: int) -> void:
 
 	if attack_type == ATTACK_TYPE_ENHANCE:
 		_is_next_attack_charged = true
+		_start_attack_action(ATTACK_TYPE_ENHANCE, false)
 		return
 
 	var use_charged: bool = _is_next_attack_charged
@@ -289,14 +292,16 @@ func _on_attack_phase_started() -> void:
 	_pending_attack_phase_end_transition = false
 	_is_next_attack_charged = false
 	_prep_movement_enabled = false
-	_attack_movement_enabled = true
-	_clear_attack_action_runtime()
-	_transition_to_state(PlayerState.ATTACK)
+	if _should_defer_attack_phase_start_transition():
+		_pending_attack_phase_start_transition = true
+		return
+	_complete_attack_phase_start_transition()
 
 
 func _on_attack_phase_ended() -> void:
 	if _is_dead:
 		return
+	_pending_attack_phase_start_transition = false
 	_pending_attack_phase_end_transition = false
 	_is_next_attack_charged = false
 	_prep_movement_enabled = false
@@ -314,6 +319,26 @@ func _complete_attack_phase_end_transition() -> void:
 	if animated_sprite != null:
 		animated_sprite.flip_h = false
 	velocity = Vector2.ZERO
+
+
+func _complete_attack_phase_start_transition() -> void:
+	_pending_attack_phase_start_transition = false
+	_attack_movement_enabled = true
+	_clear_attack_action_runtime()
+	_transition_to_state(PlayerState.ATTACK)
+
+
+func _should_defer_attack_phase_start_transition() -> bool:
+	if anim_config == null or animated_sprite == null:
+		return false
+	if not animated_sprite.is_playing():
+		return false
+
+	var current_anim: String = String(animated_sprite.animation)
+	if current_anim.is_empty():
+		return false
+
+	return current_anim == anim_config.guard_anim or current_anim == anim_config.hit_anim or current_anim == anim_config.dodge_anim
 
 
 func _transition_to_state(next_state: PlayerState) -> void:
@@ -799,6 +824,13 @@ func _on_animation_finished() -> void:
 		return
 
 	if _state == PlayerState.DEFENSE:
+		EventBus.defense_feedback_finished.emit()
+		if _pending_attack_phase_start_transition:
+			if _prep_movement_enabled:
+				_complete_attack_phase_start_transition()
+			else:
+				_play_idle()
+			return
 		_play_idle()
 		return
 
@@ -834,12 +866,48 @@ func _try_open_hitbox_at_current_frame() -> void:
 	_on_animation_frame_changed()
 
 
+func _play_status_flash(color: Color, duration: float = 0.22) -> void:
+	# Simple sprite-based VFX only
+	var tex_path: String = "res://assets/VFX/chargebullet.png"
+	if color.g > color.r:
+		tex_path = "res://assets/VFX/bling_green.png"
+	_spawn_status_vfx(tex_path, color, duration)
+
+
+func _spawn_status_vfx(tex_path: String, color: Color, duration: float = 0.22) -> void:
+	var tex: Texture2D = null
+	if ResourceLoader.exists(tex_path):
+		tex = load(tex_path)
+	if tex == null:
+		return
+
+	var v: Sprite2D = Sprite2D.new()
+	v.texture = tex
+	v.centered = true
+	v.position = Vector2.ZERO
+	v.modulate = color
+	v.scale = Vector2.ONE * 0.6
+	v.z_index = 50
+	add_child(v)
+
+	var tw: Tween = create_tween()
+	tw.set_trans(Tween.TRANS_SINE)
+	tw.set_ease(Tween.EASE_OUT)
+	tw.tween_property(v, "scale", Vector2.ONE * 1.6, duration)
+	tw.tween_property(v, "modulate:a", 0.0, duration)
+	tw.finished.connect(func() -> void:
+		if v != null and v.is_inside_tree():
+			v.queue_free()
+	)
+
+
 func _on_player_died() -> void:
 	if _is_dead:
 		return
 
 	_is_dead = true
 	_death_restart_input_enabled = false
+	_pending_attack_phase_start_transition = false
 	_pending_attack_phase_end_transition = false
 	velocity = Vector2.ZERO
 	_is_next_attack_charged = false
@@ -1153,3 +1221,5 @@ func _on_attack_movement_enabled_changed(enabled: bool) -> void:
 	_prep_movement_enabled = enabled
 	if not enabled:
 		velocity = Vector2.ZERO
+	elif _pending_attack_phase_start_transition:
+		_complete_attack_phase_start_transition()

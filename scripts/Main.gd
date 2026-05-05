@@ -28,8 +28,8 @@ func _ready() -> void:
 		_camera_default_global_position = camera.global_position
 		_camera_default_zoom = camera.zoom
 
-	if not EventBus.attack_phase_started.is_connected(_on_attack_phase_started):
-		EventBus.attack_phase_started.connect(_on_attack_phase_started)
+	if not EventBus.attack_movement_enabled_changed.is_connected(_on_attack_movement_enabled_changed):
+		EventBus.attack_movement_enabled_changed.connect(_on_attack_movement_enabled_changed)
 	if not EventBus.attack_phase_ended.is_connected(_on_attack_phase_ended):
 		EventBus.attack_phase_ended.connect(_on_attack_phase_ended)
 	if not EventBus.player_died.is_connected(_on_player_died):
@@ -55,17 +55,18 @@ func _process(delta: float) -> void:
 	camera.global_position = _clamp_camera_position(blended_pos, safe_zoom)
 
 
-func _on_attack_phase_started() -> void:
+func _on_attack_movement_enabled_changed(enabled: bool) -> void:
 	if not enable_attack_camera:
 		return
 	if camera == null or player == null:
 		return
 
-	# 攻击阶段开始立即启用镜头缩放和跟随。
-	_attack_camera_active = true
-	_attack_zoom_target = _get_attack_camera_zoom()
-	var start_target_pos: Vector2 = _get_attack_camera_target_pos(_attack_zoom_target)
-	_start_camera_tween(start_target_pos, _attack_zoom_target, attack_camera_enter_duration)
+	if enabled:
+		# 真正开放攻击输入时再切入攻击镜头，避免把前置缓冲也算进去。
+		_attack_camera_active = true
+		_attack_zoom_target = _get_attack_camera_zoom()
+		var start_target_pos: Vector2 = _get_attack_camera_target_pos(_attack_zoom_target)
+		_start_camera_tween(start_target_pos, _attack_zoom_target, attack_camera_enter_duration)
 
 
 func _on_attack_phase_ended() -> void:

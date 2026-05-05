@@ -264,9 +264,6 @@ func _has_any_nearby_note(current_time: float, window: float) -> bool:
 
 
 func _spawn_defense_hit_effect(note_type: Note.NoteType) -> void:
-	if current_phase != PhaseState.DEFENSE:
-		return
-
 	var effect_scene: PackedScene = _get_defense_hit_effect_scene(note_type)
 	if effect_scene == null:
 		return
@@ -611,6 +608,9 @@ func _on_attack_beat_timed(beat_idx: int) -> void:
 	
 	# 输入阶段（拍 1 ~ INPUT_BEATS）
 	if current_beat_in_attack <= GameConstants.INPUT_BEATS:
+		if current_beat_in_attack == 1:
+			EventBus.attack_movement_enabled_changed.emit(true)
+
 		# 判定拍结束时（反拍）若无输入则自动回复。
 		_schedule_auto_heal_for_beat(current_beat_in_attack, current_beat_start_time)
 

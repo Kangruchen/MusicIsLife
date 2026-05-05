@@ -184,6 +184,7 @@ position_smoothing_speed = 6.0
 [node name="MusicPlayer" type="Node" parent="GameManager"]
 script = ExtResource("7_music")
 auto_play = false
+attack_music_path = "res://assets/charts/New Demo/Chrome Pulse_mixed.mp3"
 enable_miss_audio_effect = true
 
 [node name="BeatManager" type="Node" parent="GameManager"]

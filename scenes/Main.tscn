@@ -89,6 +89,7 @@ position = Vector2(0, 130)
 [node name="MusicPlayer" type="Node" parent="GameManager"]
 script = ExtResource("1_h5v3q")
 music_path = "uid://cyvxtvuk4kkc5"
+attack_music_path = "res://assets/charts/New Demo/Chrome Pulse_mixed.mp3"
 enable_miss_audio_effect = true
 
 [node name="BeatManager" type="Node" parent="GameManager"]

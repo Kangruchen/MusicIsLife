@@ -5,7 +5,9 @@ extends Node
 
 @export var music_config: MusicConfig = null
 @export_file("*.mp3", "*.ogg", "*.wav") var music_path: String = ""
+@export_file("*.mp3", "*.ogg", "*.wav") var attack_music_path: String = ""
 @export var auto_play: bool = true
+@export_range(-80.0, 24.0, 0.1) var attack_music_volume_db: float = 0.0
 
 @export var enable_miss_audio_effect: bool = false
 
@@ -32,24 +34,36 @@ var _pre_attack_drum_volume_db: float = 0.0
 var main_player: AudioStreamPlayer = null
 var drum_player: AudioStreamPlayer = null
 var bass_player: AudioStreamPlayer = null
+var attack_player: AudioStreamPlayer = null
 var paused_position: float = 0.0
+var _attack_music_stream: AudioStream = null
+var _attack_music_active: bool = false
 
 func _ready() -> void:
 	main_player = AudioStreamPlayer.new()
 	drum_player = AudioStreamPlayer.new()
 	bass_player = AudioStreamPlayer.new()
+	attack_player = AudioStreamPlayer.new()
 
 	main_player.name = "MainPlayer"
 	drum_player.name = "DrumPlayer"
 	bass_player.name = "BassPlayer"
+	attack_player.name = "AttackPlayer"
 
 	add_child(main_player)
 	add_child(drum_player)
 	add_child(bass_player)
+	add_child(attack_player)
 
 	main_player.bus = "BGM"
 	drum_player.bus = "BGM"
 	bass_player.bus = "BGM"
+	attack_player.bus = "BGM"
+
+	if not EventBus.attack_phase_started.is_connected(_on_attack_phase_started):
+		EventBus.attack_phase_started.connect(_on_attack_phase_started)
+	if not EventBus.attack_phase_ended.is_connected(_on_attack_phase_ended):
+		EventBus.attack_phase_ended.connect(_on_attack_phase_ended)
 
 	var bus_index: int = AudioServer.get_bus_index("BGM")
 	if bus_index != -1:
@@ -125,9 +139,15 @@ func _play_all_tracks() -> void:
 
 
 func stop_music() -> void:
+	if _attack_mix_tween != null:
+		_attack_mix_tween.kill()
+		_attack_mix_tween = null
 	main_player.stop()
 	drum_player.stop()
 	bass_player.stop()
+	if attack_player != null:
+		attack_player.stop()
+	_attack_music_active = false
 
 
 func fade_out_all_for_death(duration: float = 1.2, target_volume_db: float = -40.0) -> void:
@@ -148,12 +168,16 @@ func fade_out_all_for_death(duration: float = 1.2, target_volume_db: float = -40
 		volume_tween.tween_property(drum_player, "volume_db", target_db, fade_duration)
 	if bass_player != null:
 		volume_tween.tween_property(bass_player, "volume_db", target_db, fade_duration)
+	if attack_player != null and attack_player.stream:
+		volume_tween.tween_property(attack_player, "volume_db", target_db, fade_duration)
 
 
 func pause_music() -> void:
 	main_player.stream_paused = true
 	drum_player.stream_paused = true
 	bass_player.stream_paused = true
+	if attack_player != null:
+		attack_player.stream_paused = true
 	print("音乐已暂停")
 
 
@@ -166,17 +190,37 @@ func resume_music() -> void:
 
 
 func begin_attack_mix_mode() -> void:
-	if music_config == null:
+	if _attack_music_active:
 		return
-	if bass_player == null or bass_player.stream == null:
+	if main_player == null or drum_player == null or bass_player == null:
+		return
+	if main_player.stream == null and drum_player.stream == null and bass_player.stream == null:
+		return
+
+	_attack_music_stream = _load_attack_music_stream()
+	if _attack_music_stream == null:
+		push_warning("未配置攻击阶段音乐，无法切换到攻击 BGM")
 		return
 
 	_cached_main_volume_db = main_player.volume_db if main_player != null else 0.0
 	_cached_drum_volume_db = drum_player.volume_db if drum_player != null else 0.0
 	_cached_bass_volume_db = bass_player.volume_db
 
+	if attack_player == null:
+		attack_player = AudioStreamPlayer.new()
+		attack_player.name = "AttackPlayer"
+		attack_player.bus = "BGM"
+		add_child(attack_player)
+
 	if _attack_mix_tween != null:
 		_attack_mix_tween.kill()
+	if attack_player.playing:
+		attack_player.stop()
+
+	var sync_position: float = get_playback_position()
+	attack_player.stream = _attack_music_stream
+	attack_player.volume_db = attack_music_volume_db
+	attack_player.play(sync_position)
 
 	_attack_mix_tween = create_tween()
 	_attack_mix_tween.set_parallel(true)
@@ -191,9 +235,13 @@ func begin_attack_mix_mode() -> void:
 		_attack_mix_tween.tween_property(bass_player, "volume_db", _cached_bass_volume_db, 0.12)
 
 	_attack_mix_active = true
+	print("攻击阶段 BGM 已切换，起始进度: ", sync_position)
 
 
 func end_attack_mix_mode() -> void:
+	if attack_player != null and attack_player.playing:
+		attack_player.stop()
+
 	if not _attack_mix_active:
 		return
 
@@ -213,6 +261,29 @@ func end_attack_mix_mode() -> void:
 		_attack_mix_tween.tween_property(bass_player, "volume_db", _cached_bass_volume_db, 0.12)
 
 	_attack_mix_active = false
+
+
+func _on_attack_phase_started() -> void:
+	begin_attack_mix_mode()
+
+
+func _on_attack_phase_ended() -> void:
+	end_attack_mix_mode()
+
+
+func _load_attack_music_stream() -> AudioStream:
+	if _attack_music_stream != null:
+		return _attack_music_stream
+	if attack_music_path.is_empty():
+		return null
+
+	var music_stream: AudioStream = load(attack_music_path)
+	if music_stream == null:
+		push_error("无法加载攻击阶段音乐文件: " + attack_music_path)
+		return null
+
+	_attack_music_stream = music_stream
+	return _attack_music_stream
 
 
 func get_playback_position() -> float:

@@ -1064,6 +1064,7 @@ func _on_attack_phase_started() -> void:
 	_set_attack_hint_flash_active(true)
 	_stop_return_to_origin_transition()
 	_interrupt_for_attack_phase(BossState.BROKEN)
+	_play_shield_break_sound_delayed()
 
 
 func _on_boss_energy_depleted() -> void:
@@ -2376,6 +2377,19 @@ func _start_shield_break_transition() -> void:
 		_break_transition_tween.tween_property(self, "global_position:y", broken_fall_target_y, fall_duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 
 	# 需求变更：取消转阶段冲刺，玩家位置保持不变。
+
+
+func _play_shield_break_sound_delayed() -> void:
+	if GameConfigs.sound == null or GameConfigs.sound.player_defense == null:
+		return
+	var break_sound: RandomSoundPool = GameConfigs.sound.player_defense.guard_success
+	if break_sound == null:
+		return
+	get_tree().create_timer(0.08).timeout.connect(func() -> void:
+		if is_dead or current_state != BossState.BROKEN:
+			return
+		SFXManager.play_pool(break_sound, GameConfigs.sound.player_defense.sfx_bus)
+	)
 
 
 func _stop_break_transition() -> void:
