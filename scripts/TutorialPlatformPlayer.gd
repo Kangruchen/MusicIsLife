@@ -27,6 +27,7 @@ var _drop_through_timer: float = 0.0
 var _disabled_one_way_shapes: Array[CollisionShape2D] = []
 var _in_battle: bool = false
 var _battle_anim_playing: bool = false
+var _frozen: bool = false
 
 
 func _ready() -> void:
@@ -41,6 +42,11 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	if _in_battle:
+		return
+
+	if _frozen:
+		velocity = Vector2.ZERO
+		_play_idle()
 		return
 
 	_update_drop_through_timer(delta)
@@ -63,6 +69,7 @@ func _physics_process(delta: float) -> void:
 
 func enter_battle() -> void:
 	_in_battle = true
+	_frozen = false
 	velocity = Vector2.ZERO
 	_play_idle()
 
@@ -70,6 +77,22 @@ func enter_battle() -> void:
 func exit_battle() -> void:
 	_in_battle = false
 	_battle_anim_playing = false
+	_frozen = false
+	set_process_input(true)
+	set_physics_process(true)
+
+
+func freeze_movement() -> void:
+	_frozen = true
+	velocity = Vector2.ZERO
+
+
+func unfreeze_movement() -> void:
+	_frozen = false
+
+
+func is_in_battle() -> bool:
+	return _in_battle
 
 
 func _on_defense_key_pressed(track: Note.NoteType) -> void:

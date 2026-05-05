@@ -12,6 +12,7 @@ class_name BossAttackSoundConfig
 const ATTACK_LASER: int = 0
 const ATTACK_MISSILE: int = 1
 const ATTACK_CHARGE_BULLET: int = 2
+const ATTACK_CHARGE_WINDUP: int = 3
 
 @export_group("激光攻击")
 @export var laser_config: BossAttackTypeSoundConfig = null
@@ -22,6 +23,9 @@ const ATTACK_CHARGE_BULLET: int = 2
 @export_group("蓄力子弹攻击")
 @export var charge_bullet_config: BossAttackTypeSoundConfig = null
 
+@export_group("蓄力蓄积")
+@export var charge_windup_config: BossAttackTypeSoundConfig = null
+
 
 func get_config(attack_type: int) -> BossAttackTypeSoundConfig:
 	match attack_type:
@@ -31,6 +35,8 @@ func get_config(attack_type: int) -> BossAttackTypeSoundConfig:
 			return missile_config
 		ATTACK_CHARGE_BULLET:
 			return charge_bullet_config
+		ATTACK_CHARGE_WINDUP:
+			return charge_windup_config
 		_:
 			return null
 

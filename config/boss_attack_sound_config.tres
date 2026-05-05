@@ -1,12 +1,13 @@
-[gd_resource type="Resource" script_class="BossAttackSoundConfig" load_steps=17 format=3 uid="uid://bca4til1gfnnl"]
+[gd_resource type="Resource" script_class="BossAttackSoundConfig" load_steps=18 format=3 uid="uid://bca4til1gfnnl"]
 
-[ext_resource type="AudioStream" uid="uid://bcc0tiyvk304b" path="res://assets/SFX/chargefull.wav" id="1_charge"]
+[ext_resource type="AudioStream" uid="uid://bokuairmkmpt3" path="res://assets/SFX/charge/charge_attack.wav" id="1_charge"]
 [ext_resource type="AudioStream" uid="uid://twemusldji6k" path="res://assets/SFX/laserfull.wav" id="2_laser"]
 [ext_resource type="AudioStream" uid="uid://ddwba2khha5lf" path="res://assets/SFX/missilefull.wav" id="3_missile"]
 [ext_resource type="Script" uid="uid://dvqabbakhn5v" path="res://scripts/BossAttackSoundConfig.gd" id="4_script"]
 [ext_resource type="Script" uid="uid://dcp5enehvpkx2" path="res://scripts/BossAttackTypeSoundConfig.gd" id="5_type_script"]
 [ext_resource type="Script" uid="uid://ob7fbkla0xou" path="res://scripts/RandomSoundPool.gd" id="6_pool_script"]
 [ext_resource type="Script" uid="uid://clysxn6ecnrao" path="res://scripts/SoundEntry.gd" id="7_entry_script"]
+[ext_resource type="AudioStream" uid="uid://k3aegy770n34" path="res://assets/SFX/charge/charge_warn.wav" id="8_charge_windup"]
 
 [sub_resource type="Resource" id="SoundEntry_charge"]
 script = ExtResource("7_entry_script")
@@ -48,8 +49,22 @@ script = ExtResource("5_type_script")
 default_sound = SubResource("RandomSoundPool_missile")
 beat_sounds = Array[ExtResource("6_pool_script")]([null, null])
 
+[sub_resource type="Resource" id="SoundEntry_charge_windup"]
+script = ExtResource("7_entry_script")
+stream = ExtResource("8_charge_windup")
+volume_db = -5.0
+
+[sub_resource type="Resource" id="RandomSoundPool_charge_windup"]
+script = ExtResource("6_pool_script")
+sounds = Array[ExtResource("7_entry_script")]([SubResource("SoundEntry_charge_windup")])
+
+[sub_resource type="Resource" id="BossAttackTypeSoundConfig_charge_windup"]
+script = ExtResource("5_type_script")
+default_sound = SubResource("RandomSoundPool_charge_windup")
+
 [resource]
 script = ExtResource("4_script")
 laser_config = SubResource("BossAttackTypeSoundConfig_laser")
 missile_config = SubResource("BossAttackTypeSoundConfig_missile")
 charge_bullet_config = SubResource("BossAttackTypeSoundConfig_charge")
+charge_windup_config = SubResource("BossAttackTypeSoundConfig_charge_windup")

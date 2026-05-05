@@ -1,11 +1,11 @@
 [gd_scene load_steps=7 format=3 uid="uid://by008rhs347u5"]
 
-[ext_resource type="Texture2D" uid="uid://bml0iy0jr34ur" path="res://assets/environment/scene_boss/background.png" id="1_eaqaa"]
-[ext_resource type="Texture2D" uid="uid://bplv8ttjaikm" path="res://assets/environment/scene_boss/back_light.png" id="2_xxsej"]
-[ext_resource type="Texture2D" uid="uid://dm03vrkwr6tay" path="res://assets/environment/scene_boss/side_machine.png" id="3_l562q"]
-[ext_resource type="Texture2D" uid="uid://c5p1wv46jjav0" path="res://assets/environment/scene_boss/side_ball.png" id="4_ukr0n"]
-[ext_resource type="Texture2D" uid="uid://dr5n1lto02v1k" path="res://assets/environment/scene_boss/mid_ball.png" id="5_rn7d6"]
-[ext_resource type="Texture2D" uid="uid://g5embtiwej7x" path="res://assets/environment/scene_boss/ground.png" id="6_rwpvo"]
+[ext_resource type="Texture2D" uid="uid://ccfvrsnb15tuk" path="res://assets/environment/scene_boss/background.png" id="1_eaqaa"]
+[ext_resource type="Texture2D" uid="uid://b3ucw6dixmtqh" path="res://assets/environment/scene_boss/back_light.png" id="2_xxsej"]
+[ext_resource type="Texture2D" uid="uid://dewdc2p43aun" path="res://assets/environment/scene_boss/side_machine.png" id="3_l562q"]
+[ext_resource type="Texture2D" uid="uid://cwaqiya33f6i8" path="res://assets/environment/scene_boss/side_ball.png" id="4_ukr0n"]
+[ext_resource type="Texture2D" uid="uid://w6tjnpc4t5dy" path="res://assets/environment/scene_boss/mid_ball.png" id="5_rn7d6"]
+[ext_resource type="Texture2D" uid="uid://bbypkwosec5pe" path="res://assets/environment/scene_boss/ground.png" id="6_rwpvo"]
 
 [node name="scene_boss" type="Node2D"]
 scale = Vector2(0.333, 0.333)

@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="TrackAnimationConfig" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="TrackAnimationConfig" load_steps=4 format=3 uid="uid://c4u7t4wdma38g"]
 
 [ext_resource type="Script" uid="uid://beqf7fggoqww7" path="res://scripts/TrackAnimationConfig.gd" id="1_anim"]
 [ext_resource type="PackedScene" uid="uid://bcm01qchxk50h" path="res://scenes/laser.tscn" id="1_hd6f2"]
@@ -13,5 +13,6 @@ guard_attack_end_frame = 12
 guard_flip_h = true
 hit_animation_name = "bling_blue"
 hit_attack_end_frame = 3
-dodge_animation_name = "charge"
-dodge_attack_end_frame = 17
+dodge_animation_name = "shoot"
+dodge_attack_end_frame = 16
+dodge_start_frame = 4

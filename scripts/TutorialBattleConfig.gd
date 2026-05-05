@@ -5,6 +5,7 @@ enum AttackType {
 	LASER,
 	MISSILE,
 	CHARGE,
+	ALTERNATING_MISSILE_CHARGE,
 }
 
 @export var battle_id: int = 1
@@ -17,3 +18,4 @@ enum AttackType {
 @export var start_delay_beats: int = 2
 @export_file("*.mp3", "*.ogg", "*.wav") var music_path: String = ""
 @export var camera_zoom: Vector2 = Vector2(0.6, 0.6)
+@export var camera_stick_bottom: bool = false

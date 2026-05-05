@@ -37,6 +37,8 @@ const BEAT_TRACK_TOP_OFFSET: float = 28.0
 const BEAT_NOTE_TRAVEL_DISTANCE: float = BEAT_TRACK_WIDTH * 0.5
 const BEAT_TRACK_CENTER_X: float = BEAT_TRACK_WIDTH * 0.5
 
+@export var show_on_ready: bool = true
+
 @onready var music_player: Node = get_node_or_null("../GameManager/MusicPlayer")
 
 
@@ -61,7 +63,11 @@ func _ready() -> void:
 	EventBus.hide_pause_effects_requested.connect(hide_pause_effects)
 	EventBus.boss_defeated.connect(_on_boss_defeated)
 
-	show() # 游戏开始时将UI设为可见
+	visible = show_on_ready
+	if show_on_ready:
+		show() # 游戏开始时将UI设为可见
+	else:
+		hide()
 	
 	# 创建倒计时标签（初始隐藏）
 	countdown_label = Label.new()

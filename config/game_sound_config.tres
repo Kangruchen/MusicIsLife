@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="GameSoundConfig" load_steps=71 format=3 uid="uid://d2s8ter7rgrt3"]
+[gd_resource type="Resource" script_class="GameSoundConfig" load_steps=72 format=3 uid="uid://d2s8ter7rgrt3"]
 
 [ext_resource type="AudioStream" uid="uid://7n1vbkb2k41a" path="res://assets/SFX/dodgedrum.wav" id="1_dodge"]
 [ext_resource type="AudioStream" uid="uid://b40kly4fniq14" path="res://assets/SFX/guarddrum.wav" id="2_guard"]
@@ -47,7 +47,10 @@ sounds = Array[ExtResource("16_entry_script")]([SubResource("SE_charge_atk")])
 [sub_resource type="Resource" id="BossType_charge"]
 script = ExtResource("12_boss_type_script")
 default_sound = SubResource("Pool_charge_atk")
-beat_sounds = Array[ExtResource("15_pool_script")]([SubResource("Pool_charge_warn")])
+
+[sub_resource type="Resource" id="BossType_charge_windup"]
+script = ExtResource("12_boss_type_script")
+default_sound = SubResource("Pool_charge_warn")
 
 [sub_resource type="Resource" id="SE_laser_warn1"]
 script = ExtResource("16_entry_script")
@@ -102,6 +105,7 @@ script = ExtResource("11_boss_script")
 laser_config = SubResource("BossType_laser")
 missile_config = SubResource("BossType_missile")
 charge_bullet_config = SubResource("BossType_charge")
+charge_windup_config = SubResource("BossType_charge_windup")
 
 [sub_resource type="Resource" id="SE_key_dodge"]
 script = ExtResource("16_entry_script")

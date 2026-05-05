@@ -12,7 +12,22 @@ enum BattleState {
 @export_node_path("Camera2D") var camera_path: NodePath = NodePath("")
 @export_node_path("CharacterBody2D") var player_path: NodePath = NodePath("")
 @export_node_path("CanvasLayer") var game_ui_path: NodePath = NodePath("")
+@export_node_path("CanvasLayer") var battle_ui_path: NodePath = NodePath("")
+@export_node_path("AnimatedSprite2D") var cannon_node_path: NodePath = NodePath("")
+@export_node_path("Node2D") var cannon_bullet_spawn_path: NodePath = NodePath("")
+@export var cannon_bullet_scene: PackedScene = preload("res://scenes/charge_bullet.tscn")
+@export var cannon_bullet_fire_frame: int = 16
+@export var cannon_bullet_hit_frame: int = 17
+@export var cannon_bullet_despawn_frame: int = 19
+@export var cannon_bullet_hit_distance_from_player: float = 50.0
+@export var cannon_charge_warn_sound: AudioStream = preload("res://assets/SFX/charge/charge_warn.wav")
+@export var cannon_charge_attack_sound: AudioStream = preload("res://assets/SFX/charge/charge_attack.wav")
 @export var battle_zone_paths: Array[NodePath] = []
+
+@export var missile_scene: PackedScene = preload("res://scenes/missile.tscn")
+@export_node_path("Node2D") var missile_launch_path: NodePath = NodePath("")
+@export var missile_attack_sound: AudioStream = preload("res://assets/SFX/missile/missile_attack_1.wav")
+@export var missile_hit_distance_from_player: float = 0.0
 
 var _state: BattleState = BattleState.IDLE
 var _current_battle_index: int = -1
@@ -21,6 +36,8 @@ var _success_count: int = 0
 var _camera: Camera2D = null
 var _player: CharacterBody2D = null
 var _game_ui: CanvasLayer = null
+var _battle_ui: CanvasLayer = null
+var _cannon: AnimatedSprite2D = null
 var _camera_tween: Tween = null
 var _saved_camera_zoom: Vector2 = Vector2.ONE
 var _saved_camera_position: Vector2 = Vector2.ZERO
@@ -31,6 +48,19 @@ var _beat_manager: Node = null
 var _track_manager: Node = null
 var _last_generated_beat: float = 0.0
 var _ending_scheduled: bool = false
+var _cannon_bullet_fired: bool = false
+var _cannon_warn_played: bool = false
+var _cannon_last_logged_frame: int = -1
+var _cannon_anim_start_time: float = -1.0
+var _active_cannon_bullet: Node2D = null
+var _cannon_bullet_spawn_node: Node2D = null
+
+var _next_attack_type: int = -1
+var _last_successful_type: int = -1
+var _active_missile: Node2D = null
+var _missile_launch_node: Node2D = null
+var _missile_target_times: Array[float] = []
+var _missile_fired_count: int = 0
 
 signal battle_started(battle_id: int)
 signal battle_ended(battle_id: int)
@@ -47,6 +77,30 @@ func _process(_delta: float) -> void:
 		return
 	if _track_manager and _track_manager.scheduled_notes.size() <= 4:
 		_append_more_notes()
+	_track_cannon_frames()
+	_try_fire_cannon_bullet()
+	_try_fire_missiles()
+
+
+func _track_cannon_frames() -> void:
+	if _cannon == null or not is_instance_valid(_cannon):
+		return
+	if not _cannon.is_playing() or _cannon.animation != "shoot":
+		_cannon_last_logged_frame = -1
+		_cannon_anim_start_time = -1.0
+		return
+	var cur_frame: int = _cannon.frame
+	if _cannon_anim_start_time < 0.0:
+		_cannon_anim_start_time = Time.get_ticks_usec() / 1000000.0
+	if cur_frame == _cannon_last_logged_frame:
+		return
+	_cannon_last_logged_frame = cur_frame
+	var now: float = Time.get_ticks_usec() / 1000000.0
+	var elapsed: float = now - _cannon_anim_start_time
+	var beat_interval: float = EventBus.beat_interval
+	var beat_num: float = elapsed / beat_interval if beat_interval > 0.0 else 0.0
+	if cur_frame in [0, 4, 8, 12, 16, 17, 19]:
+		print("[CannonFrame] frame=%d elapsed=%.4fs beat=%.2f" % [cur_frame, elapsed, beat_num])
 
 
 func _hide_health_bars() -> void:
@@ -100,6 +154,28 @@ func _resolve_nodes() -> void:
 	if _game_ui == null or not is_instance_valid(_game_ui):
 		if not game_ui_path.is_empty():
 			_game_ui = get_node_or_null(game_ui_path) as CanvasLayer
+	if _battle_ui == null or not is_instance_valid(_battle_ui):
+		if not battle_ui_path.is_empty():
+			_battle_ui = get_node_or_null(battle_ui_path) as CanvasLayer
+	if _cannon == null or not is_instance_valid(_cannon):
+		if not cannon_node_path.is_empty():
+			_cannon = get_node_or_null(cannon_node_path) as AnimatedSprite2D
+		if _cannon == null:
+			var scene_root: Node = get_tree().current_scene
+			if scene_root:
+				_cannon = scene_root.find_child("Cannon", true, false) as AnimatedSprite2D
+	if _cannon_bullet_spawn_node == null or not is_instance_valid(_cannon_bullet_spawn_node):
+		if not cannon_bullet_spawn_path.is_empty():
+			_cannon_bullet_spawn_node = get_node_or_null(cannon_bullet_spawn_path) as Node2D
+		if _cannon_bullet_spawn_node == null and _cannon:
+			_cannon_bullet_spawn_node = _cannon.get_node_or_null("BulletPoint") as Node2D
+	if _missile_launch_node == null or not is_instance_valid(_missile_launch_node):
+		if not missile_launch_path.is_empty():
+			_missile_launch_node = get_node_or_null(missile_launch_path) as Node2D
+		if _missile_launch_node == null:
+			var scene_root: Node = get_tree().current_scene
+			if scene_root:
+				_missile_launch_node = scene_root.find_child("Missile1", true, false) as Node2D
 	var gm: Node = get_node_or_null("../GameManager")
 	if gm:
 		if _music_player == null or not is_instance_valid(_music_player):
@@ -170,6 +246,13 @@ func _transition_camera() -> void:
 	else:
 		target_position = _camera.global_position
 
+	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+	var half_view: Vector2 = viewport_size * 0.5 / target_zoom
+	target_position.x = clampf(target_position.x, _camera.limit_left + half_view.x, _camera.limit_right - half_view.x)
+	target_position.y = clampf(target_position.y, _camera.limit_top + half_view.y, _camera.limit_bottom - half_view.y)
+	if _current_config.camera_stick_bottom:
+		target_position.y = _camera.limit_bottom - half_view.y
+
 	if _camera_tween:
 		_camera_tween.kill()
 	_camera_tween = create_tween().set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
@@ -179,7 +262,46 @@ func _transition_camera() -> void:
 
 func _begin_battle() -> void:
 	_state = BattleState.PLAYING
+
+	if _current_config.attack_type == TutorialBattleConfig.AttackType.CHARGE and _cannon:
+		_battle_active = false
+		_play_cannon_trans()
+		return
+
+	_start_battle_internal()
+
+
+func _play_cannon_trans() -> void:
+	if _cannon == null:
+		_start_battle_internal()
+		return
+	_cannon.visible = true
+	if _cannon.sprite_frames and _cannon.sprite_frames.has_animation("trans"):
+		_cannon.animation = "trans"
+		_cannon.frame = 0
+		_cannon.play("trans")
+		if not _cannon.animation_finished.is_connected(_on_cannon_trans_finished):
+			_cannon.animation_finished.connect(_on_cannon_trans_finished)
+	else:
+		_start_battle_internal()
+
+
+func _on_cannon_trans_finished() -> void:
+	if _cannon and _cannon.animation_finished.is_connected(_on_cannon_trans_finished):
+		_cannon.animation_finished.disconnect(_on_cannon_trans_finished)
+	if _cannon and _cannon.sprite_frames and _cannon.sprite_frames.has_animation("shoot"):
+		_cannon.animation = "shoot"
+		_cannon.frame = 0
+		_cannon.stop()
+	_start_battle_internal()
+
+
+func _start_battle_internal() -> void:
 	_battle_active = true
+	if _game_ui:
+		_game_ui.show()
+	if _battle_ui and _battle_ui.has_method("show_ui"):
+		_battle_ui.show_ui()
 
 	if _player:
 		_player.set_physics_process(false)
@@ -196,8 +318,17 @@ func _begin_battle() -> void:
 		_beat_manager.next_beat_time = 0.0
 		_beat_manager.is_playing = false
 		_beat_manager.current_chart = null
+		_beat_manager.chart_sm_path = ""
+		_beat_manager.generate_test_chart = false
 
 	EventBus.beat_interval = _beat_interval
+
+	_missile_target_times.clear()
+	_missile_fired_count = 0
+
+	if _current_config.attack_type == TutorialBattleConfig.AttackType.ALTERNATING_MISSILE_CHARGE:
+		_next_attack_type = int(Note.NoteType.HIT)
+		_last_successful_type = -1
 
 	_generate_and_emit_chart()
 
@@ -210,7 +341,6 @@ func _begin_battle() -> void:
 
 
 func _generate_and_emit_chart() -> void:
-	var note_type: Note.NoteType = _config_attack_type_to_note_type(_current_config.attack_type)
 	var chart := Chart.new()
 	chart.chart_name = "Tutorial Battle %d" % _current_config.battle_id
 	chart.bpm = _current_config.bpm
@@ -226,7 +356,20 @@ func _generate_and_emit_chart() -> void:
 		var note := Note.new()
 		note.beat_number = beat_num
 		note.beat_time = effective_offset + beat_num * _beat_interval
-		note.type = note_type
+		
+		if _current_config.attack_type == TutorialBattleConfig.AttackType.ALTERNATING_MISSILE_CHARGE:
+			note.type = _next_attack_type as Note.NoteType
+			if _next_attack_type == int(Note.NoteType.HIT):
+				_next_attack_type = int(Note.NoteType.DODGE)
+				_missile_target_times.append(note.beat_time)
+			else:
+				_next_attack_type = int(Note.NoteType.HIT)
+		else:
+			var note_type: Note.NoteType = _config_attack_type_to_note_type(_current_config.attack_type)
+			note.type = note_type
+			if note_type == Note.NoteType.HIT:
+				_missile_target_times.append(note.beat_time)
+		
 		chart.add_note(note)
 		if beat_num > _last_generated_beat:
 			_last_generated_beat = beat_num
@@ -249,7 +392,6 @@ func _config_attack_type_to_note_type(attack_type: TutorialBattleConfig.AttackTy
 func _append_more_notes() -> void:
 	if _current_config == null or _track_manager == null:
 		return
-	var note_type: Note.NoteType = _config_attack_type_to_note_type(_current_config.attack_type)
 	var effective_offset: float = _current_config.offset
 	if _beat_manager:
 		effective_offset += _beat_manager.user_offset
@@ -260,7 +402,20 @@ func _append_more_notes() -> void:
 		var note := Note.new()
 		note.beat_number = beat_num
 		note.beat_time = effective_offset + beat_num * _beat_interval
-		note.type = note_type
+		
+		if _current_config.attack_type == TutorialBattleConfig.AttackType.ALTERNATING_MISSILE_CHARGE:
+			note.type = _next_attack_type as Note.NoteType
+			if _next_attack_type == int(Note.NoteType.HIT):
+				_next_attack_type = int(Note.NoteType.DODGE)
+				_missile_target_times.append(note.beat_time)
+			else:
+				_next_attack_type = int(Note.NoteType.HIT)
+		else:
+			var note_type: Note.NoteType = _config_attack_type_to_note_type(_current_config.attack_type)
+			note.type = note_type
+			if note_type == Note.NoteType.HIT:
+				_missile_target_times.append(note.beat_time)
+		
 		new_notes.append(note)
 	_last_generated_beat = _last_generated_beat + float(batch_size * _current_config.beat_interval_beats)
 	if _track_manager.has_method("append_scheduled_notes"):
@@ -273,12 +428,38 @@ func _on_judgment_made(track: int, judgment: int, _timing_diff: float) -> void:
 	if _current_config == null:
 		return
 
-	var expected_note_type: Note.NoteType = _config_attack_type_to_note_type(_current_config.attack_type)
-	if track != expected_note_type:
+	var is_valid_judgment: bool = false
+	
+	if _current_config.attack_type == TutorialBattleConfig.AttackType.ALTERNATING_MISSILE_CHARGE:
+		if track == int(Note.NoteType.HIT) or track == int(Note.NoteType.DODGE):
+			is_valid_judgment = true
+	else:
+		var expected_note_type: Note.NoteType = _config_attack_type_to_note_type(_current_config.attack_type)
+		if track == expected_note_type:
+			is_valid_judgment = true
+	
+	if not is_valid_judgment:
 		return
 
 	if judgment != 3:
-		_success_count += 1
+		if _current_config.attack_type == TutorialBattleConfig.AttackType.ALTERNATING_MISSILE_CHARGE:
+			if track == int(Note.NoteType.HIT):
+				if _last_successful_type == int(Note.NoteType.DODGE):
+					_success_count += 1
+					_last_successful_type = -1
+				else:
+					_last_successful_type = int(Note.NoteType.HIT)
+			elif track == int(Note.NoteType.DODGE):
+				if _last_successful_type == int(Note.NoteType.HIT):
+					_success_count += 1
+					_last_successful_type = -1
+				else:
+					_last_successful_type = int(Note.NoteType.DODGE)
+		else:
+			_success_count += 1
+		
+		if _battle_ui and _battle_ui.has_method("set_progress"):
+			_battle_ui.set_progress(_success_count)
 		if _success_count >= _current_config.required_successes and not _ending_scheduled:
 			_battle_active = false
 			_ending_scheduled = true
@@ -290,6 +471,11 @@ func _end_battle() -> void:
 	_state = BattleState.ENDED
 	_battle_active = false
 	_ending_scheduled = false
+	_cannon_bullet_fired = false
+	_clear_active_cannon_bullet()
+
+	if _battle_ui and _battle_ui.has_method("hide_ui"):
+		_battle_ui.hide_ui()
 
 	if _track_manager and _track_manager.has_method("clear_all_notes"):
 		_track_manager.clear_all_notes()
@@ -341,3 +527,209 @@ func get_required_successes() -> int:
 	if _current_config:
 		return _current_config.required_successes
 	return 0
+
+
+func _try_fire_cannon_bullet() -> void:
+	if _cannon == null or not is_instance_valid(_cannon):
+		return
+	if _cannon.animation != "shoot":
+		if _cannon_bullet_fired:
+			_cannon_bullet_fired = false
+			_cannon_warn_played = false
+		return
+	if not _cannon.is_playing():
+		if _cannon_bullet_fired:
+			_cannon_bullet_fired = false
+			_cannon_warn_played = false
+		return
+	if _cannon.frame == 0 and _cannon.frame_progress < 0.1:
+		_cannon_bullet_fired = false
+		_cannon_warn_played = false
+	if not _cannon_warn_played:
+		_cannon_warn_played = true
+		_play_cannon_sound(cannon_charge_warn_sound)
+	if _cannon_bullet_fired:
+		return
+	if _cannon.frame < cannon_bullet_fire_frame:
+		return
+	_cannon_bullet_fired = true
+	_play_cannon_sound(cannon_charge_attack_sound)
+	_spawn_cannon_bullet()
+
+
+func _play_cannon_sound(stream: AudioStream) -> void:
+	if stream == null:
+		return
+	SFXManager.play_stream(stream, -5.0)
+
+
+func _spawn_cannon_bullet() -> void:
+	if cannon_bullet_scene == null:
+		return
+	if _cannon == null or not is_instance_valid(_cannon):
+		return
+
+	var spawn_node: Node2D = _cannon_bullet_spawn_node
+	if spawn_node == null or not is_instance_valid(spawn_node):
+		spawn_node = _cannon
+	if spawn_node == null:
+		return
+
+	if _player == null or not is_instance_valid(_player):
+		return
+
+	var sprite_frames: SpriteFrames = _cannon.sprite_frames
+	if sprite_frames == null or not sprite_frames.has_animation("shoot"):
+		return
+
+	var base_fps: float = sprite_frames.get_animation_speed("shoot")
+	var fire_to_hit_duration: float = 0.12
+	var hit_to_despawn_duration: float = 0.05
+	if base_fps > 0.0:
+		var units_fire_to_hit: float = 0.0
+		for i in range(cannon_bullet_fire_frame, mini(cannon_bullet_hit_frame, sprite_frames.get_frame_count("shoot"))):
+			units_fire_to_hit += sprite_frames.get_frame_duration("shoot", i)
+		var units_hit_to_despawn: float = 0.0
+		for i in range(cannon_bullet_hit_frame, mini(cannon_bullet_despawn_frame, sprite_frames.get_frame_count("shoot"))):
+			units_hit_to_despawn += sprite_frames.get_frame_duration("shoot", i)
+		var speed_scale: float = maxf(0.01, _cannon.speed_scale)
+		fire_to_hit_duration = maxf(0.01, units_fire_to_hit / base_fps / speed_scale)
+		hit_to_despawn_duration = maxf(0.01, units_hit_to_despawn / base_fps / speed_scale)
+
+	_clear_active_cannon_bullet()
+
+	var bullet: Node2D = cannon_bullet_scene.instantiate() as Node2D
+	if bullet == null:
+		return
+
+	var scene_root: Node = get_tree().current_scene
+	if scene_root == null:
+		scene_root = get_parent()
+	if scene_root == null:
+		return
+
+	scene_root.add_child(bullet)
+	bullet.global_position = spawn_node.global_position
+
+	var player_pos: Vector2 = _player.global_position
+	var to_target: Vector2 = player_pos - bullet.global_position
+	var move_dir: Vector2 = Vector2.DOWN
+	if to_target.length_squared() > 0.0001:
+		move_dir = to_target.normalized()
+
+	var hit_pos: Vector2 = player_pos - move_dir * maxf(0.0, cannon_bullet_hit_distance_from_player)
+	_active_cannon_bullet = bullet
+
+	if move_dir.length_squared() > 0.0001:
+		bullet.global_rotation = Vector2.UP.angle_to(move_dir) + PI
+
+	var fly_tween: Tween = bullet.create_tween()
+	fly_tween.tween_property(bullet, "global_position", hit_pos, fire_to_hit_duration).set_trans(Tween.TRANS_LINEAR).set_ease(Tween.EASE_IN_OUT)
+	if hit_to_despawn_duration > 0.0:
+		fly_tween.tween_interval(hit_to_despawn_duration)
+	var bullet_instance_id: int = bullet.get_instance_id()
+	fly_tween.tween_callback(_on_cannon_bullet_finished.bind(bullet_instance_id))
+
+
+func _on_cannon_bullet_finished(bullet_instance_id: int) -> void:
+	var bullet_obj: Object = instance_from_id(bullet_instance_id)
+	var bullet_node: Node2D = bullet_obj as Node2D
+	if bullet_node != null and is_instance_valid(bullet_node):
+		bullet_node.queue_free()
+	if _active_cannon_bullet == bullet_node:
+		_active_cannon_bullet = null
+
+
+func _clear_active_cannon_bullet() -> void:
+	if _active_cannon_bullet != null and is_instance_valid(_active_cannon_bullet):
+		_active_cannon_bullet.queue_free()
+	_active_cannon_bullet = null
+
+
+
+func _spawn_missile(target_time: float) -> void:
+	if missile_scene == null:
+		return
+	if _missile_launch_node == null or not is_instance_valid(_missile_launch_node):
+		return
+	if _player == null or not is_instance_valid(_player):
+		return
+
+	var current_time: float = _music_player.get_playback_position() + AudioServer.get_time_to_next_mix() if _music_player else 0.0
+	var travel_duration: float = maxf(0.1, target_time - current_time)
+
+	_clear_active_missile()
+
+	var missile: Node2D = missile_scene.instantiate() as Node2D
+	if missile == null:
+		return
+
+	var scene_root: Node = get_tree().current_scene
+	if scene_root == null:
+		scene_root = get_parent()
+	if scene_root == null:
+		return
+
+	scene_root.add_child(missile)
+	missile.global_position = _missile_launch_node.global_position
+	_active_missile = missile
+
+	_play_missile_sound()
+
+	var player_pos: Vector2 = _player.global_position
+	var to_target: Vector2 = player_pos - missile.global_position
+	var move_dir: Vector2 = Vector2.DOWN
+	if to_target.length_squared() > 0.0001:
+		move_dir = to_target.normalized()
+
+	var hit_pos: Vector2 = player_pos - move_dir * maxf(0.0, missile_hit_distance_from_player)
+
+	if move_dir.length_squared() > 0.0001:
+		missile.global_rotation = Vector2.UP.angle_to(move_dir)
+
+	var fly_tween: Tween = missile.create_tween()
+	fly_tween.tween_property(missile, "global_position", hit_pos, maxf(0.01, travel_duration)).set_trans(Tween.TRANS_LINEAR).set_ease(Tween.EASE_IN_OUT)
+	var missile_instance_id: int = missile.get_instance_id()
+	fly_tween.tween_callback(_on_missile_finished.bind(missile_instance_id))
+
+
+func _play_missile_sound() -> void:
+	if missile_attack_sound == null:
+		return
+	SFXManager.play_stream(missile_attack_sound, -5.0)
+
+
+func _on_missile_finished(missile_instance_id: int) -> void:
+	var missile_obj: Object = instance_from_id(missile_instance_id)
+	var missile_node: Node2D = missile_obj as Node2D
+	if missile_node != null and is_instance_valid(missile_node):
+		missile_node.queue_free()
+	if _active_missile == missile_node:
+		_active_missile = null
+
+
+func _clear_active_missile() -> void:
+	if _active_missile != null and is_instance_valid(_active_missile):
+		_active_missile.queue_free()
+	_active_missile = null
+
+
+func _try_fire_missiles() -> void:
+	if _current_config.attack_type != TutorialBattleConfig.AttackType.ALTERNATING_MISSILE_CHARGE:
+		return
+	if _music_player == null:
+		return
+
+	var current_time: float = _music_player.get_playback_position() + AudioServer.get_time_to_next_mix()
+	var beat_interval: float = EventBus.beat_interval
+	if beat_interval <= 0.0:
+		beat_interval = 0.5
+
+	while _missile_fired_count < _missile_target_times.size():
+		var target_time: float = _missile_target_times[_missile_fired_count]
+		var spawn_time: float = target_time - 3.0 * beat_interval
+		if current_time >= spawn_time:
+			_missile_fired_count += 1
+			_spawn_missile(target_time)
+		else:
+			break

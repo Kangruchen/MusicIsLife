@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3 uid="uid://tut_battle_ui"]
+
+[ext_resource type="Script" path="res://scripts/TutorialBattleUI.gd" id="1_tut_ui"]
+
+[node name="TutorialBattleUI" type="CanvasLayer"]
+script = ExtResource("1_tut_ui")
+total_boxes = 4
+box_size = Vector2(60, 60)
+box_spacing = 20.0

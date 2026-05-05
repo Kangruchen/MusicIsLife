@@ -77,6 +77,12 @@ var _boss_origin_position: Vector2 = Vector2.ZERO
 @export_node_path("AnimatedSprite2D") var guard_external_anim_sprite_path: NodePath
 @export_node_path("AnimatedSprite2D") var hit_external_anim_sprite_path: NodePath
 @export_node_path("AnimatedSprite2D") var dodge_external_anim_sprite_path: NodePath
+@export var dodge_external_anim_persistent: bool = false
+@export_group("")
+
+# 教程模式配置
+@export_group("教程模式")
+@export var tutorial_mode: bool = false
 @export_group("")
 
 # 预警特效轮换播放位置节点（在主动画前1拍显示，数量应与对应轨道动画位置节点一致）
@@ -171,7 +177,11 @@ func _ready() -> void:
 		var external_sprite: AnimatedSprite2D = _get_external_anim_sprite(note_type)
 		if external_sprite:
 			external_sprite.stop()
-			external_sprite.visible = false
+			var persistent: bool = false
+			if note_type == Note.NoteType.DODGE:
+				persistent = dodge_external_anim_persistent
+			if not persistent:
+				external_sprite.visible = false
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -438,7 +448,7 @@ func _check_and_spawn_notes_by_time(now_time: float) -> void:
 					" now=", "%.3f" % now_time,
 					" spawn_time=", "%.3f" % spawn_time)
 
-			if (note.type == Note.NoteType.HIT or note.type == Note.NoteType.DODGE) and not _is_attack_visual_ready_for_note(note.type):
+			if (note.type == Note.NoteType.HIT or note.type == Note.NoteType.DODGE) and not tutorial_mode and not _is_attack_visual_ready_for_note(note.type):
 				scheduled_notes.erase(note)
 				_missile_request_sent_notes.erase(note)
 				_charge_request_sent_notes.erase(note)
@@ -551,8 +561,11 @@ func _spawn_note(note: Note) -> void:
 
 	# HIT / DODGE 轨道改为驱动 Boss 状态机攻击状态，不再走原轨道特效
 	# DODGE 的蓄力请求在 _check_and_spawn_notes_by_time 中提前发送。
-	if note.type != Note.NoteType.HIT and note.type != Note.NoteType.DODGE:
-		# 其他轨道沿用原特效逻辑
+	# 教程模式下 HIT/DIT/DODGE 均使用外部动画节点，需要生成轨道动画
+	var skip_track_anim: bool = (note.type == Note.NoteType.HIT or note.type == Note.NoteType.DODGE) and not tutorial_mode
+	if tutorial_mode and note.type == Note.NoteType.HIT and not _has_external_anim_path(note.type):
+		skip_track_anim = true
+	if not skip_track_anim:
 		_spawn_track_animation(note)
 
 	if note_visual_enabled:
@@ -769,7 +782,11 @@ func _invalidate_effect_callbacks() -> void:
 		var sprite: AnimatedSprite2D = _get_external_anim_sprite(note_type)
 		if sprite and is_instance_valid(sprite):
 			sprite.stop()
-			sprite.visible = false
+			var persistent: bool = false
+			if note_type == Note.NoteType.DODGE:
+				persistent = dodge_external_anim_persistent
+			if not persistent:
+				sprite.visible = false
 
 	SFXManager.stop_all()
 
@@ -823,6 +840,8 @@ func resume_note_spawning() -> void:
 
 
 func _on_attack_phase_started() -> void:
+	if tutorial_mode:
+		return
 	_attack_phase_blocked = true
 	pause_note_spawning()
 	clear_all_notes()
@@ -1133,38 +1152,48 @@ func _play_external_track_animation(note: Note, target_beats: int, configured_an
 	var remaining_to_judge: float = note.beat_time - current_time
 	if remaining_to_judge > 0.0:
 		target_duration = remaining_to_judge
-	var start_delay: float = 0.0
+
+	var start_frame: int = 0
 	var attack_end_frame: int = -1
 	if track_animation_config:
+		start_frame = track_animation_config.get_start_frame(note.type)
 		attack_end_frame = track_animation_config.get_attack_end_frame(note.type)
 
 	var frame_count: int = sprite_frames.get_frame_count(anim_name)
-	if attack_end_frame > 0 and attack_end_frame < frame_count:
-		var partial_duration: float = _get_animation_duration(sprite_frames, anim_name, 0, attack_end_frame - 1)
-		start_delay = maxf(0.0, target_duration - partial_duration)
+	start_frame = clampi(start_frame, 0, frame_count - 1)
+	if attack_end_frame < 0 or attack_end_frame >= frame_count:
+		attack_end_frame = frame_count - 1
+	if attack_end_frame < start_frame:
+		attack_end_frame = start_frame
 
-	# 更新令牌，保证同轨道只执行最新一次触发
+	var speed_scale: float = 1.0
+	var base_duration: float = 0.0
+	if attack_end_frame > start_frame:
+		base_duration = _get_animation_duration(sprite_frames, anim_name, start_frame, attack_end_frame - 1)
+	if base_duration > 0.0 and target_duration > 0.0:
+		speed_scale = base_duration / target_duration
+
+	var full_duration: float = _get_animation_duration(sprite_frames, anim_name, start_frame, frame_count - 1)
+	var play_duration: float = target_duration
+	if speed_scale > 0.0 and full_duration > 0.0:
+		play_duration = full_duration / speed_scale
+
 	var token: int = _external_anim_tokens[note.type] + 1
 	_external_anim_tokens[note.type] = token
 
-	var play_duration: float = maxf(0.05, target_duration - start_delay)
 	var runtime_token: int = _effect_runtime_token
 	var note_type: int = int(note.type)
 	var anim_sprite_id: int = anim_sprite.get_instance_id()
 
-	if start_delay > 0.01:
-		get_tree().create_timer(start_delay).timeout.connect(
-			_on_external_anim_start_timeout.bind(note_type, token, runtime_token, anim_sprite_id, anim_name, play_duration)
-		)
-	else:
-		_start_external_track_animation(note_type, token, runtime_token, anim_sprite_id, anim_name, play_duration)
+	print("[ExtAnim] %s | anim=%s | frames=%d | start=%d | end=%d | base_dur=%.4f | target_dur=%.4f | speed=%.4f | play_dur=%.4f | remaining=%.4f | bi=%.4f" % [
+		note.get_type_string(), anim_name, frame_count, start_frame, attack_end_frame,
+		base_duration, target_duration, speed_scale, play_duration, remaining_to_judge, EventBus.beat_interval
+	])
+
+	_start_external_track_animation(note_type, token, runtime_token, anim_sprite_id, anim_name, play_duration, speed_scale, start_frame)
 
 
-func _on_external_anim_start_timeout(note_type: int, token: int, runtime_token: int, anim_sprite_id: int, anim_name: String, play_duration: float) -> void:
-	_start_external_track_animation(note_type, token, runtime_token, anim_sprite_id, anim_name, play_duration)
-
-
-func _start_external_track_animation(note_type: int, token: int, runtime_token: int, anim_sprite_id: int, anim_name: String, play_duration: float) -> void:
+func _start_external_track_animation(note_type: int, token: int, runtime_token: int, anim_sprite_id: int, anim_name: String, play_duration: float, speed_scale: float = 1.0, start_frame: int = 0) -> void:
 	if _external_anim_tokens[note_type] != token:
 		return
 	if runtime_token != _effect_runtime_token or _attack_phase_blocked:
@@ -1177,12 +1206,17 @@ func _start_external_track_animation(note_type: int, token: int, runtime_token: 
 
 	anim_sprite.visible = true
 	anim_sprite.stop()
-	anim_sprite.frame = 0
-	anim_sprite.frame_progress = 0.0
-	anim_sprite.speed_scale = 1.0
+	anim_sprite.speed_scale = maxf(0.01, speed_scale)
 	anim_sprite.play(anim_name)
+	anim_sprite.frame = start_frame
+	anim_sprite.frame_progress = 0.0
 
-	get_tree().create_timer(play_duration).timeout.connect(
+	print("[ExtAnim] PLAY t=%.3f frame=%d progress=%.3f speed=%.4f anim=%s" % [
+		Time.get_ticks_msec() / 1000.0, anim_sprite.frame, anim_sprite.frame_progress,
+		anim_sprite.speed_scale, anim_name
+	])
+
+	get_tree().create_timer(maxf(0.05, play_duration)).timeout.connect(
 		_on_external_anim_stop_timeout.bind(note_type, token, runtime_token, anim_sprite_id)
 	)
 
@@ -1196,8 +1230,16 @@ func _on_external_anim_stop_timeout(note_type: int, token: int, runtime_token: i
 	var anim_obj: Object = instance_from_id(anim_sprite_id)
 	var anim_sprite: AnimatedSprite2D = anim_obj as AnimatedSprite2D
 	if anim_sprite != null and is_instance_valid(anim_sprite):
-		anim_sprite.stop()
-		anim_sprite.visible = false
+		var persistent: bool = false
+		if note_type == int(Note.NoteType.DODGE):
+			persistent = dodge_external_anim_persistent
+		if persistent:
+			anim_sprite.stop()
+			if anim_sprite.sprite_frames and anim_sprite.sprite_frames.has_animation(String(anim_sprite.animation)):
+				anim_sprite.frame = 0
+		else:
+			anim_sprite.stop()
+			anim_sprite.visible = false
 
 
 ## 解析可用动画名：优先请求名，失败后回退到轨道默认名，再回退到第一个可用动画

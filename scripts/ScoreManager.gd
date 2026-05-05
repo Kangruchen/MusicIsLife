@@ -8,9 +8,10 @@ var current_player_health: float = 0.0
 var current_boss_health: float = 0.0
 var current_boss_energy: float = 0.0
 var temporary_energy_reduce: float = 0.0
-var is_next_attack_charged: bool = false  # 下次攻击是否为蓄力版本
+var is_next_attack_charged: bool = false
 var pending_attack_hits: Array[Dictionary] = []
 var is_game_over: bool = false
+@export var enabled: bool = true
 
 const PENDING_ATTACK_TIMEOUT: float = 0.6
 
@@ -55,7 +56,7 @@ func _emit_health_update() -> void:
 
 ## 判定触发回调
 func _on_judgment_made(track: int, judgment: int, _timing_diff: float) -> void:
-	if is_game_over:
+	if is_game_over or not enabled:
 		return
 
 	# 攻击阶段整段暂停窗口内（含退出倒计时到真正恢复前），忽略防御判定，
@@ -253,7 +254,7 @@ func _start_attack_phase(duration: float, bi: float, first_beat_abs_time: float)
 
 ## 处理攻击效果
 func _on_attack_performed(attack_type: int) -> void:
-	if is_game_over:
+	if is_game_over or not enabled:
 		return
 
 	if not GameConfigs.sound:
@@ -354,7 +355,7 @@ func _on_attack_performed(attack_type: int) -> void:
 
 
 func _on_attack_hit_confirmed(attack_type: int, _target: Variant) -> void:
-	if is_game_over:
+	if is_game_over or not enabled:
 		return
 
 	_cleanup_pending_attack_hits()
@@ -465,7 +466,7 @@ func _trigger_player_game_over() -> void:
 
 
 func _on_boss_defeated() -> void:
-	if is_game_over:
+	if is_game_over or not enabled:
 		return
 
 	is_game_over = true

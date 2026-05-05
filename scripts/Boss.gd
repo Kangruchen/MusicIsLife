@@ -509,7 +509,7 @@ func _enter_state(state: BossState) -> void:
 			_play_charge_animation()
 			if not _charge_sfx_played_in_cycle:
 				_charge_sfx_played_in_cycle = true
-				_play_boss_attack_sound(BossAttackSoundConfig.ATTACK_CHARGE_BULLET)
+				_play_boss_attack_sound(BossAttackSoundConfig.ATTACK_CHARGE_WINDUP)
 		BossState.MISSILE_ATTACK:
 			_play_state_animation(attack_animation)
 			_start_missile_attack()
@@ -1628,6 +1628,9 @@ func _on_boss_charge_requested(duration_beats: float) -> void:
 	if lead_beats > _pending_charge_beats:
 		_charge_animation_started_early = true
 		_play_charge_animation(lead_beats * beat_seconds)
+		if not _charge_sfx_played_in_cycle:
+			_charge_sfx_played_in_cycle = true
+			_play_boss_attack_sound(BossAttackSoundConfig.ATTACK_CHARGE_WINDUP)
 	if debug_charge_timing:
 		print("[ChargeDebug][Boss] schedule fire_time=", "%.3f" % _pending_charge_fire_time,
 			" windup_s=", "%.3f" % windup_time)
