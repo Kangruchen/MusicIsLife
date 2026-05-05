@@ -1,5 +1,6 @@
-[gd_scene load_steps=2 format=3 uid="uid://bgai0ghblaof0"]
+[gd_scene load_steps=3 format=3 uid="uid://bgai0ghblaof0"]
 
+[ext_resource type="Texture2D" uid="uid://hh1tg6ctalm3" path="res://playground/dialogue_test/对话框.png" id="1_h2gdc"]
 [ext_resource type="AudioStream" uid="uid://cgej12qrpf6p6" path="res://playground/dialogue_test/TypingSFX.wav" id="2_16fx3"]
 
 [node name="DialogueUi_tscn" type="Control"]
@@ -10,27 +11,28 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="DialogPanel" type="Panel" parent="."]
+[node name="DialogPanel" type="TextureRect" parent="."]
 layout_mode = 1
 anchors_preset = 7
 anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -205.0
-offset_top = -182.0
-offset_right = 192.0
-offset_bottom = -40.0
+offset_left = -219.0
+offset_top = -322.0
+offset_right = 223.0
 grow_horizontal = 2
 grow_vertical = 0
+texture = ExtResource("1_h2gdc")
+expand_mode = 1
 
 [node name="AvatarRect" type="TextureRect" parent="DialogPanel"]
 layout_mode = 1
 anchors_preset = -1
-anchor_left = 0.025
-anchor_top = 0.33100003
-anchor_right = 0.025
-anchor_bottom = 0.33100003
+anchor_left = 0.7509615
+anchor_top = 0.44721118
+anchor_right = 1.0179298
+anchor_bottom = 0.8136709
 offset_left = 0.07499981
 offset_top = -0.002002716
 offset_right = 48.07501
@@ -44,10 +46,11 @@ anchor_left = 0.171
 anchor_top = 0.194
 anchor_right = 0.171
 anchor_bottom = 0.194
-offset_left = 0.11299896
-offset_top = -12.548
-offset_right = 104.113
-offset_bottom = 12.452
+offset_left = 269.418
+offset_top = 137.532
+offset_right = 309.418
+offset_bottom = 164.532
+text = "主角"
 vertical_alignment = 1
 
 [node name="TextLabel" type="RichTextLabel" parent="DialogPanel"]
@@ -55,10 +58,10 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 68.0
-offset_top = 50.0
-offset_right = -29.0
-offset_bottom = -12.0
+offset_left = 37.0
+offset_top = 236.0
+offset_right = -54.0
+offset_bottom = -29.0
 grow_horizontal = 2
 grow_vertical = 2
 

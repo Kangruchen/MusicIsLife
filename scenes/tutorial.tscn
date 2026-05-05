@@ -1,21 +1,13 @@
-[gd_scene load_steps=33 format=3 uid="uid://6o6cnudua672"]
+[gd_scene load_steps=28 format=3 uid="uid://6o6cnudua672"]
 
-[ext_resource type="Texture2D" uid="uid://dchsy7ncprqnu" path="res://assets/environment/scene_tutorial/工厂背景.png" id="1_c13y7"]
+[ext_resource type="Texture2D" uid="uid://bqgejafdalqmj" path="res://assets/environment/工厂背景.png" id="1_c13y7"]
 [ext_resource type="PackedScene" uid="uid://da8ttcx4kdymg" path="res://scenes/character.tscn" id="2_8ho6b"]
 [ext_resource type="Script" uid="uid://e8i1qf3cicia" path="res://scripts/TutorialPlatformPlayer.gd" id="3_tutorial_player"]
 [ext_resource type="Script" uid="uid://ca0r3f27db17c" path="res://scripts/dialog_trigger.gd" id="4_4kmhl"]
-[ext_resource type="PackedScene" uid="uid://c6yxi20pgmbbx" path="res://scenes/tutorial_scene.tscn" id="4_gbqnl"]
 [ext_resource type="PackedScene" uid="uid://bgai0ghblaof0" path="res://scenes/DialogueUI.tscn.tscn" id="5_cq4me"]
 [ext_resource type="Script" uid="uid://nfo3c4c1ywks" path="res://scenes/dialogue_ui.tscn.gd" id="6_6yjpi"]
-[ext_resource type="Script" uid="uid://hla1t03lkrwg" path="res://scripts/MusicPlayer.gd" id="7_music"]
-[ext_resource type="Script" uid="uid://b4verqg78hh31" path="res://scripts/BeatManager.gd" id="8_beat"]
-[ext_resource type="Script" uid="uid://olseljrkaswj" path="res://scripts/TrackManager.gd" id="9_track"]
-[ext_resource type="Script" uid="uid://dgu5lxyijp7a0" path="res://scripts/InputManager.gd" id="10_input"]
-[ext_resource type="PackedScene" uid="uid://c8jx3vn5qwm4r" path="res://scenes/GameUI.tscn" id="11_game_ui"]
-[ext_resource type="Script" uid="uid://dgm1qpfvnq6t6" path="res://scripts/TutorialBattleManager.gd" id="13_battle_mgr"]
-[ext_resource type="Resource" uid="uid://bbw5bv4ybw0p0" path="res://config/tutorial_battle_1.tres" id="14_battle1"]
-[ext_resource type="Script" uid="uid://dc42mm2n7qheh" path="res://scripts/TutorialBattleConfig.gd" id="14_e13mp"]
-[ext_resource type="Resource" path="res://config/tutorial_track_animation_config.tres" id="15_tut_track_anim"]
+[ext_resource type="Script" uid="uid://c1raarhgki7qr" path="res://playground/dialogue_test/DialogueLine.gd" id="7_ckvwl"]
+[ext_resource type="Texture2D" uid="uid://d3eo1bu6r6og2" path="res://playground/dialogue_test/表情1.png" id="8_nlqja"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ground"]
 size = Vector2(4246, 40)
@@ -50,8 +42,17 @@ size = Vector2(4236, 40)
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_player"]
 size = Vector2(70, 140)
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_e13mp"]
-size = Vector2(1393, 581)
+[sub_resource type="Resource" id="Resource_0epgs"]
+script = ExtResource("7_ckvwl")
+speaker_name = "主角"
+content = "Hello, World!!!"
+avatar = ExtResource("8_nlqja")
+metadata/_custom_type_script = "uid://c1raarhgki7qr"
+
+[sub_resource type="Resource" id="Resource_g2equ"]
+script = ExtResource("7_ckvwl")
+content = "准备好开始试验了吗！"
+metadata/_custom_type_script = "uid://c1raarhgki7qr"
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_0epgs"]
 size = Vector2(126, 135)
@@ -62,8 +63,15 @@ size = Vector2(119.5, 125.25)
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_tbcdj"]
 size = Vector2(166.0625, 132)
 
+[sub_resource type="Resource" id="Resource_ckvwl"]
+script = ExtResource("7_ckvwl")
+content = "准备好迎接终极试验的挑战了么！"
+metadata/_custom_type_script = "uid://c1raarhgki7qr"
+
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ej4tf"]
 size = Vector2(223.5, 95)
+
+[sub_resource type="LabelSettings" id="LabelSettings_ckvwl"]
 
 [node name="Tutorial" type="Node2D"]
 
@@ -74,29 +82,12 @@ size_flags_horizontal = 4
 size_flags_vertical = 4
 script = ExtResource("6_6yjpi")
 player_node = NodePath("../../Player")
-dialog_title = "教学提示"
-dialog1_text = "开始教学"
-dialog2_text = "教学（1）"
-dialog3_text = "教学（2）"
-dialog4_text = "教学（3）"
 
 [node name="Background" type="Sprite2D" parent="."]
-visible = false
 z_index = -10
 position = Vector2(1200, -420)
 scale = Vector2(0.333, 0.333)
 texture = ExtResource("1_c13y7")
-
-[node name="tutorial_scene" parent="." instance=ExtResource("4_gbqnl")]
-position = Vector2(1200, -420)
-
-[node name="PositionNodes" type="Node2D" parent="."]
-
-[node name="Laser1" type="Node2D" parent="PositionNodes"]
-position = Vector2(1100, 80)
-
-[node name="Laser2" type="Node2D" parent="PositionNodes"]
-position = Vector2(1100, 110)
 
 [node name="LevelGeometry" type="StaticBody2D" parent="."]
 
@@ -179,84 +170,52 @@ limit_bottom = 175
 position_smoothing_enabled = true
 position_smoothing_speed = 6.0
 
-[node name="GameManager" type="Node" parent="."]
-
-[node name="MusicPlayer" type="Node" parent="GameManager"]
-script = ExtResource("7_music")
-auto_play = false
-attack_music_path = "res://assets/charts/New Demo/Chrome Pulse_mixed.mp3"
-enable_miss_audio_effect = true
-
-[node name="BeatManager" type="Node" parent="GameManager"]
-script = ExtResource("8_beat")
-generate_test_chart = false
-
-[node name="TrackManager" type="Node" parent="GameManager" node_paths=PackedStringArray("guard_position_nodes", "game_ui")]
-script = ExtResource("9_track")
-track_animation_config = ExtResource("15_tut_track_anim")
-guard_position_nodes = [NodePath("../../PositionNodes/Laser1"), NodePath("../../PositionNodes/Laser2")]
-game_ui = NodePath("../../GameUI")
-hint_player_node_path = NodePath("../../Player")
-hint_guard_offset = Vector2(0, -120)
-
-[node name="InputManager" type="Node" parent="GameManager"]
-script = ExtResource("10_input")
-ignore_empty_press_without_nearby_notes = true
-defense_hit_effect_anchor_path = NodePath("../../Player")
-
-[node name="GameUI" parent="." instance=ExtResource("11_game_ui")]
-
-[node name="TutorialBattleManager" type="Node" parent="."]
-script = ExtResource("13_battle_mgr")
-battle_configs = Array[ExtResource("14_e13mp")]([ExtResource("14_battle1")])
-camera_path = NodePath("../Player/Camera2D")
-player_path = NodePath("../Player")
-game_ui_path = NodePath("../GameUI")
-battle_zone_paths = Array[NodePath]([NodePath("BattleZone1")])
-
-[node name="BattleZone1" type="Area2D" parent="TutorialBattleManager"]
-position = Vector2(1011, 0)
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="TutorialBattleManager/BattleZone1"]
-position = Vector2(54.5, -147.5)
-shape = SubResource("RectangleShape2D_e13mp")
-
 [node name="Trigger1" type="Area2D" parent="." node_paths=PackedStringArray("dialogue_ui")]
-position = Vector2(-220, 78)
 collision_layer = 0
 script = ExtResource("4_4kmhl")
+dialogue_lines = Array[ExtResource("7_ckvwl")]([SubResource("Resource_0epgs"), SubResource("Resource_g2equ")])
 dialogue_ui = NodePath("../UILayer/DialogueUi_tscn")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Trigger1"]
+position = Vector2(-155, 75.5)
 shape = SubResource("RectangleShape2D_0epgs")
 
 [node name="Trigger2" type="Area2D" parent="." node_paths=PackedStringArray("dialogue_ui")]
-position = Vector2(711, 76)
 collision_layer = 0
 script = ExtResource("4_4kmhl")
-dialogue_id = 2
 dialogue_ui = NodePath("../UILayer/DialogueUi_tscn")
-trigger_battle_id = 1
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Trigger2"]
+position = Vector2(1010.75, 81.625)
 shape = SubResource("RectangleShape2D_g2equ")
 
 [node name="Trigger3" type="Area2D" parent="." node_paths=PackedStringArray("dialogue_ui")]
-position = Vector2(2211, 78)
 collision_layer = 0
 script = ExtResource("4_4kmhl")
-dialogue_id = 3
 dialogue_ui = NodePath("../UILayer/DialogueUi_tscn")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Trigger3"]
+position = Vector2(2488, 64)
 shape = SubResource("RectangleShape2D_tbcdj")
 
-[node name="Trigger4" type="Area2D" parent="." node_paths=PackedStringArray("dialogue_ui")]
-position = Vector2(1778, -524)
+[node name="Trigger4" type="Area2D" parent="." node_paths=PackedStringArray("dialogue_ui", "prompt_node")]
 collision_layer = 0
 script = ExtResource("4_4kmhl")
-dialogue_id = 4
+dialogue_lines = Array[ExtResource("7_ckvwl")]([SubResource("Resource_ckvwl")])
 dialogue_ui = NodePath("../UILayer/DialogueUi_tscn")
+require_input = true
+prompt_node = NodePath("Label")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Trigger4"]
+position = Vector2(1150.25, -518.5)
 shape = SubResource("RectangleShape2D_ej4tf")
+
+[node name="Label" type="Label" parent="Trigger4"]
+offset_left = 1104.0
+offset_top = -600.0
+offset_right = 1190.0
+offset_bottom = -569.0
+text = "Press “Y”"
+label_settings = SubResource("LabelSettings_ckvwl")
+horizontal_alignment = 1
+vertical_alignment = 1
