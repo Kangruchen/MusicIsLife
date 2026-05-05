@@ -458,6 +458,8 @@ func _is_attack_visual_ready_for_note(note_type: Note.NoteType) -> bool:
 	if _boss_node == null or not is_instance_valid(_boss_node):
 		_resolve_boss_node()
 	if _boss_node == null or not is_instance_valid(_boss_node):
+		if note_type == Note.NoteType.GUARD:
+			return true
 		return false
 	if _boss_node.has_method("is_track_attack_visual_active"):
 		return bool(_boss_node.call("is_track_attack_visual_active", int(note_type)))
@@ -736,6 +738,18 @@ func clear_all_notes() -> void:
 	for key in _spawn_counters:
 		_spawn_counters[key] = 0
 	print("已清除所有活跃音符")
+
+
+func append_scheduled_notes(notes: Array[Note]) -> void:
+	for note in notes:
+		scheduled_notes.append(note)
+		if note.type == Note.NoteType.HIT:
+			var next_side: int = MISSILE_SIDE_LEFT
+			if _hit_note_side_map.size() > 0:
+				var last_side: int = int(_hit_note_side_map.values()[-1])
+				next_side = MISSILE_SIDE_RIGHT if last_side == MISSILE_SIDE_LEFT else MISSILE_SIDE_LEFT
+			_hit_note_side_map[note] = next_side
+	scheduled_notes.sort_custom(func(a: Note, b: Note) -> bool: return a.beat_time < b.beat_time)
 
 
 func _clear_active_key_hints() -> void:
@@ -1023,6 +1037,8 @@ func _spawn_main_animation(note: Note, target_beats: int, counter: int) -> void:
 		instance.position = Vector2(BLING_BASE_X + x_offset, row_y)
 	
 	# === 播放动画，并应用速度缩放 ===
+	if track_animation_config and track_animation_config.get_flip_h(note.type):
+		instance.scale.x = -instance.scale.x
 	anim_sprite.speed_scale = anim_speed_scale
 	anim_sprite.play(resolved_anim_name)
 	_play_boss_attack_sound_for_note_type(note.type, true)

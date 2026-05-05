@@ -14,6 +14,7 @@ class_name TrackAnimationConfig
 @export var guard_animation_name: String = ""
 ## 攻击结束帧（从 0 计）：动画以原始速度播放，通过延迟启动使该帧恰好在判定时刻开始播放。设为 -1 则不做对齐，立即以原始速度播放
 @export var guard_attack_end_frame: int = -1
+@export var guard_flip_h: bool = false
 
 # === HIT 轨道（3拍，I键） ===
 @export_group("HIT 轨道动画")
@@ -25,6 +26,7 @@ class_name TrackAnimationConfig
 @export var hit_animation_name: String = ""
 ## 攻击结束帧（从 0 计）：动画以原始速度播放，通过延迟启动使该帧恰好在判定时刻开始播放。设为 -1 则不做对齐，立即以原始速度播放
 @export var hit_attack_end_frame: int = -1
+@export var hit_flip_h: bool = false
 
 # === DODGE 轨道（4拍） ===
 @export_group("DODGE 轨道动画")
@@ -36,6 +38,7 @@ class_name TrackAnimationConfig
 @export var dodge_animation_name: String = ""
 ## 攻击结束帧（从 0 计）：动画以原始速度播放，通过延迟启动使该帧恰好在判定时刻开始播放。设为 -1 则不做对齐，立即以原始速度播放
 @export var dodge_attack_end_frame: int = -1
+@export var dodge_flip_h: bool = false
 
 
 ## 获取指定音符类型的预警场景，未配置返回 null
@@ -84,3 +87,14 @@ func get_attack_end_frame(note_type: Note.NoteType) -> int:
 		Note.NoteType.DODGE:
 			return dodge_attack_end_frame
 	return -1
+
+
+func get_flip_h(note_type: Note.NoteType) -> bool:
+	match note_type:
+		Note.NoteType.GUARD:
+			return guard_flip_h
+		Note.NoteType.HIT:
+			return hit_flip_h
+		Note.NoteType.DODGE:
+			return dodge_flip_h
+	return false

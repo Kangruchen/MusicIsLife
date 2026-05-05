@@ -1,24 +1,31 @@
 extends Area2D
 class_name DialogueTrigger
 
-# 在编辑器右侧配置这个触发器播放第几段对话 (1, 2, 3, 4)
 @export var dialogue_id: int = 1
-# 把你场景里的 DialogueUi_tscn 节点拖到这个槽位里
-@export var dialogue_ui: DialogueUI 
+@export var dialogue_ui: DialogueUI
+@export var trigger_battle_id: int = 0
 
 func _ready() -> void:
-	# 使用信号解耦，连接碰撞进入事件
 	body_entered.connect(_on_body_entered)
 
 func _on_body_entered(body: Node2D) -> void:
-	# 确保是排查玩家触发的，假设你的玩家节点叫 "Player"
 	if body.name == "Player":
 		if dialogue_ui and not dialogue_ui.is_busy:
 			_trigger_dialogue()
-			# 触发后销毁该触发器，防止再次走进来重复触发
-			queue_free()
+			monitoring = false
+			monitorable = false
 
 func _trigger_dialogue() -> void:
+	if trigger_battle_id > 0 and dialogue_ui:
+		if not dialogue_ui.dialogue_closed.is_connected(_on_dialogue_closed):
+			dialogue_ui.dialogue_closed.connect(_on_dialogue_closed)
+		var battle_manager: TutorialBattleManager = _get_battle_manager()
+		if battle_manager:
+			battle_manager.prepare_battle(trigger_battle_id)
+	else:
+		if dialogue_ui and dialogue_ui.dialogue_closed.is_connected(_on_dialogue_closed):
+			dialogue_ui.dialogue_closed.disconnect(_on_dialogue_closed)
+		queue_free()
 	match dialogue_id:
 		1:
 			dialogue_ui.show_dialog1()
@@ -30,3 +37,20 @@ func _trigger_dialogue() -> void:
 			dialogue_ui.show_dialog4()
 		_:
 			push_warning("未知的 Dialogue ID")
+
+func _on_dialogue_closed(closed_id: int) -> void:
+	if closed_id != dialogue_id:
+		return
+	if dialogue_ui and dialogue_ui.dialogue_closed.is_connected(_on_dialogue_closed):
+		dialogue_ui.dialogue_closed.disconnect(_on_dialogue_closed)
+	if trigger_battle_id > 0:
+		var battle_manager: TutorialBattleManager = _get_battle_manager()
+		if battle_manager:
+			battle_manager.start_battle(trigger_battle_id)
+	queue_free()
+
+func _get_battle_manager() -> TutorialBattleManager:
+	var root: Node = get_tree().current_scene
+	if root:
+		return root.find_child("TutorialBattleManager", true, false) as TutorialBattleManager
+	return null

@@ -15,20 +15,34 @@ extends CharacterBody2D
 @export_range(0.05, 0.5, 0.01) var drop_through_duration: float = 0.16
 @export var drop_down_push_speed: float = 140.0
 
+@export_group("Battle Animations")
+@export var guard_anim: String = "Guard"
+@export var hit_anim: String = "Attack1"
+@export var dodge_anim: String = "Dodge"
+
 @onready var animated_sprite: AnimatedSprite2D = get_node_or_null("CharacterVisual/AnimatedSprite2D") as AnimatedSprite2D
 
 var _gravity: float = 980.0
 var _drop_through_timer: float = 0.0
 var _disabled_one_way_shapes: Array[CollisionShape2D] = []
+var _in_battle: bool = false
+var _battle_anim_playing: bool = false
 
 
 func _ready() -> void:
 	_gravity = ProjectSettings.get_setting("physics/2d/default_gravity") as float
 	floor_max_angle = deg_to_rad(walkable_slope_angle_degrees)
 	_play_idle()
+	EventBus.defense_key_pressed.connect(_on_defense_key_pressed)
+	EventBus.judgment_made.connect(_on_judgment_made)
+	if animated_sprite:
+		animated_sprite.animation_finished.connect(_on_animation_finished)
 
 
 func _physics_process(delta: float) -> void:
+	if _in_battle:
+		return
+
 	_update_drop_through_timer(delta)
 
 	if not is_on_floor():
@@ -45,6 +59,64 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	_update_visual_animation(input_axis)
 	_update_visual_facing()
+
+
+func enter_battle() -> void:
+	_in_battle = true
+	velocity = Vector2.ZERO
+	_play_idle()
+
+
+func exit_battle() -> void:
+	_in_battle = false
+	_battle_anim_playing = false
+
+
+func _on_defense_key_pressed(track: Note.NoteType) -> void:
+	if not _in_battle:
+		return
+	var anim_name: String = ""
+	match track:
+		Note.NoteType.GUARD: anim_name = guard_anim
+		Note.NoteType.HIT: anim_name = hit_anim
+		Note.NoteType.DODGE: anim_name = dodge_anim
+	if anim_name.is_empty():
+		return
+	_battle_anim_playing = true
+	_play_anim(anim_name)
+
+
+func _on_animation_finished() -> void:
+	if _in_battle and _battle_anim_playing:
+		_battle_anim_playing = false
+		_play_idle()
+
+
+func _on_judgment_made(_track: int, judgment: int, _timing_diff: float) -> void:
+	if not _in_battle:
+		return
+	if judgment == 3:
+		_play_defense_miss_flash()
+
+
+func _play_defense_miss_flash() -> void:
+	if animated_sprite == null:
+		return
+	var tween: Tween = create_tween()
+	animated_sprite.modulate = Color(1.0, 0.28, 0.28, 1.0)
+	tween.set_trans(Tween.TRANS_SINE)
+	tween.set_ease(Tween.EASE_OUT)
+	tween.tween_property(animated_sprite, "modulate", Color(1.0, 1.0, 1.0, 1.0), 0.14)
+
+
+func _play_anim(anim_name: String) -> void:
+	if animated_sprite == null:
+		return
+	if animated_sprite.sprite_frames == null:
+		return
+	if not animated_sprite.sprite_frames.has_animation(anim_name):
+		return
+	animated_sprite.play(anim_name)
 
 
 func _update_drop_through_timer(delta: float) -> void:
@@ -87,7 +159,6 @@ func _find_current_floor_one_way_shapes() -> Array[CollisionShape2D]:
 		if collision == null:
 			continue
 
-		# 与 up_direction 同向（默认向上）可视作地面碰撞。
 		if collision.get_normal().dot(up_direction) < 0.6:
 			continue
 
@@ -153,5 +224,4 @@ func _update_visual_facing() -> void:
 	if absf(velocity.x) < 1.0:
 		return
 
-	# 与 Character.gd 保持一致：向右移动时 flip_h = true。
 	animated_sprite.flip_h = velocity.x > 0.0

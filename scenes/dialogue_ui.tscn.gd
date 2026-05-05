@@ -1,6 +1,8 @@
 extends Control
 class_name DialogueUI
 
+signal dialogue_closed(dialog_id: int)
+
 @export var player_node: Node2D = null
 @export var dialog_title: String = ""
 @export var dialog1_text: String = ""
@@ -17,17 +19,19 @@ class_name DialogueUI
 var is_busy: bool = false
 var is_typing: bool = false
 var wait_for_close: bool = false
+var _current_dialog_id: int = 0
 
 func _ready() -> void:
 	visible = false
 	dialog_panel.visible = false
 
-func show_dialog1() -> void: _open(dialog1_text)
-func show_dialog2() -> void: _open(dialog2_text)
-func show_dialog3() -> void: _open(dialog3_text)
-func show_dialog4() -> void: _open(dialog4_text)
+func show_dialog1() -> void: _open(dialog1_text, 1)
+func show_dialog2() -> void: _open(dialog2_text, 2)
+func show_dialog3() -> void: _open(dialog3_text, 3)
+func show_dialog4() -> void: _open(dialog4_text, 4)
 
-func _open(content: String) -> void:
+func _open(content: String, dialog_id: int = 0) -> void:
+	_current_dialog_id = dialog_id
 	if is_busy or content == "": return
 	is_busy = true
 	wait_for_close = false
@@ -94,12 +98,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 func _close_dialogue() -> void:
+	var closed_id: int = _current_dialog_id
 	visible = false
 	dialog_panel.visible = false
 	is_busy = false
 	wait_for_close = false
+	_current_dialog_id = 0
 
-	# 解锁玩家操作
 	if player_node:
 		player_node.set_process_input(true)
 		player_node.set_physics_process(true)
+
+	dialogue_closed.emit(closed_id)

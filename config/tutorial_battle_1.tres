@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="TutorialBattleConfig" load_steps=2 format=3 uid="uid://bbw5bv4ybw0p0"]
+
+[ext_resource type="Script" uid="uid://dc42mm2n7qheh" path="res://scripts/TutorialBattleConfig.gd" id="1_config"]
+
+[resource]
+script = ExtResource("1_config")
+beat_interval_beats = 8
+bpm = 109.0
+offset = 0.007442
+start_delay_beats = 6
+music_path = "uid://cyvxtvuk4kkc5"
