@@ -858,6 +858,10 @@ func _on_judgment_made(_track: int, _judgment: int, _timing_diff: float) -> void
 
 
 func _can_show_prejudge_hint(note_type: Note.NoteType) -> bool:
+	# 教学模式下强制全程显示按键提示
+	if tutorial_mode:
+		return true
+	
 	# 全程显示：忽略每轨显示次数上限
 	if prejudge_key_hint_display_mode == 0:
 		return true

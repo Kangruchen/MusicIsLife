@@ -498,5 +498,5 @@ texture = ExtResource("17_50lb2")
 texture = ExtResource("6_hufqx")
 
 [node name="Light" type="Sprite2D" parent="."]
-self_modulate = Color(1, 1, 1, 0.19607843)
+self_modulate = Color(1, 1, 1, 0.5882353)
 texture = ExtResource("18_xptte")

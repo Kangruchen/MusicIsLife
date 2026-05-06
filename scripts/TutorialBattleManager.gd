@@ -41,6 +41,8 @@ var _state: BattleState = BattleState.IDLE
 var _current_battle_index: int = -1
 var _current_config: TutorialBattleConfig = null
 var _success_count: int = 0
+var _cannon_success_count: int = 0
+var _missile_success_count: int = 0
 var _camera: Camera2D = null
 var _player: CharacterBody2D = null
 var _game_ui: CanvasLayer = null
@@ -84,13 +86,15 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	if _state != BattleState.PLAYING or not _battle_active:
+	if _state != BattleState.PLAYING:
 		return
-	if _track_manager and _track_manager.scheduled_notes.size() <= 4:
-		_append_more_notes()
+	if _battle_active:
+		if _track_manager and _track_manager.scheduled_notes.size() <= 4:
+			_append_more_notes()
+		_try_fire_missiles()
+	# 即使战斗已结束，仍然需要处理cannon子弹生成（cannon动画可能仍在播放中）
 	_track_cannon_frames()
 	_try_fire_cannon_bullet()
-	_try_fire_missiles()
 
 
 func _track_cannon_frames() -> void:
@@ -141,6 +145,8 @@ func prepare_battle(battle_id: int) -> void:
 	_current_battle_index = index
 	_current_config = battle_configs[index]
 	_success_count = 0
+	_cannon_success_count = 0
+	_missile_success_count = 0
 	_battle_active = false
 
 	_resolve_nodes()
@@ -345,6 +351,9 @@ func _start_battle_internal() -> void:
 	if _current_config.attack_type == TutorialBattleConfig.AttackType.ALTERNATING_MISSILE_CHARGE:
 		_next_attack_type = int(Note.NoteType.HIT)
 		_last_successful_type = -1
+		# 第二场战斗使用双行进度显示
+		if _current_config.battle_id == 2 and _battle_ui and _battle_ui.has_method("setup_dual_row_mode"):
+			_battle_ui.setup_dual_row_mode()
 
 	_generate_and_emit_chart()
 
@@ -459,28 +468,56 @@ func _on_judgment_made(track: int, judgment: int, _timing_diff: float) -> void:
 
 	if judgment != 3:
 		if _current_config.attack_type == TutorialBattleConfig.AttackType.ALTERNATING_MISSILE_CHARGE:
-			if track == int(Note.NoteType.HIT):
-				if _last_successful_type == int(Note.NoteType.DODGE):
-					_success_count += 1
-					_last_successful_type = -1
-				else:
-					_last_successful_type = int(Note.NoteType.HIT)
-			elif track == int(Note.NoteType.DODGE):
-				if _last_successful_type == int(Note.NoteType.HIT):
-					_success_count += 1
-					_last_successful_type = -1
-				else:
-					_last_successful_type = int(Note.NoteType.DODGE)
+			# 第二场战斗：分别追踪cannon和missile
+			if _current_config.battle_id == 2:
+				if track == int(Note.NoteType.DODGE):
+					# DODGE对应cannon防御
+					_cannon_success_count += 1
+				elif track == int(Note.NoteType.HIT):
+					# HIT对应missile防御
+					_missile_success_count += 1
+				
+				if _battle_ui and _battle_ui.has_method("set_dual_row_progress"):
+					_battle_ui.set_dual_row_progress(_cannon_success_count, _missile_success_count)
+				
+				# 两个都达到required_successes时过关
+				if _cannon_success_count >= _current_config.required_successes and _missile_success_count >= _current_config.required_successes and not _ending_scheduled:
+					_battle_active = false
+					_ending_scheduled = true
+					var delay: float = _beat_interval * 2.0
+					get_tree().create_timer(delay).timeout.connect(_end_battle)
+			else:
+				# 其他ALTERNATING_MISSILE_CHARGE战斗沿用旧逻辑
+				if track == int(Note.NoteType.HIT):
+					if _last_successful_type == int(Note.NoteType.DODGE):
+						_success_count += 1
+						_last_successful_type = -1
+					else:
+						_last_successful_type = int(Note.NoteType.HIT)
+				elif track == int(Note.NoteType.DODGE):
+					if _last_successful_type == int(Note.NoteType.HIT):
+						_success_count += 1
+						_last_successful_type = -1
+					else:
+						_last_successful_type = int(Note.NoteType.DODGE)
+				
+				if _battle_ui and _battle_ui.has_method("set_progress"):
+					_battle_ui.set_progress(_success_count)
+				if _success_count >= _current_config.required_successes and not _ending_scheduled:
+					_battle_active = false
+					_ending_scheduled = true
+					var delay: float = _beat_interval * 2.0
+					get_tree().create_timer(delay).timeout.connect(_end_battle)
 		else:
 			_success_count += 1
-		
-		if _battle_ui and _battle_ui.has_method("set_progress"):
-			_battle_ui.set_progress(_success_count)
-		if _success_count >= _current_config.required_successes and not _ending_scheduled:
-			_battle_active = false
-			_ending_scheduled = true
-			var delay: float = _beat_interval * 2.0
-			get_tree().create_timer(delay).timeout.connect(_end_battle)
+			
+			if _battle_ui and _battle_ui.has_method("set_progress"):
+				_battle_ui.set_progress(_success_count)
+			if _success_count >= _current_config.required_successes and not _ending_scheduled:
+				_battle_active = false
+				_ending_scheduled = true
+				var delay: float = _beat_interval * 2.0
+				get_tree().create_timer(delay).timeout.connect(_end_battle)
 
 
 func _end_battle() -> void:
@@ -536,6 +573,9 @@ func is_battle_active() -> bool:
 
 
 func get_success_count() -> int:
+	# 第二场战斗返回两个计数中的最小值
+	if _current_config and _current_config.battle_id == 2:
+		return mini(_cannon_success_count, _missile_success_count)
 	return _success_count
 
 
