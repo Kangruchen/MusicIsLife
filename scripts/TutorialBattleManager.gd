@@ -28,6 +28,14 @@ enum BattleState {
 @export_node_path("Node2D") var missile_launch_path: NodePath = NodePath("")
 @export var missile_attack_sound: AudioStream = preload("res://assets/SFX/missile/missile_attack_1.wav")
 @export var missile_hit_distance_from_player: float = 0.0
+@export var missile_warning_enabled: bool = true
+@export var missile_warning_light_color: Color = Color(1.0, 0.12, 0.12, 1.0)
+@export_range(0.05, 1.0, 0.01) var missile_warning_peak_alpha: float = 0.9
+@export_range(0.05, 0.9, 0.01) var missile_warning_flash_ratio: float = 0.2
+@export_range(0.2, 4.0, 0.01) var missile_warning_light_scale: float = 2.0
+@export_range(4.0, 80.0, 0.5) var missile_warning_radius_px: float = 30.0
+@export_range(0.6, 6.0, 0.1) var missile_warning_falloff_power: float = 2.4
+@export var missile_warning_additive_blend: bool = true
 
 var _state: BattleState = BattleState.IDLE
 var _current_battle_index: int = -1
@@ -61,6 +69,9 @@ var _active_missile: Node2D = null
 var _missile_launch_node: Node2D = null
 var _missile_target_times: Array[float] = []
 var _missile_fired_count: int = 0
+var _missile_warning_light_texture: Texture2D = null
+var _missile_warning_light_texture_signature: String = ""
+var _missile_warning_blink_token: int = 0
 
 signal battle_started(battle_id: int)
 signal battle_ended(battle_id: int)
@@ -263,6 +274,11 @@ func _transition_camera() -> void:
 func _begin_battle() -> void:
 	_state = BattleState.PLAYING
 
+	if _player:
+		_player.set_physics_process(false)
+		if _player.has_method("enter_battle"):
+			_player.enter_battle()
+
 	if _current_config.attack_type == TutorialBattleConfig.AttackType.CHARGE and _cannon:
 		_battle_active = false
 		_play_cannon_trans()
@@ -301,7 +317,7 @@ func _start_battle_internal() -> void:
 	if _game_ui:
 		_game_ui.show()
 	if _battle_ui and _battle_ui.has_method("show_ui"):
-		_battle_ui.show_ui()
+		_battle_ui.show_ui(_current_config.battle_id)
 
 	if _player:
 		_player.set_physics_process(false)
@@ -650,13 +666,13 @@ func _clear_active_cannon_bullet() -> void:
 func _spawn_missile(target_time: float) -> void:
 	if missile_scene == null:
 		return
-	if _missile_launch_node == null or not is_instance_valid(_missile_launch_node):
-		return
 	if _player == null or not is_instance_valid(_player):
 		return
 
-	var current_time: float = _music_player.get_playback_position() + AudioServer.get_time_to_next_mix() if _music_player else 0.0
-	var travel_duration: float = maxf(0.1, target_time - current_time)
+	var beat_seconds: float = EventBus.beat_interval
+	if beat_seconds <= 0.0:
+		beat_seconds = 0.5
+	var travel_duration: float = 3.0 * beat_seconds
 
 	_clear_active_missile()
 
@@ -671,9 +687,14 @@ func _spawn_missile(target_time: float) -> void:
 		return
 
 	scene_root.add_child(missile)
-	missile.global_position = _missile_launch_node.global_position
+	missile.scale *= 4.0
 	_active_missile = missile
 
+	var spawn_pos: Vector2 = _get_missile_spawn_position()
+	missile.global_position = spawn_pos
+
+	_attach_missile_warning_light(missile)
+	_start_missile_warning_blink(missile)
 	_play_missile_sound()
 
 	var player_pos: Vector2 = _player.global_position
@@ -693,6 +714,133 @@ func _spawn_missile(target_time: float) -> void:
 	fly_tween.tween_callback(_on_missile_finished.bind(missile_instance_id))
 
 
+func _get_missile_spawn_position() -> Vector2:
+	if _missile_launch_node != null and is_instance_valid(_missile_launch_node):
+		return _missile_launch_node.global_position
+	return Vector2.ZERO
+
+
+func _attach_missile_warning_light(missile: Node2D) -> void:
+	if not missile_warning_enabled:
+		return
+	if missile == null or not is_instance_valid(missile):
+		return
+	if missile.get_node_or_null("MissileWarningLight") != null:
+		return
+	var warning_light: Sprite2D = Sprite2D.new()
+	warning_light.name = "MissileWarningLight"
+	missile.add_child(warning_light)
+	_configure_warning_light_sprite(warning_light, missile)
+
+
+func _configure_warning_light_sprite(warning_light: Sprite2D, owner_node: Node2D) -> void:
+	if warning_light == null:
+		return
+	warning_light.texture = _get_missile_warning_light_texture()
+	warning_light.centered = true
+	warning_light.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	warning_light.z_index = 10
+	var diameter_px: float = maxf(2.0, missile_warning_radius_px * 2.0 * maxf(0.1, missile_warning_light_scale))
+	var texture_width: float = maxf(1.0, warning_light.texture.get_size().x)
+	var local_scale: float = diameter_px / texture_width
+	var owner_scale_x: float = 1.0
+	var owner_scale_y: float = 1.0
+	if owner_node != null:
+		owner_scale_x = absf(owner_node.scale.x)
+		owner_scale_y = absf(owner_node.scale.y)
+	var owner_scale_avg: float = maxf(0.001, (owner_scale_x + owner_scale_y) * 0.5)
+	warning_light.scale = Vector2.ONE * (local_scale / owner_scale_avg)
+	var base_color: Color = missile_warning_light_color
+	warning_light.modulate = Color(base_color.r, base_color.g, base_color.b, 0.0)
+	if missile_warning_additive_blend:
+		var add_material: CanvasItemMaterial = warning_light.material as CanvasItemMaterial
+		if add_material == null:
+			add_material = CanvasItemMaterial.new()
+			warning_light.material = add_material
+		add_material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	else:
+		warning_light.material = null
+
+
+func _get_missile_warning_light_texture() -> Texture2D:
+	var texture_size_px: int = clampi(int(round(missile_warning_radius_px * 4.0)), 48, 256)
+	var signature: String = "%d|%.3f" % [texture_size_px, missile_warning_falloff_power]
+	if _missile_warning_light_texture != null and _missile_warning_light_texture_signature == signature:
+		return _missile_warning_light_texture
+	_missile_warning_light_texture_signature = signature
+	var image: Image = Image.create(texture_size_px, texture_size_px, false, Image.FORMAT_RGBA8)
+	var center: Vector2 = Vector2(float(texture_size_px) * 0.5, float(texture_size_px) * 0.5)
+	var radius: float = maxf(1.0, float(texture_size_px) * 0.5)
+	var falloff_power: float = maxf(0.6, missile_warning_falloff_power)
+	for y in range(texture_size_px):
+		for x in range(texture_size_px):
+			var sample_pos: Vector2 = Vector2(float(x) + 0.5, float(y) + 0.5)
+			var d_norm: float = center.distance_to(sample_pos) / radius
+			if d_norm >= 1.0:
+				image.set_pixel(x, y, Color(1.0, 1.0, 1.0, 0.0))
+				continue
+			var t: float = 1.0 - d_norm
+			var alpha: float = pow(t, falloff_power)
+			alpha += smoothstep(0.62, 1.0, t) * 0.22
+			alpha = clampf(alpha, 0.0, 1.0)
+			image.set_pixel(x, y, Color(1.0, 1.0, 1.0, alpha))
+	_missile_warning_light_texture = ImageTexture.create_from_image(image)
+	return _missile_warning_light_texture
+
+
+func _start_missile_warning_blink(missile: Node2D) -> void:
+	if not missile_warning_enabled:
+		return
+	if missile == null or not is_instance_valid(missile):
+		return
+	_missile_warning_blink_token += 1
+	_blink_missile_warning_once(missile, _missile_warning_blink_token)
+	var beat_seconds: float = EventBus.beat_interval
+	if beat_seconds <= 0.0:
+		beat_seconds = 0.5
+	var missile_instance_id: int = missile.get_instance_id()
+	var token: int = _missile_warning_blink_token
+	get_tree().create_timer(beat_seconds).timeout.connect(_on_missile_warning_blink_timeout.bind(token, missile_instance_id))
+
+
+func _on_missile_warning_blink_timeout(token: int, missile_instance_id: int) -> void:
+	if token != _missile_warning_blink_token:
+		return
+	var missile_obj: Object = instance_from_id(missile_instance_id)
+	var missile_node: Node2D = missile_obj as Node2D
+	if missile_node == null or not is_instance_valid(missile_node):
+		return
+	_blink_missile_warning_once(missile_node, token)
+	var beat_seconds: float = EventBus.beat_interval
+	if beat_seconds <= 0.0:
+		beat_seconds = 0.5
+	get_tree().create_timer(beat_seconds).timeout.connect(_on_missile_warning_blink_timeout.bind(token, missile_instance_id))
+
+
+func _blink_missile_warning_once(missile: Node2D, _token: int) -> void:
+	if missile == null or not is_instance_valid(missile):
+		return
+	var warning_light: Sprite2D = missile.get_node_or_null("MissileWarningLight") as Sprite2D
+	if warning_light == null:
+		return
+	_configure_warning_light_sprite(warning_light, missile)
+	var beat_seconds: float = EventBus.beat_interval
+	if beat_seconds <= 0.0:
+		beat_seconds = 0.5
+	var flash_ratio: float = clampf(missile_warning_flash_ratio, 0.05, 0.95)
+	var flash_duration: float = maxf(0.03, beat_seconds * flash_ratio)
+	var base_color: Color = missile_warning_light_color
+	var peak_alpha: float = clampf(missile_warning_peak_alpha, 0.0, 1.0)
+	var off_color: Color = Color(base_color.r, base_color.g, base_color.b, 0.0)
+	var on_color: Color = Color(base_color.r, base_color.g, base_color.b, peak_alpha)
+	warning_light.modulate = off_color
+	if warning_light.get_tree() == null:
+		return
+	var flash_tween: Tween = warning_light.create_tween()
+	flash_tween.tween_property(warning_light, "modulate", on_color, flash_duration * 0.35).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	flash_tween.tween_property(warning_light, "modulate", off_color, flash_duration * 0.65).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+
+
 func _play_missile_sound() -> void:
 	if missile_attack_sound == null:
 		return
@@ -709,13 +857,14 @@ func _on_missile_finished(missile_instance_id: int) -> void:
 
 
 func _clear_active_missile() -> void:
+	_missile_warning_blink_token += 1
 	if _active_missile != null and is_instance_valid(_active_missile):
 		_active_missile.queue_free()
 	_active_missile = null
 
 
 func _try_fire_missiles() -> void:
-	if _current_config.attack_type != TutorialBattleConfig.AttackType.ALTERNATING_MISSILE_CHARGE:
+	if _current_config.attack_type != TutorialBattleConfig.AttackType.ALTERNATING_MISSILE_CHARGE and _current_config.attack_type != TutorialBattleConfig.AttackType.MISSILE:
 		return
 	if _music_player == null:
 		return

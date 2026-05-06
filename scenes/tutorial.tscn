@@ -1,10 +1,11 @@
-[gd_scene load_steps=39 format=3 uid="uid://6o6cnudua672"]
+[gd_scene load_steps=46 format=3 uid="uid://6o6cnudua672"]
 
 [ext_resource type="Texture2D" uid="uid://dchsy7ncprqnu" path="res://assets/environment/scene_tutorial/工厂背景.png" id="1_c13y7"]
 [ext_resource type="PackedScene" uid="uid://da8ttcx4kdymg" path="res://scenes/character.tscn" id="2_8ho6b"]
 [ext_resource type="PackedScene" uid="uid://c6yxi20pgmbbx" path="res://scenes/tutorial_scene.tscn" id="3_ckvwl"]
 [ext_resource type="Script" uid="uid://e8i1qf3cicia" path="res://scripts/TutorialPlatformPlayer.gd" id="3_tutorial_player"]
 [ext_resource type="Script" uid="uid://ca0r3f27db17c" path="res://scripts/dialog_trigger.gd" id="4_4kmhl"]
+[ext_resource type="Script" uid="uid://c0ldw9wh" path="res://scripts/quit_zone.gd" id="5_quit"]
 [ext_resource type="PackedScene" uid="uid://bgai0ghblaof0" path="res://scenes/DialogueUI.tscn.tscn" id="5_cq4me"]
 [ext_resource type="Script" uid="uid://nfo3c4c1ywks" path="res://scenes/dialogue_ui.tscn.gd" id="6_6yjpi"]
 [ext_resource type="Script" uid="uid://dc42mm2n7qheh" path="res://scripts/TutorialBattleConfig.gd" id="9_cmspm"]
@@ -17,16 +18,19 @@
 [ext_resource type="Resource" uid="uid://c4u7t4wdma38g" path="res://config/tutorial_track_animation_config.tres" id="15_track_anim"]
 [ext_resource type="Script" uid="uid://dgm1qpfvnq6t6" path="res://scripts/TutorialBattleManager.gd" id="17_tutorial_battle_mgr"]
 [ext_resource type="Resource" uid="uid://bbw5bv4ybw0p0" path="res://config/tutorial_battle_1.tres" id="18_tutorial_battle_cfg"]
+[ext_resource type="Script" uid="uid://cobiu81cgfg8s" path="res://scripts/tutorial.gd" id="18_tutorial_root"]
 [ext_resource type="PackedScene" path="res://scenes/tutorial_battle_ui.tscn" id="19_tut_battle_ui"]
 [ext_resource type="Resource" uid="uid://byn3f6k3hsxdv" path="res://config/tutorial_battle_2.tres" id="20_tutorial_battle_cfg2"]
-[ext_resource type="PackedScene" uid="uid://cyll18b7kum6p" path="res://scenes/missile.tscn" id="21_missile_scene"]
-[ext_resource type="AudioStream" uid="uid://dqhf56ultm2jj" path="res://assets/SFX/missile/missile_attack_1.wav" id="22_missile_sound"]
+[ext_resource type="Script" path="res://playground/dialogue_test/DialogueLine.gd" id="21_bl2xa"]
+[ext_resource type="Texture2D" uid="uid://d3eo1bu6r6og2" path="res://playground/dialogue_test/表情1.png" id="22_7a100"]
+[ext_resource type="Texture2D" uid="uid://pyabo01x3u8q" path="res://playground/dialogue_test/表情4.png" id="23_7a100"]
+[ext_resource type="Texture2D" uid="uid://b78m2ymgycorn" path="res://playground/dialogue_test/表情3.png" id="24_feaue"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_battle_zone"]
 size = Vector2(1393, 581)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_cmspm"]
-size = Vector2(1339, 1099)
+size = Vector2(268, 492)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ground"]
 size = Vector2(4246, 40)
@@ -61,19 +65,47 @@ size = Vector2(4236, 40)
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_player"]
 size = Vector2(70, 140)
 
+[sub_resource type="Resource" id="Resource_15kfc"]
+script = ExtResource("21_bl2xa")
+speaker_name = ""
+content = "Let our dissonant notes break the HARMONY!"
+avatar = ExtResource("22_7a100")
+metadata/_custom_type_script = "uid://c1raarhgki7qr"
+
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_0epgs"]
 size = Vector2(126, 135)
+
+[sub_resource type="Resource" id="Resource_feaue"]
+script = ExtResource("21_bl2xa")
+speaker_name = ""
+content = "Lasers? Easy for us, right?"
+avatar = ExtResource("23_7a100")
+metadata/_custom_type_script = "uid://c1raarhgki7qr"
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_g2equ"]
 size = Vector2(119.5, 125.25)
 
+[sub_resource type="Resource" id="Resource_210s6"]
+script = ExtResource("21_bl2xa")
+speaker_name = ""
+content = "Stronger ones coming up! Stay Focused!"
+avatar = ExtResource("24_feaue")
+metadata/_custom_type_script = "uid://c1raarhgki7qr"
+
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_tbcdj"]
 size = Vector2(166.0625, 129)
+
+[sub_resource type="Resource" id="Resource_5qvs7"]
+script = ExtResource("21_bl2xa")
+speaker_name = ""
+content = "There's a huge machine up ahead."
+metadata/_custom_type_script = "uid://c1raarhgki7qr"
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ej4tf"]
 size = Vector2(223.5, 95)
 
 [node name="Tutorial" type="Node2D"]
+script = ExtResource("18_tutorial_root")
 
 [node name="UILayer" type="CanvasLayer" parent="."]
 
@@ -113,6 +145,8 @@ position = Vector2(3102, -818)
 
 [node name="MusicPlayer" type="Node" parent="GameManager"]
 script = ExtResource("10_music_player")
+music_path = "uid://sb6irng2vpss"
+attack_music_path = "uid://cgvgdwlf2rft0"
 auto_play = false
 enable_miss_audio_effect = true
 
@@ -155,10 +189,7 @@ battle_ui_path = NodePath("../TutorialBattleUI")
 cannon_node_path = NodePath("../tutorial_scene/Cannon")
 cannon_bullet_spawn_path = NodePath("../tutorial_scene/Cannon/BulletPoint")
 battle_zone_paths = Array[NodePath]([NodePath("BattleZone1"), NodePath("BattleZone2")])
-missile_scene = ExtResource("21_missile_scene")
 missile_launch_path = NodePath("../PositionNodes/Missile1")
-missile_attack_sound = ExtResource("22_missile_sound")
-missile_hit_distance_from_player = 0.0
 
 [node name="BattleZone1" type="Area2D" parent="TutorialBattleManager"]
 position = Vector2(998, -1)
@@ -178,6 +209,7 @@ shape = SubResource("RectangleShape2D_cmspm")
 offset = Vector2(0, 100)
 transform = Transform2D(1, 0, 0, 1, 0, 100)
 box_size = Vector2(30, 30)
+battle2_offset = Vector2(350, 50)
 
 [node name="LevelGeometry" type="StaticBody2D" parent="."]
 
@@ -236,7 +268,7 @@ position = Vector2(1197, -995)
 shape = SubResource("RectangleShape2D_ceiling")
 
 [node name="Player" type="CharacterBody2D" parent="." groups=["player"]]
-position = Vector2(2010, 109)
+position = Vector2(-399, 109)
 script = ExtResource("3_tutorial_player")
 move_speed = 500.0
 walkable_slope_angle_degrees = 60.0
@@ -260,21 +292,21 @@ position = Vector2(0, -26)
 script = null
 
 [node name="Trigger1" type="Area2D" parent="." node_paths=PackedStringArray("dialogue_ui")]
-position = Vector2(-220, 74)
+position = Vector2(-220, 72)
 collision_layer = 0
 script = ExtResource("4_4kmhl")
-dialogue_id = 1
+dialogue_lines = Array[ExtResource("21_bl2xa")]([SubResource("Resource_15kfc")])
 dialogue_ui = NodePath("../UILayer/DialogueUi_tscn")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Trigger1"]
-position = Vector2(-155, 75.5)
+position = Vector2(-157, 5)
 shape = SubResource("RectangleShape2D_0epgs")
 
 [node name="Trigger2" type="Area2D" parent="." node_paths=PackedStringArray("dialogue_ui")]
-position = Vector2(181, -7)
+position = Vector2(181, -6)
 collision_layer = 0
 script = ExtResource("4_4kmhl")
-dialogue_id = 2
+dialogue_lines = Array[ExtResource("21_bl2xa")]([SubResource("Resource_feaue")])
 dialogue_ui = NodePath("../UILayer/DialogueUi_tscn")
 trigger_battle_id = 1
 
@@ -286,7 +318,7 @@ shape = SubResource("RectangleShape2D_g2equ")
 position = Vector2(2482, 78)
 collision_layer = 0
 script = ExtResource("4_4kmhl")
-dialogue_id = 3
+dialogue_lines = Array[ExtResource("21_bl2xa")]([SubResource("Resource_210s6")])
 dialogue_ui = NodePath("../UILayer/DialogueUi_tscn")
 trigger_battle_id = 2
 
@@ -295,11 +327,19 @@ position = Vector2(0, -1.5)
 shape = SubResource("RectangleShape2D_tbcdj")
 
 [node name="Trigger4" type="Area2D" parent="." node_paths=PackedStringArray("dialogue_ui")]
-position = Vector2(1778, -524)
+position = Vector2(1106, -524)
 collision_layer = 0
 script = ExtResource("4_4kmhl")
-dialogue_id = 4
+dialogue_lines = Array[ExtResource("21_bl2xa")]([SubResource("Resource_5qvs7")])
 dialogue_ui = NodePath("../UILayer/DialogueUi_tscn")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Trigger4"]
 shape = SubResource("RectangleShape2D_ej4tf")
+
+[node name="Quit Zone" type="Area2D" parent="."]
+position = Vector2(-245, -361)
+script = ExtResource("5_quit")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Quit Zone"]
+position = Vector2(-476, -359)
+shape = SubResource("RectangleShape2D_cmspm")

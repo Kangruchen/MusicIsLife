@@ -12,6 +12,7 @@ class_name MainMenu
 @export_file("*.tscn") var game_scene_path: String = "res://scenes/Main.tscn"
 @export_file("*.tscn") var tutorial_scene_path: String = "res://scenes/tutorial.tscn"
 @export_file("*.tscn") var guide_scene_path: String = "res://scenes/guide.tscn"
+@export_file("*.tscn") var settings_scene_path: String = "res://scenes/OffsetCalibration.tscn"
 
 func _ready() -> void:
     # 连接所有按钮的点击信号
@@ -36,7 +37,8 @@ func _on_guide_pressed() -> void:
         get_tree().change_scene_to_file(guide_scene_path)
 
 func _on_settings_pressed() -> void:
-    print("Settings Menu - To be implemented")
+    if not settings_scene_path.is_empty():
+        get_tree().change_scene_to_file(settings_scene_path)
 
 func _on_quit_pressed() -> void:
     get_tree().quit()

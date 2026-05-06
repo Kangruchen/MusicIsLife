@@ -182,7 +182,7 @@ func _on_boss_energy_depleted() -> void:
 		EventBus.play_beat_flash_requested.emit(bi, GameConstants.INPUT_BEATS)
 	)
 	# 在准备阶段开始时，直接启动攻击阶段；真正可输入时机由 beat 事件与 movement enabled 控制
-	_start_attack_phase(attack_duration + return_countdown_duration, bi, first_beat_abs_time)
+	_start_attack_phase(countdown_duration + attack_duration + return_countdown_duration, bi, first_beat_abs_time)
 
 	# 启动计时器（完整时长）
 	if pause_timer != null:

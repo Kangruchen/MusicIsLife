@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="BossAttackSoundConfig" load_steps=18 format=3 uid="uid://bca4til1gfnnl"]
+[gd_resource type="Resource" script_class="BossAttackSoundConfig" load_steps=21 format=3 uid="uid://bca4til1gfnnl"]
 
 [ext_resource type="AudioStream" uid="uid://bokuairmkmpt3" path="res://assets/SFX/charge/charge_attack.wav" id="1_charge"]
 [ext_resource type="AudioStream" uid="uid://twemusldji6k" path="res://assets/SFX/laserfull.wav" id="2_laser"]
@@ -21,6 +21,19 @@ sounds = Array[ExtResource("7_entry_script")]([SubResource("SoundEntry_charge")]
 [sub_resource type="Resource" id="BossAttackTypeSoundConfig_charge"]
 script = ExtResource("5_type_script")
 default_sound = SubResource("RandomSoundPool_charge")
+
+[sub_resource type="Resource" id="SoundEntry_charge_windup"]
+script = ExtResource("7_entry_script")
+stream = ExtResource("8_charge_windup")
+volume_db = -5.0
+
+[sub_resource type="Resource" id="RandomSoundPool_charge_windup"]
+script = ExtResource("6_pool_script")
+sounds = Array[ExtResource("7_entry_script")]([SubResource("SoundEntry_charge_windup")])
+
+[sub_resource type="Resource" id="BossAttackTypeSoundConfig_charge_windup"]
+script = ExtResource("5_type_script")
+default_sound = SubResource("RandomSoundPool_charge_windup")
 
 [sub_resource type="Resource" id="SoundEntry_laser"]
 script = ExtResource("7_entry_script")
@@ -48,19 +61,6 @@ sounds = Array[ExtResource("7_entry_script")]([SubResource("SoundEntry_missile")
 script = ExtResource("5_type_script")
 default_sound = SubResource("RandomSoundPool_missile")
 beat_sounds = Array[ExtResource("6_pool_script")]([null, null])
-
-[sub_resource type="Resource" id="SoundEntry_charge_windup"]
-script = ExtResource("7_entry_script")
-stream = ExtResource("8_charge_windup")
-volume_db = -5.0
-
-[sub_resource type="Resource" id="RandomSoundPool_charge_windup"]
-script = ExtResource("6_pool_script")
-sounds = Array[ExtResource("7_entry_script")]([SubResource("SoundEntry_charge_windup")])
-
-[sub_resource type="Resource" id="BossAttackTypeSoundConfig_charge_windup"]
-script = ExtResource("5_type_script")
-default_sound = SubResource("RandomSoundPool_charge_windup")
 
 [resource]
 script = ExtResource("4_script")

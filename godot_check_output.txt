@@ -1,1 +1,0 @@
-﻿   at: load (scene/resources/resource_format_text.cpp:444)

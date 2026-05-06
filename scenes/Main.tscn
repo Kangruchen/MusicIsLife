@@ -103,7 +103,6 @@ script = ExtResource("4_track_mgr")
 track_animation_config = ExtResource("8_mwfav")
 guard_position_nodes = [NodePath("../../PositionNodes/Laser1"), NodePath("../../PositionNodes/Laser2")]
 game_ui = NodePath("../../GameUI")
-prejudge_key_hint_display_mode = 0
 
 [node name="InputManager" type="Node" parent="GameManager"]
 script = ExtResource("5_input_mgr")

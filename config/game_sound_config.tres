@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="GameSoundConfig" load_steps=72 format=3 uid="uid://d2s8ter7rgrt3"]
+[gd_resource type="Resource" script_class="GameSoundConfig" load_steps=81 format=3 uid="uid://d2s8ter7rgrt3"]
 
 [ext_resource type="AudioStream" uid="uid://7n1vbkb2k41a" path="res://assets/SFX/dodgedrum.wav" id="1_dodge"]
 [ext_resource type="AudioStream" uid="uid://b40kly4fniq14" path="res://assets/SFX/guarddrum.wav" id="2_guard"]
@@ -27,14 +27,11 @@
 [ext_resource type="AudioStream" uid="uid://biu7w1jxmf664" path="res://assets/SFX/charge/charge_guard_2.wav" id="30_charge_gd2"]
 [ext_resource type="AudioStream" uid="uid://iopdcjollsix" path="res://assets/SFX/player/miss_1.wav" id="31_miss1"]
 [ext_resource type="AudioStream" uid="uid://b5r085iggeaao" path="res://assets/SFX/player/miss_2.wav" id="32_miss2"]
-
-[sub_resource type="Resource" id="SE_charge_warn"]
-script = ExtResource("16_entry_script")
-stream = ExtResource("27_charge_warn")
-
-[sub_resource type="Resource" id="Pool_charge_warn"]
-script = ExtResource("15_pool_script")
-sounds = Array[ExtResource("16_entry_script")]([SubResource("SE_charge_warn")])
+[ext_resource type="AudioStream" uid="uid://bo8gyfk4jxex8" path="res://assets/SFX/player/charge.wav" id="33_p_charge"]
+[ext_resource type="AudioStream" uid="uid://cb8omlj5fefkj" path="res://assets/SFX/player/light.wav" id="34_p_light"]
+[ext_resource type="AudioStream" uid="uid://b5m7gxhiot4l5" path="res://assets/SFX/player/heavy.wav" id="35_p_heavy"]
+[ext_resource type="AudioStream" uid="uid://d0fapby6v3bne" path="res://assets/SFX/player/chargelight.wav" id="36_p_clight"]
+[ext_resource type="AudioStream" uid="uid://butsw8nq5dts5" path="res://assets/SFX/player/chargeheavy.wav" id="37_p_cheavy"]
 
 [sub_resource type="Resource" id="SE_charge_atk"]
 script = ExtResource("16_entry_script")
@@ -47,6 +44,14 @@ sounds = Array[ExtResource("16_entry_script")]([SubResource("SE_charge_atk")])
 [sub_resource type="Resource" id="BossType_charge"]
 script = ExtResource("12_boss_type_script")
 default_sound = SubResource("Pool_charge_atk")
+
+[sub_resource type="Resource" id="SE_charge_warn"]
+script = ExtResource("16_entry_script")
+stream = ExtResource("27_charge_warn")
+
+[sub_resource type="Resource" id="Pool_charge_warn"]
+script = ExtResource("15_pool_script")
+sounds = Array[ExtResource("16_entry_script")]([SubResource("SE_charge_warn")])
 
 [sub_resource type="Resource" id="BossType_charge_windup"]
 script = ExtResource("12_boss_type_script")
@@ -131,9 +136,27 @@ stream = ExtResource("3_hit")
 script = ExtResource("15_pool_script")
 sounds = Array[ExtResource("16_entry_script")]([SubResource("SE_key_hit")])
 
+[sub_resource type="Resource" id="SE_atk_charged_heavy"]
+script = ExtResource("16_entry_script")
+stream = ExtResource("37_p_cheavy")
+volume_db = 5.0
+
+[sub_resource type="Resource" id="Pool_atk_charged_heavy"]
+script = ExtResource("15_pool_script")
+sounds = Array[ExtResource("16_entry_script")]([SubResource("SE_atk_charged_heavy")])
+
+[sub_resource type="Resource" id="SE_atk_charged_light"]
+script = ExtResource("16_entry_script")
+stream = ExtResource("36_p_clight")
+volume_db = 5.0
+
+[sub_resource type="Resource" id="Pool_atk_charged_light"]
+script = ExtResource("15_pool_script")
+sounds = Array[ExtResource("16_entry_script")]([SubResource("SE_atk_charged_light")])
+
 [sub_resource type="Resource" id="SE_atk_enhance"]
 script = ExtResource("16_entry_script")
-stream = ExtResource("1_dodge")
+stream = ExtResource("33_p_charge")
 volume_db = 5.0
 
 [sub_resource type="Resource" id="Pool_atk_enhance"]
@@ -142,7 +165,7 @@ sounds = Array[ExtResource("16_entry_script")]([SubResource("SE_atk_enhance")])
 
 [sub_resource type="Resource" id="SE_atk_heavy"]
 script = ExtResource("16_entry_script")
-stream = ExtResource("3_hit")
+stream = ExtResource("35_p_heavy")
 volume_db = 5.0
 
 [sub_resource type="Resource" id="Pool_atk_heavy"]
@@ -151,7 +174,7 @@ sounds = Array[ExtResource("16_entry_script")]([SubResource("SE_atk_heavy")])
 
 [sub_resource type="Resource" id="SE_atk_light"]
 script = ExtResource("16_entry_script")
-stream = ExtResource("2_guard")
+stream = ExtResource("34_p_light")
 volume_db = 5.0
 
 [sub_resource type="Resource" id="Pool_atk_light"]
@@ -162,17 +185,17 @@ sounds = Array[ExtResource("16_entry_script")]([SubResource("SE_atk_light")])
 script = ExtResource("13_atk_script")
 light_attack = SubResource("Pool_atk_light")
 heavy_attack = SubResource("Pool_atk_heavy")
+charged_light_attack = SubResource("Pool_atk_charged_light")
+charged_heavy_attack = SubResource("Pool_atk_charged_heavy")
 enhance = SubResource("Pool_atk_enhance")
 
 [sub_resource type="Resource" id="SE_miss1"]
 script = ExtResource("16_entry_script")
 stream = ExtResource("31_miss1")
-volume_db = 5.0
 
 [sub_resource type="Resource" id="SE_miss2"]
 script = ExtResource("16_entry_script")
 stream = ExtResource("32_miss2")
-volume_db = 5.0
 
 [sub_resource type="Resource" id="Pool_miss"]
 script = ExtResource("15_pool_script")
@@ -209,12 +232,12 @@ sounds = Array[ExtResource("16_entry_script")]([SubResource("SE_def_guard_ok1"),
 [sub_resource type="Resource" id="SE_def_hit_ok1"]
 script = ExtResource("16_entry_script")
 stream = ExtResource("19_missile_gd1")
-volume_db = 5.0
+volume_db = 10.0
 
 [sub_resource type="Resource" id="SE_def_hit_ok2"]
 script = ExtResource("16_entry_script")
 stream = ExtResource("20_missile_gd2")
-volume_db = 5.0
+volume_db = 10.0
 
 [sub_resource type="Resource" id="Pool_def_hit_ok"]
 script = ExtResource("15_pool_script")
@@ -236,15 +259,16 @@ key_hit_sound = SubResource("Pool_key_hit")
 key_dodge_sound = SubResource("Pool_key_dodge")
 boss_sounds = SubResource("BossSounds")
 player_attack = SubResource("PlayerAttack")
-light_boss_energy_max_reduce = 1.0
+light_player_health_cost = 0.0
+light_boss_damage = 30.0
+light_boss_energy_max_reduce = 0.0
 heavy_player_health_cost = 5.0
-heavy_boss_damage = 30.0
 heavy_boss_energy_max_reduce = 2.0
 charged_light_player_health_cost = -5.0
-charged_light_boss_damage = 30.0
+charged_light_boss_damage = 50.0
 charged_light_boss_energy_max_reduce = 0.0
 charged_heavy_player_health_cost = 15.0
-charged_heavy_boss_damage = 0.0
+charged_heavy_boss_damage = 100.0
 charged_heavy_boss_energy_max_reduce = 5.0
 player_defense = SubResource("PlayerDefense")
 miss_sound = ExtResource("9_miss")

@@ -58,7 +58,7 @@ func _try_trigger_dialogue() -> void:
 		prompt_node.hide()
 		
 	dialogue_ui.play_sequence(dialogue_lines)
-	if start_battle_after_dialogue:
+	if start_battle_after_dialogue or trigger_battle_id > 0:
 		if not dialogue_ui.dialogue_closed.is_connected(_on_dialogue_closed_start_battle):
 			dialogue_ui.dialogue_closed.connect(_on_dialogue_closed_start_battle, CONNECT_ONE_SHOT)
 		return
@@ -119,8 +119,14 @@ func _get_battle_manager() -> TutorialBattleManager:
 
 
 func _on_dialogue_closed_start_battle() -> void:
-	if not battle_manager_path.is_empty():
-		var battle_manager: TutorialBattleManager = get_node_or_null(battle_manager_path) as TutorialBattleManager
-		if battle_manager:
-			battle_manager.start_battle(battle_id)
+	var battle_to_start: int = trigger_battle_id if trigger_battle_id > 0 else battle_id
+	if battle_to_start > 0:
+		if not battle_manager_path.is_empty():
+			var battle_manager: TutorialBattleManager = get_node_or_null(battle_manager_path) as TutorialBattleManager
+			if battle_manager:
+				battle_manager.start_battle(battle_to_start)
+		else:
+			var battle_manager: TutorialBattleManager = _get_battle_manager()
+			if battle_manager:
+				battle_manager.start_battle(battle_to_start)
 	queue_free()

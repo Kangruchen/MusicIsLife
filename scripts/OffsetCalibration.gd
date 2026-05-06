@@ -69,6 +69,8 @@ func _process(delta: float) -> void:
 func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("offset"):
 		_return_to_main()
+	elif event.is_action_pressed("ui_cancel"):
+		_return_to_main()
 
 
 ## 生成一个新音符
