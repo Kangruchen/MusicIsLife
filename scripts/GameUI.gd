@@ -2,10 +2,16 @@ extends CanvasLayer
 ## 游戏UI - 管理血条显示和攻击阶段UI
 
 # 轨道配置（游戏逻辑坐标，用于判定计算）
-const TRACK_HEIGHT: float = 80.0  # 每条轨道高度
-const TRACK_SPACING: float = 10.0  # 轨道间距
-const JUDGMENT_LINE_X: float = 100.0  # 判定线X坐标
-const TRACK_START_Y: float = 57.0  # 第一条轨道的Y坐标
+const TRACK_HEIGHT: float = 80.0
+const TRACK_SPACING: float = 10.0
+const JUDGMENT_LINE_X: float = 100.0
+const TRACK_START_Y: float = 57.0
+
+# 节拍轨道视觉配置
+const BEAT_TRACK_HEIGHT: float = 24.0
+const BEAT_TRACK_TOP_OFFSET: float = 20.0
+const BEAT_TRACK_WIDTH_RATIO: float = 0.8
+const CURSOR_HALF_WIDTH: float = 2.0
 
 # 血量条引用
 @onready var boss_health_bar: ProgressBar = $MarginContainer/VBoxContainer/BossHealthBar
@@ -18,24 +24,23 @@ var beat_flash_effect: ColorRect = null
 
 # 攻击阶段UI元素
 var attack_ui_container: Control = null
-var attack_hint_label: Label = null
-var attack_count: int = 0  # 已发动的攻击次数
-var is_next_attack_charged: bool = false  # 下次攻击是否为蓄力版本
 
-# 节拍提示音轨
+# 节拍轨道元素
 var beat_track_container: Control = null
-var beat_judgment_line: ColorRect = null
-var active_beat_notes: Array[ColorRect] = []  # 当前活动的节拍标记
-var _beat_note_speed: float = 0.0
-var _beat_note_width: float = 0.0
+var beat_cursor: ColorRect = null
+var _track_bi: float = 0.0
+var _track_first_beat_time: float = 0.0
+var _track_segment_width: float = 0.0
+var _track_width: float = 0.0
+
+var _heat_tween: Tween = null
+var _shake_intensity: float = 0.0
+var _perfect_zones: Array[ColorRect] = []
+var _current_heat_level: int = -1
+var _resolved_zones: Dictionary = {}
+
 var _victory_label: Label = null
 var _is_boss_defeated: bool = false
-
-const BEAT_TRACK_WIDTH: float = 560.0
-const BEAT_TRACK_HEIGHT: float = 40.0
-const BEAT_TRACK_TOP_OFFSET: float = 28.0
-const BEAT_NOTE_TRAVEL_DISTANCE: float = BEAT_TRACK_WIDTH * 0.5
-const BEAT_TRACK_CENTER_X: float = BEAT_TRACK_WIDTH * 0.5
 
 @export var show_on_ready: bool = true
 
@@ -43,33 +48,29 @@ const BEAT_TRACK_CENTER_X: float = BEAT_TRACK_WIDTH * 0.5
 
 
 func _ready() -> void:
-	# 通过 EventBus 连接所有信号（替代 get_node 硬编码路径）
 	EventBus.judgment_made.connect(_on_judgment_made)
-	EventBus.attack_performed.connect(_on_attack_performed)
-	
-	# 血量/精力更新
+
 	EventBus.player_health_updated.connect(_on_player_health_updated)
 	EventBus.boss_health_updated.connect(_on_boss_health_updated)
 	EventBus.boss_energy_updated.connect(_on_boss_energy_updated)
-	
-	# UI 指令信号
+
 	EventBus.show_attack_ui_requested.connect(show_attack_ui)
 	EventBus.hide_attack_ui_requested.connect(hide_attack_ui)
-	EventBus.show_beat_track_requested.connect(show_beat_track)
-	EventBus.spawn_beat_note_requested.connect(spawn_beat_note)
 	EventBus.show_return_countdown_requested.connect(show_return_countdown)
 	EventBus.show_pause_countdown_requested.connect(_on_show_pause_countdown)
 	EventBus.play_beat_flash_requested.connect(_on_play_beat_flash)
 	EventBus.hide_pause_effects_requested.connect(hide_pause_effects)
 	EventBus.boss_defeated.connect(_on_boss_defeated)
+	EventBus.heat_changed.connect(_on_heat_changed)
+	EventBus.attack_track_setup.connect(_on_attack_track_setup)
+	EventBus.attack_result_display.connect(_on_attack_result_display)
 
 	visible = show_on_ready
 	if show_on_ready:
-		show() # 游戏开始时将UI设为可见
+		show()
 	else:
 		hide()
-	
-	# 创建倒计时标签（初始隐藏）
+
 	countdown_label = Label.new()
 	countdown_label.name = "CountdownLabel"
 	countdown_label.add_theme_font_size_override("font_size", 120)
@@ -88,8 +89,7 @@ func _ready() -> void:
 	countdown_label.offset_bottom = 75.0
 	countdown_label.visible = false
 	add_child(countdown_label)
-	
-	# 创建节拍闪光效果（初始隐藏）
+
 	beat_flash_effect = ColorRect.new()
 	beat_flash_effect.name = "BeatFlashEffect"
 	beat_flash_effect.color = Color(1.0, 1.0, 1.0, 0.0)
@@ -97,38 +97,39 @@ func _ready() -> void:
 	beat_flash_effect.anchor_bottom = 1.0
 	beat_flash_effect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(beat_flash_effect)
-	move_child(beat_flash_effect, 0)  # 移到最底层，避免遮挡其他UI
-	
-	# 创建攻击 UI容器（初始隐藏）
+	move_child(beat_flash_effect, 0)
+
 	_create_attack_ui()
 
 
 func _process(_delta: float) -> void:
-	_update_beat_note_positions()
+	_update_beat_cursor()
+	_update_heat_shake()
 
 
-## 获取指定音符类型的轨道Y坐标
+func _get_beat_clock_time() -> float:
+	if music_player != null and music_player.has_method("get_playback_position"):
+		return float(music_player.get_playback_position()) + AudioServer.get_time_to_next_mix()
+	return Time.get_ticks_msec() / 1000.0
+
+
 func get_track_y(note_type: Note.NoteType) -> float:
 	var track_index := note_type as int
 	return TRACK_START_Y + track_index * (TRACK_HEIGHT + TRACK_SPACING) + TRACK_HEIGHT / 2.0
 
 
-## 获取判定线X坐标
 func get_judgment_line_x() -> float:
 	return JUDGMENT_LINE_X
 
 
-## 获取音符容器（音符视觉暂时停用）
 func get_notes_container() -> Control:
 	return null
 
 
-## 判定触发回调（判定视觉显示暂时停用）
 func _on_judgment_made(_track: Note.NoteType, _judgment: int, _timing_diff: float) -> void:
 	pass
 
 
-## 血量更新回调
 func _on_player_health_updated(current: float, maximum: float) -> void:
 	if player_health_bar:
 		player_health_bar.max_value = maximum
@@ -147,70 +148,57 @@ func _on_boss_energy_updated(current: float, maximum: float) -> void:
 		boss_guard_bar.value = current
 
 
-## EventBus 包装：接收 beat_interval 参数
 func _on_show_pause_countdown(bi: float) -> void:
 	_show_pause_countdown_impl(bi)
 
 
-## 显示暂停倒计时（第一个小节，倒计时4-3-2-1）
 func _show_pause_countdown_impl(bi: float) -> void:
 	if not countdown_label:
 		return
-	
+
 	countdown_label.visible = true
-	
-	# 倒计时序列：4 -> 3 -> 2 -> 1
+
 	for i in range(GameConstants.COUNTDOWN_BEATS):
 		var count_num: int = GameConstants.COUNTDOWN_BEATS - i
 		countdown_label.text = str(count_num)
-		
-		# 缩放动画：从大到小
+
 		var scale_tween: Tween = create_tween()
 		scale_tween.set_ease(Tween.EASE_OUT)
 		scale_tween.set_trans(Tween.TRANS_BACK)
 		countdown_label.scale = Vector2(1.5, 1.5)
 		scale_tween.tween_property(countdown_label, "scale", Vector2(1.0, 1.0), bi * 0.3)
-		
-		# 透明度动画：从不透明到半透明
+
 		var alpha_tween: Tween = create_tween()
 		alpha_tween.set_ease(Tween.EASE_OUT)
 		countdown_label.modulate.a = 1.0
 		alpha_tween.tween_property(countdown_label, "modulate:a", 0.5, bi * 0.8)
-		
-		# 等待一拍
+
 		await get_tree().create_timer(bi).timeout
-	
-	# 倒计时结束，隐藏标签
+
 	countdown_label.visible = false
 
 
-## EventBus 包装：接收 beat_interval 和 beat_count 参数
 func _on_play_beat_flash(bi: float, beat_count: int) -> void:
 	if _is_boss_defeated:
 		return
 	_play_beat_flash_impl(bi, beat_count)
 
 
-## 播放节拍闪光效果
 func _play_beat_flash_impl(bi: float, beat_count: int = 16) -> void:
 	if not beat_flash_effect:
 		return
-	
+
 	for i in range(beat_count):
-		# 创建边框闪光效果
 		var flash_tween: Tween = create_tween()
 		flash_tween.set_ease(Tween.EASE_OUT)
 		flash_tween.set_trans(Tween.TRANS_CUBIC)
-		
-		# 颜色从白色到透明
+
 		beat_flash_effect.color = Color(1.0, 1.0, 0.8, 0.3)
 		flash_tween.tween_property(beat_flash_effect, "color:a", 0.0, bi * 0.6)
-		
-		# 等待一拍
+
 		await get_tree().create_timer(bi).timeout
 
 
-## 隐藏所有暂停视觉效果
 func hide_pause_effects() -> void:
 	if countdown_label:
 		countdown_label.visible = false
@@ -218,305 +206,326 @@ func hide_pause_effects() -> void:
 		beat_flash_effect.color.a = 0.0
 
 
-## 创建攻击UI
 func _create_attack_ui() -> void:
-	# 创建攻击UI容器
 	attack_ui_container = Control.new()
 	attack_ui_container.name = "AttackUIContainer"
 	attack_ui_container.anchor_left = 0.0
-	attack_ui_container.anchor_top = 1.0
+	attack_ui_container.anchor_top = 0.0
 	attack_ui_container.anchor_right = 1.0
 	attack_ui_container.anchor_bottom = 1.0
-	attack_ui_container.offset_top = -150.0
 	attack_ui_container.visible = false
+	attack_ui_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(attack_ui_container)
-	
-	# 创建背景面板
-	var bg_panel: ColorRect = ColorRect.new()
-	# 攻击阶段不再涂黑下半屏，保留容器仅承载提示文字。
-	bg_panel.color = Color(0.0, 0.0, 0.0, 0.0)
-	bg_panel.anchor_right = 1.0
-	bg_panel.anchor_bottom = 1.0
-	attack_ui_container.add_child(bg_panel)
-	
-	# 创建提示标签
-	attack_hint_label = Label.new()
-	attack_hint_label.text = ""
-	attack_hint_label.add_theme_font_size_override("font_size", 20)
-	attack_hint_label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.3))
-	attack_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	attack_hint_label.anchor_left = 0.0
-	attack_hint_label.anchor_right = 1.0
-	attack_hint_label.offset_top = 10.0
-	attack_hint_label.offset_bottom = 35.0
-	attack_hint_label.visible = false
-	attack_ui_container.add_child(attack_hint_label)
-	
-	# 创建节拍提示音轨（作为GameUI的直接子节点，不是attack_ui_container的子节点）
+
+
+func _on_attack_track_setup(bi: float, first_beat_time: float) -> void:
+	_clear_beat_track()
+	_create_beat_track(bi, first_beat_time)
+
+
+func _create_beat_track(bi: float, first_beat_time: float) -> void:
+	if bi <= 0.0:
+		return
+
+	_track_bi = bi
+	_track_first_beat_time = first_beat_time
+
+	var screen_width: float = get_viewport().get_visible_rect().size.x
+	_track_width = screen_width * BEAT_TRACK_WIDTH_RATIO
+	_track_segment_width = _track_width / GameConstants.INPUT_BEATS
+
+	var perfect_ratio: float = GameConstants.ATTACK_PERFECT_WINDOW / bi
+	var perfect_width: float = _track_segment_width * perfect_ratio
+	var miss_side_width: float = (_track_segment_width - perfect_width) / 2.0
+
 	beat_track_container = Control.new()
 	beat_track_container.name = "BeatTrackContainer"
 	beat_track_container.anchor_left = 0.5
 	beat_track_container.anchor_right = 0.5
-	beat_track_container.anchor_top = 0.0
-	beat_track_container.anchor_bottom = 0.0
-	beat_track_container.offset_left = -BEAT_TRACK_WIDTH * 0.5
-	beat_track_container.offset_right = BEAT_TRACK_WIDTH * 0.5
+	beat_track_container.offset_left = -_track_width / 2.0
+	beat_track_container.offset_right = _track_width / 2.0
 	beat_track_container.offset_top = BEAT_TRACK_TOP_OFFSET
 	beat_track_container.offset_bottom = BEAT_TRACK_TOP_OFFSET + BEAT_TRACK_HEIGHT
-	beat_track_container.visible = false  # 默认隐藏
-	add_child(beat_track_container)  # 添加到GameUI而非attack_ui_container
-	
-	# 创建音轨背景
-	var track_bg: ColorRect = ColorRect.new()
-	track_bg.color = Color(0.2, 0.2, 0.2, 0.5)
-	track_bg.anchor_right = 1.0
-	track_bg.anchor_bottom = 1.0
-	beat_track_container.add_child(track_bg)
-	
-	# 创建判定线
-	beat_judgment_line = ColorRect.new()
-	beat_judgment_line.color = Color(1.0, 1.0, 0.3, 0.9)
-	beat_judgment_line.anchor_top = 0.0
-	beat_judgment_line.anchor_bottom = 1.0
-	beat_judgment_line.offset_left = BEAT_TRACK_CENTER_X - 1.5
-	beat_judgment_line.offset_right = BEAT_TRACK_CENTER_X + 1.5
-	beat_track_container.add_child(beat_judgment_line)
+	beat_track_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	attack_ui_container.add_child(beat_track_container)
+
+	var bg: ColorRect = ColorRect.new()
+	bg.color = Color(0.08, 0.08, 0.08, 0.6)
+	bg.anchor_right = 1.0
+	bg.anchor_bottom = 1.0
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	beat_track_container.add_child(bg)
+
+	for i in range(GameConstants.INPUT_BEATS):
+		var x: float = i * _track_segment_width
+
+		var left_miss: ColorRect = ColorRect.new()
+		left_miss.color = Color(0.25, 0.12, 0.12, 0.7)
+		left_miss.position = Vector2(x, 0.0)
+		left_miss.size = Vector2(miss_side_width, BEAT_TRACK_HEIGHT)
+		left_miss.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		beat_track_container.add_child(left_miss)
+
+		var perfect_zone: ColorRect = ColorRect.new()
+		perfect_zone.color = Color(0.9, 0.9, 0.9, 0.9)
+		perfect_zone.position = Vector2(x + miss_side_width, 0.0)
+		perfect_zone.size = Vector2(perfect_width, BEAT_TRACK_HEIGHT)
+		perfect_zone.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		beat_track_container.add_child(perfect_zone)
+		_perfect_zones.append(perfect_zone)
+
+		var right_miss: ColorRect = ColorRect.new()
+		right_miss.color = Color(0.25, 0.12, 0.12, 0.7)
+		right_miss.position = Vector2(x + miss_side_width + perfect_width, 0.0)
+		right_miss.size = Vector2(miss_side_width, BEAT_TRACK_HEIGHT)
+		right_miss.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		beat_track_container.add_child(right_miss)
+
+		if i > 0:
+			var border: ColorRect = ColorRect.new()
+			border.color = Color(0.0, 0.0, 0.0, 0.6)
+			border.position = Vector2(x - 1.0, 0.0)
+			border.size = Vector2(2.0, BEAT_TRACK_HEIGHT)
+			border.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			beat_track_container.add_child(border)
+
+	beat_cursor = ColorRect.new()
+	beat_cursor.name = "BeatCursor"
+	beat_cursor.color = Color(1.0, 1.0, 1.0, 1.0)
+	beat_cursor.position = Vector2(-CURSOR_HALF_WIDTH, -4.0)
+	beat_cursor.size = Vector2(CURSOR_HALF_WIDTH * 2.0, BEAT_TRACK_HEIGHT + 8.0)
+	beat_cursor.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	beat_track_container.add_child(beat_cursor)
 
 
-## 显示节拍音轨（仅显示音轨，不显示圆圈UI）
-func show_beat_track() -> void:
-	if beat_track_container:
-		beat_track_container.visible = true
-		print("节拍音轨已显示")
+func _clear_beat_track() -> void:
+	if beat_track_container != null and is_instance_valid(beat_track_container):
+		beat_track_container.queue_free()
+	beat_track_container = null
+	beat_cursor = null
+	_track_bi = 0.0
+	_track_first_beat_time = 0.0
+	_track_segment_width = 0.0
+	_track_width = 0.0
+	_perfect_zones.clear()
+	_resolved_zones.clear()
 
 
-## 显示攻击UI
+func _update_beat_cursor() -> void:
+	if beat_cursor == null or _track_bi <= 0.0 or _track_segment_width <= 0.0:
+		return
+
+	var now: float = _get_beat_clock_time()
+	var cursor_x: float = (now - _track_first_beat_time + _track_bi * 0.5) / _track_bi * _track_segment_width
+
+	beat_cursor.position.x = cursor_x - CURSOR_HALF_WIDTH
+
+	if cursor_x < -_track_segment_width or cursor_x > _track_width + _track_segment_width:
+		beat_cursor.visible = false
+	else:
+		beat_cursor.visible = true
+
+
+func _update_heat_shake() -> void:
+	if _shake_intensity > 0.0 and attack_ui_container and attack_ui_container.visible:
+		attack_ui_container.position = Vector2(
+			randf_range(-_shake_intensity, _shake_intensity),
+			randf_range(-_shake_intensity, _shake_intensity)
+		)
+	elif attack_ui_container:
+		attack_ui_container.position = Vector2.ZERO
+
+
+func _flash_perfect_zones_on_heat_change(prev_level: int, new_level: int) -> void:
+	if _perfect_zones.is_empty():
+		return
+	if prev_level == new_level:
+		return
+
+	var flash_color: Color
+	if new_level > prev_level:
+		flash_color = Color(1.0, 0.9, 0.4, 1.0)
+	else:
+		flash_color = Color(0.4, 0.5, 0.8, 0.9)
+
+	for i in range(_perfect_zones.size()):
+		if _resolved_zones.has(i):
+			continue
+		var zone: ColorRect = _perfect_zones[i]
+		if not is_instance_valid(zone):
+			continue
+		var saved_color: Color = zone.color
+		zone.color = flash_color
+		var tween: Tween = create_tween()
+		tween.set_ease(Tween.EASE_OUT)
+		tween.tween_property(zone, "color", saved_color, 0.3)
+
+
+func _update_perfect_zone_glow(heat_level: int) -> void:
+	for i in range(_perfect_zones.size()):
+		if _resolved_zones.has(i):
+			continue
+		var zone: ColorRect = _perfect_zones[i]
+		if not is_instance_valid(zone):
+			continue
+		match heat_level:
+			0, 1, 2:
+				zone.color = Color(0.9, 0.9, 0.9, 0.9)
+			3:
+				zone.color = Color(1.0, 0.8, 0.6, 0.95)
+			4:
+				zone.color = Color(1.0, 0.95, 0.85, 1.0)
+
+
+func _on_attack_result_display(_attack_type: int, is_perfect: bool, _heat_level: int) -> void:
+	if _track_bi <= 0.0 or _perfect_zones.is_empty():
+		return
+
+	var now: float = _get_beat_clock_time()
+	var beat_idx: int = int((now - _track_first_beat_time + _track_bi * 0.5) / _track_bi)
+	if beat_idx < 0 or beat_idx >= _perfect_zones.size():
+		return
+	if _resolved_zones.has(beat_idx):
+		return
+
+	var zone: ColorRect = _perfect_zones[beat_idx]
+	if not is_instance_valid(zone):
+		return
+
+	if is_perfect:
+		zone.color = Color(0.2, 0.9, 0.3, 0.95)
+		_resolved_zones[beat_idx] = true
+	else:
+		zone.color = Color(0.9, 0.15, 0.15, 0.9)
+		_resolved_zones[beat_idx] = true
+
+
+func _cleanup_heat_effects() -> void:
+	if _heat_tween != null and _heat_tween.is_valid():
+		_heat_tween.kill()
+	_heat_tween = null
+	_shake_intensity = 0.0
+	_current_heat_level = -1
+	_resolved_zones.clear()
+	if beat_flash_effect:
+		beat_flash_effect.color = Color(1.0, 1.0, 1.0, 0.0)
+	if attack_ui_container:
+		attack_ui_container.position = Vector2.ZERO
+
+
 func show_attack_ui() -> void:
 	if attack_ui_container:
 		attack_ui_container.visible = true
-		attack_count = 0  # 重置计数器
-		is_next_attack_charged = false  # 重置蓄力状态
-		# 重置active_beat_notes数组（应该已经有前两个音符）
-		print("攻击UI已显示 - 容器可见性: ", attack_ui_container.visible, ", 当前音符数: ", active_beat_notes.size())
-	else:
-		print("错误：攻击UI容器未创建！")
 
 
-## 隐藏攻击UI
-func hide_attack_ui() -> void:
-	if attack_ui_container:
-		attack_ui_container.visible = false
-		print("攻击UI已隐藏")
-	
-	# 隐藏节拍音轨
-	if beat_track_container:
-		beat_track_container.visible = false
-	
-	# 清理所有节拍标记
-	for note in active_beat_notes:
-		if is_instance_valid(note):
-			note.queue_free()
-	active_beat_notes.clear()
-	_beat_note_speed = 0.0
-	_beat_note_width = 0.0
-	
-	# 隐藏大屏幕倒计旰标签
-	if countdown_label:
-		countdown_label.visible = false
-
-
-## 生成一个节拍标记（基于绝对时间定位，由 _process 统一驱动，消除帧漂移）
-## beat_interval: 一拍的时长（秒）
-## target_time: 音符中心到达判定线的绝对时间（Time.get_ticks_msec / 1000.0 基准）
-func spawn_beat_note(beat_interval: float, target_time: float) -> void:
-	if not beat_track_container:
-		return
-	
-	# 计算统一速度和宽度（400px 对应 2 拍移动距离）
-	_beat_note_speed = BEAT_NOTE_TRAVEL_DISTANCE / (2.0 * beat_interval)
-	_beat_note_width = _beat_note_speed * beat_interval  # 一拍宽度
-	
-	# 创建节拍标记
-	var beat_note: ColorRect = ColorRect.new()
-	beat_note.color = Color(1.0, 1.0, 1.0, 0.8)  # 白色（未输入状态）
-	beat_note.custom_minimum_size = Vector2(_beat_note_width, BEAT_TRACK_HEIGHT * 0.6)
-	beat_note.anchor_top = 0.5
-	beat_note.anchor_bottom = 0.5
-	beat_note.offset_top = -BEAT_TRACK_HEIGHT * 0.3
-	beat_note.offset_bottom = BEAT_TRACK_HEIGHT * 0.3
-	# 存储目标时间，由 _process 基于绝对时间计算位置
-	beat_note.set_meta("target_time", target_time)
-	beat_track_container.add_child(beat_note)
-	active_beat_notes.append(beat_note)
-	
-	# 立即设置初始位置
-	_position_single_beat_note(beat_note)
-
-
-## 统一更新所有节拍音符位置（基于绝对时间，保证相邻音符严格无缝）
-func _update_beat_note_positions() -> void:
-	if _beat_note_speed <= 0.0 or active_beat_notes.is_empty():
-		return
-	var hw: float = _beat_note_width / 2.0
-	var now: float = _get_beat_clock_time()
-	for note in active_beat_notes:
-		if not is_instance_valid(note):
-			continue
-		var target_time: float = note.get_meta("target_time", 0.0)
-		var center_x: float = BEAT_TRACK_CENTER_X + (target_time - now) * _beat_note_speed
-		note.offset_left = center_x - hw
-		note.offset_right = center_x + hw
-		# 完全移出屏幕左侧后销毁（不从数组移除，保持索引稳定）
-		if center_x + hw < -50.0:
-			note.queue_free()
-
-
-## 为单个音符设定初始位置（生成时立即调用）
-func _position_single_beat_note(note: ColorRect) -> void:
-	if _beat_note_speed <= 0.0:
-		return
-	var hw: float = _beat_note_width / 2.0
-	var now: float = _get_beat_clock_time()
-	var target_time: float = note.get_meta("target_time", 0.0)
-	var center_x: float = BEAT_TRACK_CENTER_X + (target_time - now) * _beat_note_speed
-	note.offset_left = center_x - hw
-	note.offset_right = center_x + hw
-
-
-func _get_beat_clock_time() -> float:
-	if music_player != null and music_player.has_method("get_playback_position"):
-		return float(music_player.get_playback_position()) + AudioServer.get_time_to_next_mix()
-	return Time.get_ticks_msec() / 1000.0
-
-
-## 显示返回倒计时
 func show_return_countdown(count: int) -> void:
-	# 使用大屏幕倒计旰标签（与准备阶段相同）
 	if countdown_label:
 		countdown_label.text = str(count)
 		countdown_label.visible = true
-		countdown_label.add_theme_color_override("font_color", Color(1.0, 0.5, 0.0))  # 橙色
-		
-		# 缩放动画：从大到小
+		countdown_label.add_theme_color_override("font_color", Color(1.0, 0.5, 0.0))
+
 		var scale_tween: Tween = create_tween()
 		scale_tween.set_ease(Tween.EASE_OUT)
 		scale_tween.set_trans(Tween.TRANS_BACK)
 		countdown_label.scale = Vector2(1.5, 1.5)
 		scale_tween.tween_property(countdown_label, "scale", Vector2(1.0, 1.0), 0.3)
-		
-		# 透明度动画：从不透明到半透明
+
 		var alpha_tween: Tween = create_tween()
 		alpha_tween.set_ease(Tween.EASE_OUT)
 		countdown_label.modulate.a = 1.0
 		alpha_tween.tween_property(countdown_label, "modulate:a", 0.5, 0.6)
-	
-	# 按需求移除文字提示，仅保留倒计时数字。
 
 
-## 攻击发动时的回调
-func _on_attack_performed(attack_type: int) -> void:
-	print("收到攻击信号，类型: ", attack_type)
-	
-	if not attack_ui_container or not attack_ui_container.visible:
-		print("警告：攻击UI未显示！")
+func hide_attack_ui() -> void:
+	if attack_ui_container:
+		attack_ui_container.visible = false
+		attack_ui_container.position = Vector2.ZERO
+	if countdown_label:
+		countdown_label.visible = false
+	_clear_beat_track()
+	_cleanup_heat_effects()
+
+
+func _on_heat_changed(heat_level: int, _heat_counter: int) -> void:
+	if not beat_flash_effect:
+		return
+	if heat_level == _current_heat_level:
 		return
 
-	# 每次行动消耗的拍数：重击2拍，其余1拍。
-	var beat_cost: int = 2 if attack_type == 1 else 1
-	var beat_index: int = attack_count
-	if beat_index < 0 or beat_index >= active_beat_notes.size():
-		print("错误：节拍索引超出范围: ", beat_index, "/", active_beat_notes.size())
+	var prev_level: int = _current_heat_level
+	_current_heat_level = heat_level
+
+	if _heat_tween != null and _heat_tween.is_valid():
+		_heat_tween.kill()
+	_heat_tween = null
+
+	_flash_perfect_zones_on_heat_change(prev_level, heat_level)
+	_update_perfect_zone_glow(heat_level)
+
+	var is_level_up: bool = heat_level > prev_level
+
+	if heat_level == 0:
+		if prev_level > 0:
+			beat_flash_effect.color = Color(0.3, 0.4, 0.6, 0.25)
+			_heat_tween = create_tween()
+			_heat_tween.tween_property(beat_flash_effect, "color:a", 0.0, 0.5)
+		else:
+			beat_flash_effect.color = Color(1.0, 1.0, 1.0, 0.0)
+		_shake_intensity = 0.0
 		return
-	attack_count += beat_cost
-	
-	# 根据攻击类型选择颜色
-	var fill_color: Color = Color.GRAY
-	var attack_name: String = ""
-	match attack_type:
-		0:  # LIGHT - 蓝色
-			fill_color = Color(0.3, 0.5, 1.0, 0.9)
-			attack_name = "轻攻击"
-		1:  # HEAVY - 黄色
-			fill_color = Color(1.0, 0.9, 0.2, 0.9)
-			attack_name = "重攻击"
-		2:  # HEAL - 绿色
-			fill_color = Color(0.2, 1.0, 0.3, 0.9)
-			attack_name = "回复"
-		3:  # ENHANCE - 红色
-			fill_color = Color(1.0, 0.2, 0.2, 0.9)
-			attack_name = "蓄力"
 
-	# 将被本次行动占用的拍子全部上色。
-	for i in range(beat_cost):
-		var fill_index: int = beat_index + i
-		if fill_index < 0 or fill_index >= active_beat_notes.size():
-			break
-		var beat_note: ColorRect = active_beat_notes[fill_index]
-		if not is_instance_valid(beat_note):
-			continue
-		beat_note.color = fill_color
-		print("拍", fill_index + 1, ": ", attack_name, " - 音符已变色")
+	var flash_color: Color
+	var flash_alpha: float
+	var pulse_low: float
+	var pulse_high: float
+	var pulse_period: float
 
-		# 蓄力视觉：下一次轻/重攻击时，给本次占用的所有拍添加特效。
-		if (attack_type == 0 or attack_type == 1) and is_next_attack_charged:
-			_add_charge_visual_effect(beat_note)
-			print("蓄力攻击！- 音符", fill_index + 1, "已添加发光效果")
+	match heat_level:
+		1:
+			flash_color = Color(1.0, 0.65, 0.0)
+			flash_alpha = 0.35 if is_level_up else 0.15
+			pulse_low = 0.06
+			pulse_high = 0.18
+			pulse_period = 0.6
+			_shake_intensity = 0.0
+		2:
+			flash_color = Color(1.0, 0.4, 0.0)
+			flash_alpha = 0.45 if is_level_up else 0.20
+			pulse_low = 0.10
+			pulse_high = 0.28
+			pulse_period = 0.45
+			_shake_intensity = 0.0
+		3:
+			flash_color = Color(1.0, 0.2, 0.0)
+			flash_alpha = 0.55 if is_level_up else 0.25
+			pulse_low = 0.14
+			pulse_high = 0.38
+			pulse_period = 0.3
+			_shake_intensity = 0.0
+		4:
+			flash_color = Color(1.0, 0.0, 0.0)
+			flash_alpha = 0.65 if is_level_up else 0.30
+			pulse_low = 0.18
+			pulse_high = 0.48
+			pulse_period = 0.18
+			_shake_intensity = 2.0
+		_:
+			return
 
-	# 处理蓄力状态机
-	if attack_type == 3:
-		is_next_attack_charged = true
-		print("蓄力激活 - 下次轻/重攻击将显示特效")
-	elif (attack_type == 0 or attack_type == 1) and is_next_attack_charged:
-		is_next_attack_charged = false
-
-
-## 为蓄力政击音符添加发光边框效果
-func _add_charge_visual_effect(note: ColorRect) -> void:
-	# 创建上边框
-	var top_border: ColorRect = ColorRect.new()
-	top_border.color = Color(1.0, 0.5, 0.0, 0.8)  # 橙色边框
-	top_border.anchor_right = 1.0
-	top_border.offset_bottom = 3.0
-	top_border.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	note.add_child(top_border)
-	
-	# 创建底边框
-	var bottom_border: ColorRect = ColorRect.new()
-	bottom_border.color = Color(1.0, 0.5, 0.0, 0.8)
-	bottom_border.anchor_top = 1.0
-	bottom_border.anchor_right = 1.0
-	bottom_border.anchor_bottom = 1.0
-	bottom_border.offset_top = -3.0
-	bottom_border.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	note.add_child(bottom_border)
-	
-	# 创建左边框
-	var left_border: ColorRect = ColorRect.new()
-	left_border.color = Color(1.0, 0.5, 0.0, 0.8)
-	left_border.offset_right = 3.0
-	left_border.anchor_bottom = 1.0
-	left_border.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	note.add_child(left_border)
-	
-	# 创建右边框
-	var right_border: ColorRect = ColorRect.new()
-	right_border.color = Color(1.0, 0.5, 0.0, 0.8)
-	right_border.anchor_left = 1.0
-	right_border.anchor_right = 1.0
-	right_border.anchor_bottom = 1.0
-	right_border.offset_left = -3.0
-	right_border.offset_right = 0.0
-	right_border.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	note.add_child(right_border)
-	
-	# 创建闪烁动画（同时作用于所有边框）
-	var tween: Tween = create_tween()
-	tween.set_loops(5)  # 循环5次，避免无限循环
-	var borders: Array[ColorRect] = [top_border, bottom_border, left_border, right_border]
-	for border in borders:
-		tween.parallel().tween_property(border, "color:a", 1.0, 0.5)
-	for border in borders:
-		tween.parallel().tween_property(border, "color:a", 0.3, 0.5)
+	if is_level_up and prev_level >= 0:
+		beat_flash_effect.color = Color(flash_color.r, flash_color.g, flash_color.b, flash_alpha)
+		_heat_tween = create_tween()
+		_heat_tween.tween_property(beat_flash_effect, "color:a", pulse_high, 0.35).set_ease(Tween.EASE_OUT)
+		_heat_tween.tween_property(beat_flash_effect, "color:a", pulse_low, pulse_period)
+		_heat_tween.tween_property(beat_flash_effect, "color:a", pulse_high, pulse_period)
+		_heat_tween.set_loops(0)
+	else:
+		beat_flash_effect.color = Color(0.3, 0.4, 0.6, 0.20)
+		_heat_tween = create_tween()
+		_heat_tween.tween_property(beat_flash_effect, "color", Color(flash_color.r, flash_color.g, flash_color.b, pulse_high), 0.3)
+		_heat_tween.tween_property(beat_flash_effect, "color:a", pulse_low, pulse_period)
+		_heat_tween.tween_property(beat_flash_effect, "color:a", pulse_high, pulse_period)
+		_heat_tween.set_loops(0)
 
 
 func _on_boss_defeated() -> void:

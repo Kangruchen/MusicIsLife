@@ -14,8 +14,7 @@ enum JudgmentType {
 enum AttackType {
 	LIGHT,     # 轻攻击（第一条轨道，J键/GUARD）
 	HEAVY,     # 重攻击（第二条轨道，I键/HIT）
-	HEAL,      # 回复（攻击阶段无输入默认动作）
-	ENHANCE    # 蓄力（第三条轨道，L键/DODGE）
+	HEAL,      # 回复（第三条轨道，L键/DODGE）
 }
 
 # 游戏阶段状态机
@@ -50,6 +49,7 @@ const ACTION_MAPPING := {
 @export_node_path("Node2D") var defense_hit_effect_anchor_path: NodePath
 @export_node_path("Node2D") var defense_hit_effect_boss_path: NodePath = NodePath("../Boss")
 @export var defense_hit_effect_offset: Vector2 = Vector2(-24.0, 0.0)
+@export var defense_hit_effect_scale_multiplier: Vector2 = Vector2(1.0, 1.0)
 
 @onready var track_manager: Node = get_node("../TrackManager")
 @onready var music_player: Node = get_node("../MusicPlayer")
@@ -65,7 +65,6 @@ var attack_beat_interval: float = 0.0
 var current_beat_start_time: float = 0.0  # 当前拍的开始时间
 var attack_phase_start_time: float = 0.0  # 攻击阶段开始时间
 var current_beat_has_input: bool = false  # 当前拍是否已有输入
-var _current_beat_forced_occupied: bool = false  # 当前拍是否由重击占用（非玩家输入）
 var _heavy_skip_next_beat: bool = false    # 重击占用下一拍标志
 var _beat_generation: int = 0            # 每拍递增，用于使过期回调失效
 var _attack_beat_abs_times: PackedFloat64Array = PackedFloat64Array()  # 预计算的每拍绝对时间
@@ -73,6 +72,10 @@ var _next_beat_idx: int = 0  # 下一个待处理的拍子索引
 var _attack_beat_input_states: Dictionary = {}  # key=判定拍编号(1-based), value=该拍是否已有输入/占用
 var _defense_hit_effect_anchor: Node2D = null
 var _defense_hit_effect_boss: Node2D = null
+
+# 热度系统
+var heat_counter: int = 0  # 当前档位内 Perfect 计数 (0~PERFECTS_PER_LEVEL-1)
+var heat_level: int = 0    # 当前热度档位 (0~MAX_HEAT_LEVEL)
 
 
 func _ready() -> void:
@@ -281,6 +284,8 @@ func _spawn_defense_hit_effect(note_type: Note.NoteType) -> void:
 
 	scene_root.add_child(effect_instance)
 	effect_instance.global_position = _get_defense_hit_effect_position(note_type)
+	if defense_hit_effect_scale_multiplier != Vector2(1.0, 1.0):
+		effect_instance.scale *= defense_hit_effect_scale_multiplier
 	_play_defense_hit_effect_and_auto_free(effect_instance)
 
 
@@ -476,66 +481,61 @@ func resume_input() -> void:
 func start_attack_phase(duration: float, bi: float, first_beat_abs_time: float) -> void:
 	current_phase = PhaseState.ATTACK
 	attack_beat_interval = bi
-	current_beat_in_attack = 0  # 代表输入拍第1拍（尚未到来）
+	current_beat_in_attack = 0
 	attack_phase_start_time = _get_music_clock_time()
-	# 每拍窗口定义为 [重音前半拍, 重音后半拍)，因此拍起点 = 重音时刻 - 半拍。
-	current_beat_start_time = first_beat_abs_time - 0.5 * bi
+	current_beat_start_time = first_beat_abs_time
 	current_beat_has_input = false
-	_current_beat_forced_occupied = false
 	_heavy_skip_next_beat = false
-	_beat_generation += 1  # 使所有残留回调失效
+	_beat_generation += 1
 	_attack_beat_input_states.clear()
 	
-	# 预计算所有拍的绝对时间（输入拍 + 退出拍），这里存储“每拍窗口起点”。
+	heat_counter = 0
+	heat_level = 0
+	EventBus.heat_changed.emit(0, 0)
+	
 	_attack_beat_abs_times.clear()
 	_attack_beat_abs_times.resize(GameConstants.INPUT_BEATS + GameConstants.EXIT_BEATS)
 	for i in range(GameConstants.INPUT_BEATS + GameConstants.EXIT_BEATS):
-		_attack_beat_abs_times[i] = current_beat_start_time + i * bi
+		_attack_beat_abs_times[i] = first_beat_abs_time + i * attack_beat_interval
 	_next_beat_idx = 0
 	
-	# 通过 EventBus 通知 UI 显示攻击界面
 	EventBus.show_attack_ui_requested.emit()
+	EventBus.attack_track_setup.emit(bi, first_beat_abs_time)
 	EventBus.attack_phase_started.emit()
 	
-	# 打印第一拍的log
 	var first_total: int = GameConstants.COUNTDOWN_BEATS + 1
 	print("[总拍", first_total, "/", GameConstants.TOTAL_ATTACK_BEATS, "] 输入阶段 - 拍1/", GameConstants.INPUT_BEATS)
 	
-	# 启动总计时器（仅用于攻击阶段整体结束，节拍由 _process 驱动）
 	attack_phase_timer.start(duration)
 
 
 ## 攻击阶段的输入处理
 func _handle_attack_phase_input(event: InputEvent) -> void:
-	# 忽略键盘长按产生的重复事件，避免一次按住跨拍连续占位。
 	if event is InputEventKey:
 		var key_event: InputEventKey = event as InputEventKey
 		if key_event != null and key_event.echo:
 			return
 
-	# 先将攻击拍状态追到当前时刻，避免输入事件先于 _process 导致落在旧拍状态。
 	var synced_now: float = _get_music_clock_time()
 	_advance_attack_beats_to_time(synced_now)
 
-	# 检测按键动作
 	for action in ACTION_MAPPING:
 		if event.is_action_pressed(action):
 			var current_time: float = synced_now
 			var judge_beat: int = _get_input_judge_beat_for_time(current_time)
-			# 仅允许在输入阶段有效拍窗口内发动行动
 			if judge_beat < 1 or judge_beat > GameConstants.INPUT_BEATS:
 				print("当前不在可输入拍，忽略攻击输入")
 				return
 
 			var track: Note.NoteType = ACTION_MAPPING[action]
-			var attack_type: AttackType = AttackType.ENHANCE
+			var attack_type: AttackType
 			match track:
 				Note.NoteType.GUARD:
 					attack_type = AttackType.LIGHT
 				Note.NoteType.HIT:
 					attack_type = AttackType.HEAVY
 				Note.NoteType.DODGE:
-					attack_type = AttackType.ENHANCE
+					attack_type = AttackType.HEAL
 
 			var beat_used: bool = bool(_attack_beat_input_states.get(judge_beat, false))
 			if beat_used:
@@ -544,21 +544,48 @@ func _handle_attack_phase_input(event: InputEvent) -> void:
 
 			var beat_start_time: float = _attack_beat_abs_times[judge_beat - 1]
 			var time_since_beat: float = current_time - beat_start_time
-			
+
 			_attack_beat_input_states[judge_beat] = true
 			if judge_beat == current_beat_in_attack:
 				current_beat_has_input = true
-			
-			# 发送攻击信号
-			EventBus.attack_performed.emit(attack_type)
-			_log_attack_drum_alignment("input_" + _get_attack_name(attack_type))
-			print("发动攻击: ", _get_attack_name(attack_type), " (距离节拍 ", int(time_since_beat * 1000), "ms)")
-			
-			# 重攻击消耗两拍：占用下一拍，不立即触发第二次攻击
-			if attack_type == AttackType.HEAVY and judge_beat < GameConstants.INPUT_BEATS:
-				_heavy_skip_next_beat = true
-				print("重击占用下一拍")
-			
+
+			match attack_type:
+				AttackType.LIGHT:
+					var is_perfect: bool = absf(time_since_beat) < GameConstants.ATTACK_PERFECT_WINDOW
+					if is_perfect:
+						heat_counter += 1
+						if heat_counter >= GameConstants.PERFECTS_PER_LEVEL:
+							heat_counter = 0
+							heat_level = mini(heat_level + 1, GameConstants.MAX_HEAT_LEVEL)
+					else:
+						heat_counter = 0
+						if heat_level > 0:
+							heat_level -= 1
+					EventBus.attack_performed.emit(AttackType.LIGHT, 0)
+					EventBus.attack_result_display.emit(AttackType.LIGHT, is_perfect, heat_level)
+					EventBus.heat_changed.emit(heat_level, heat_counter)
+					_log_attack_drum_alignment("light_" + ("perfect" if is_perfect else "miss"))
+					print("轻攻击 - ", "PERFECT" if is_perfect else "MISS", " 热度:", heat_level, "(", heat_counter, "/", GameConstants.PERFECTS_PER_LEVEL, ")")
+
+				AttackType.HEAVY:
+					var current_heat: int = heat_level
+					heat_level = 0
+					heat_counter = 0
+					EventBus.attack_performed.emit(AttackType.HEAVY, current_heat)
+					EventBus.attack_result_display.emit(AttackType.HEAVY, true, current_heat)
+					EventBus.heat_changed.emit(0, 0)
+					if judge_beat + 1 <= GameConstants.INPUT_BEATS + GameConstants.EXIT_BEATS:
+						_attack_beat_input_states[judge_beat + 1] = true
+						_heavy_skip_next_beat = true
+					_log_attack_drum_alignment("heavy")
+					print("重攻击 - 消耗热度:", current_heat, " 伤害倍率:", 1 + current_heat * GameConstants.HEAT_DAMAGE_MULTIPLIER_PER_LEVEL)
+
+				AttackType.HEAL:
+					EventBus.attack_performed.emit(AttackType.HEAL, 0)
+					EventBus.attack_result_display.emit(AttackType.HEAL, true, 0)
+					_log_attack_drum_alignment("heal")
+					print("回复")
+
 			return
 
 
@@ -568,11 +595,16 @@ func _get_input_judge_beat_for_time(now: float) -> int:
 	if _attack_beat_abs_times.size() < GameConstants.INPUT_BEATS:
 		return -1
 
+	var best_beat: int = -1
+	var best_dist: float = INF
 	for i in range(GameConstants.INPUT_BEATS):
-		var start_time: float = _attack_beat_abs_times[i]
-		var end_time: float = start_time + attack_beat_interval
-		if now >= start_time and now < end_time:
-			return i + 1
+		var dist: float = absf(now - _attack_beat_abs_times[i])
+		if dist < best_dist:
+			best_dist = dist
+			best_beat = i + 1
+
+	if best_beat > 0 and best_dist < attack_beat_interval * 0.5:
+		return best_beat
 
 	return -1
 
@@ -586,50 +618,30 @@ func _advance_attack_beats_to_time(now: float) -> void:
 
 
 ## 攻击节拍触发（基于绝对时间，由 _process 调用）
-## beat_idx: 拍子在 _attack_beat_abs_times 数组中的索引
+## beat_idx: 半拍子在 _attack_beat_abs_times 数组中的索引
 func _on_attack_beat_timed(beat_idx: int) -> void:
-	# 递增拍数，使用预计算的绝对时间（消除帧抖动漂移）
 	current_beat_in_attack += 1
 	current_beat_start_time = _attack_beat_abs_times[beat_idx]
-	
-	print("DEBUG: _on_attack_beat_timed - beat_idx=", beat_idx, ", current_beat=", current_beat_in_attack, ", has_input=", current_beat_has_input)
-	
-	# 继承占用状态：重击占用下一拍
+
 	if _heavy_skip_next_beat:
 		current_beat_has_input = true
-		_current_beat_forced_occupied = true
 		_attack_beat_input_states[current_beat_in_attack] = true
 		_heavy_skip_next_beat = false
-		print("重击占用本拍")
 	else:
 		current_beat_has_input = false
-		_current_beat_forced_occupied = false
 		_attack_beat_input_states[current_beat_in_attack] = false
-	
-	# 输入阶段（拍 1 ~ INPUT_BEATS）
+
 	if current_beat_in_attack <= GameConstants.INPUT_BEATS:
 		if current_beat_in_attack == 1:
 			EventBus.attack_movement_enabled_changed.emit(true)
 
-		# 判定拍结束时（反拍）若无输入则自动回复。
-		_schedule_auto_heal_for_beat(current_beat_in_attack, current_beat_start_time)
-
-		# 生成下一个节拍标记视觉音符（覆盖拍 3 ~ 16）
-		if current_beat_in_attack < (GameConstants.INPUT_BEATS - 1):
-			# 目标时间使用“重音中心”，因此在窗口起点基础上加 2.5 拍。
-			var note_target_time: float = _attack_beat_abs_times[beat_idx] + 2.5 * attack_beat_interval
-			EventBus.spawn_beat_note_requested.emit(attack_beat_interval, note_target_time)
-			print("DEBUG: 生成音符 (拍", current_beat_in_attack + 1, ")")
-		
-		var total_beat: int = current_beat_in_attack + GameConstants.COUNTDOWN_BEATS + 1
-		var display_beat: int = current_beat_in_attack + 1
-		print("[总拍", total_beat, "/", GameConstants.TOTAL_ATTACK_BEATS, "] 输入阶段 - 拍", display_beat, "/", GameConstants.INPUT_BEATS)
-	# 退出阶段（拍 INPUT_BEATS+1 ~ INPUT_BEATS+EXIT_BEATS）
-	elif current_beat_in_attack > GameConstants.INPUT_BEATS and current_beat_in_attack <= (GameConstants.INPUT_BEATS + GameConstants.EXIT_BEATS):
+		var total_beat: int = current_beat_in_attack + GameConstants.COUNTDOWN_BEATS
+		print("[总拍", total_beat, "/", GameConstants.TOTAL_ATTACK_BEATS, "] 输入阶段 - 拍", current_beat_in_attack, "/", GameConstants.INPUT_BEATS)
+	elif current_beat_in_attack > GameConstants.INPUT_BEATS and current_beat_in_attack <= GameConstants.INPUT_BEATS + GameConstants.EXIT_BEATS:
 		if current_beat_in_attack == GameConstants.INPUT_BEATS + 1:
 			EventBus.attack_movement_enabled_changed.emit(false)
-		var countdown: int = (GameConstants.INPUT_BEATS + GameConstants.EXIT_BEATS) - current_beat_in_attack
-		var total_beat: int = current_beat_in_attack + GameConstants.COUNTDOWN_BEATS + 1
+		var countdown: int = GameConstants.INPUT_BEATS + GameConstants.EXIT_BEATS - current_beat_in_attack + 1
+		var total_beat: int = current_beat_in_attack + GameConstants.COUNTDOWN_BEATS
 		print("[总拍", total_beat, "/", GameConstants.TOTAL_ATTACK_BEATS, "] 结束阶段 - 倒计时", countdown)
 		EventBus.show_return_countdown_requested.emit(countdown)
 
@@ -641,10 +653,10 @@ func _on_attack_phase_end() -> void:
 		return
 
 	current_phase = PhaseState.DEFENSE
-	_beat_generation += 1  # 使所有残留回调失效
+	_beat_generation += 1
 	_attack_beat_abs_times.clear()
 	_attack_beat_input_states.clear()
-	_current_beat_forced_occupied = false
+	_heavy_skip_next_beat = false
 	if attack_phase_timer != null:
 		attack_phase_timer.stop()
 	attack_beat_timer.stop()
@@ -665,7 +677,6 @@ func force_end_attack_phase() -> void:
 	_beat_generation += 1
 	_attack_beat_abs_times.clear()
 	_attack_beat_input_states.clear()
-	_current_beat_forced_occupied = false
 	_heavy_skip_next_beat = false
 
 	if attack_phase_timer != null:
@@ -686,8 +697,6 @@ func _get_attack_name(attack_type: AttackType) -> String:
 			return "重攻击"
 		AttackType.HEAL:
 			return "回复"
-		AttackType.ENHANCE:
-			return "蓄力"
 		_:
 			return "未知"
 
@@ -714,35 +723,6 @@ func _log_attack_drum_alignment(tag: String) -> void:
 		" phase=", "%.4f" % phase_in_beat,
 		" bi=", "%.4f" % attack_beat_interval,
 		" dist_to_accent=", "%.4f" % distance_to_nearest_accent)
-
-
-func _schedule_auto_heal_for_beat(beat_number: int, beat_start_time: float) -> void:
-	if beat_number < 1 or beat_number > GameConstants.INPUT_BEATS:
-		return
-
-	var token: int = _beat_generation
-	var beat_end_time: float = beat_start_time + attack_beat_interval
-	var now: float = _get_music_clock_time()
-	var delay: float = maxf(0.0, beat_end_time - now)
-
-	get_tree().create_timer(delay).timeout.connect(func() -> void:
-		if token != _beat_generation:
-			return
-		if current_phase != PhaseState.ATTACK:
-			return
-
-		var already_used: bool = bool(_attack_beat_input_states.get(beat_number, false))
-		if already_used:
-			return
-
-		_attack_beat_input_states[beat_number] = true
-		if current_beat_in_attack == beat_number:
-			current_beat_has_input = true
-
-		EventBus.attack_performed.emit(AttackType.HEAL)
-		_log_attack_drum_alignment("auto_heal")
-		print("自动回复（拍", beat_number, "，本拍无输入）")
-	)
 
 
 func _get_music_clock_time() -> float:

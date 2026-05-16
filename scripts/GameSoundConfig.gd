@@ -25,23 +25,23 @@ class_name GameSoundConfig
 @export_subgroup("音效")
 @export var player_attack: PlayerAttackSoundConfig = null
 @export_subgroup("轻攻击")
-@export var light_player_health_cost: float = 5.0
-@export var light_boss_damage: float = 20.0
-@export var light_boss_energy_max_reduce: float = 5.0
+@export var light_player_health_cost: float = 3.0
+@export var light_boss_damage: float = 10.0
+@export var light_boss_energy_max_reduce: float = 3.0
 @export_subgroup("重攻击")
-@export var heavy_player_health_cost: float = 15.0
-@export var heavy_boss_damage: float = 50.0
-@export var heavy_boss_energy_max_reduce: float = 10.0
+@export var heavy_player_health_cost: float = 8.0
+@export var heavy_boss_damage: float = 25.0
+@export var heavy_boss_energy_max_reduce: float = 5.0
 @export_subgroup("蓄力轻攻击")
-@export var charged_light_player_health_cost: float = 2.0
-@export var charged_light_boss_damage: float = 35.0
-@export var charged_light_boss_energy_max_reduce: float = 8.0
+@export var charged_light_player_health_cost: float = 1.0
+@export var charged_light_boss_damage: float = 18.0
+@export var charged_light_boss_energy_max_reduce: float = 4.0
 @export_subgroup("蓄力重攻击")
-@export var charged_heavy_player_health_cost: float = 8.0
-@export var charged_heavy_boss_damage: float = 80.0
-@export var charged_heavy_boss_energy_max_reduce: float = 15.0
+@export var charged_heavy_player_health_cost: float = 4.0
+@export var charged_heavy_boss_damage: float = 40.0
+@export var charged_heavy_boss_energy_max_reduce: float = 8.0
 @export_subgroup("回复")
-@export var heal_amount: float = 20.0
+@export var heal_amount: float = 10.0
 
 @export_group("玩家防御音效")
 @export var player_defense: PlayerDefenseSoundConfig = null

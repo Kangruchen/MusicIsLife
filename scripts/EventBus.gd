@@ -18,13 +18,16 @@ signal defense_key_pressed(track: int)
 signal miss_triggered(track: int)
 
 # === 攻击阶段 ===
-signal attack_performed(attack_type: int)
+signal attack_performed(attack_type: int, heat_level: int)
 signal attack_hit_confirmed(attack_type: int, target: Variant)
+signal heat_changed(heat_level: int, heat_counter: int)
 signal attack_hit_resolved(applied_damage: float, target: Variant)
 signal defense_feedback_finished
 signal attack_phase_started
 signal attack_phase_ended
 signal attack_movement_enabled_changed(enabled: bool)
+signal attack_result_display(attack_type: int, is_perfect: bool, heat_level: int)
+signal attack_track_setup(bi: float, first_beat_time: float)
 
 # === 血量 / 状态 ===
 signal player_health_updated(current: float, maximum: float)
@@ -39,8 +42,6 @@ signal boss_defeated
 # === UI 请求信号（逻辑层 → UI 层） ===
 signal show_attack_ui_requested
 signal hide_attack_ui_requested
-signal show_beat_track_requested
-signal spawn_beat_note_requested(interval: float, target_time: float)
 signal show_return_countdown_requested(count: int)
 signal show_pause_countdown_requested(bi: float)
 signal play_beat_flash_requested(bi: float, beat_count: int)
@@ -57,13 +58,16 @@ func _suppress_unused_signal_warnings() -> void:
 	judgment_made.emit(0, 0, 0.0)
 	defense_key_pressed.emit(0)
 	miss_triggered.emit(0)
-	attack_performed.emit(0)
+	attack_performed.emit(0, 0)
 	attack_hit_confirmed.emit(0, null)
 	attack_hit_resolved.emit(0.0, null)
+	heat_changed.emit(0, 0)
 	defense_feedback_finished.emit()
 	attack_phase_started.emit()
 	attack_phase_ended.emit()
 	attack_movement_enabled_changed.emit(false)
+	attack_result_display.emit(0, false, 0)
+	attack_track_setup.emit(0.0, 0.0)
 	player_health_updated.emit(0.0, 0.0)
 	boss_health_updated.emit(0.0, 0.0)
 	boss_energy_updated.emit(0.0, 0.0)
@@ -74,8 +78,6 @@ func _suppress_unused_signal_warnings() -> void:
 	boss_defeated.emit()
 	show_attack_ui_requested.emit()
 	hide_attack_ui_requested.emit()
-	show_beat_track_requested.emit()
-	spawn_beat_note_requested.emit(0.0, 0.0)
 	show_return_countdown_requested.emit(0)
 	show_pause_countdown_requested.emit(0.0)
 	play_beat_flash_requested.emit(0.0, 0)

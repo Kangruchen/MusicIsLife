@@ -195,6 +195,7 @@ hint_dodge_offset = Vector2(0, -120)
 script = ExtResource("13_input_mgr")
 ignore_empty_press_without_nearby_notes = true
 defense_hit_effect_anchor_path = NodePath("../../Player")
+defense_hit_effect_scale_multiplier = Vector2(2, 2)
 
 [node name="ScoreManager" type="Node" parent="GameManager"]
 script = ExtResource("14_score_mgr")

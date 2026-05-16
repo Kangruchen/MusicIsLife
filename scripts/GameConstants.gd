@@ -10,7 +10,7 @@ const DRUM_START_BEAT: int = 32       ## drum 第 9 小节起拍编号
 
 # === 攻击阶段时间比率 ===
 const FIRST_BEAT_DELAY_RATIO: float = 0.5    ## 第一输入拍提前半拍
-const AUTO_ENHANCE_DELAY_RATIO: float = 0.5  ## 每拍后半拍自动强化
+
 
 # === 音乐恢复 ===
 const MUSIC_RESUME_LEAD_TIME: float = 0.5    ## 提前淡入秒数
@@ -20,8 +20,17 @@ const PERFECT_WINDOW: float = 0.050   ## 50 ms
 const GREAT_WINDOW: float = 0.100     ## 100 ms
 const GOOD_WINDOW: float = 0.150      ## 150 ms
 
+# === 攻击阶段判定窗口（秒） ===
+const ATTACK_PERFECT_WINDOW: float = 0.150   ## 150 ms（攻击阶段放宽判定，前后对称）
+
 # === MISS 判定 ===
 const MISS_THRESHOLD: float = 0.150   ## 音符过判定线 150 ms 后算 MISS
+
+# === 热度系统 ===
+const MAX_HEAT_LEVEL: int = 4               ## 最高热度档位
+const PERFECTS_PER_LEVEL: int = 3           ## 每档需要 Perfect 次数
+const HEAT_DAMAGE_MULTIPLIER_BASE: float = 1.0   ## 热度伤害基础倍率
+const HEAT_DAMAGE_MULTIPLIER_PER_LEVEL: float = 2.0  ## 每档额外倍率
 
 
 static func get_action_key_label(action: String, fallback: String = "") -> String:

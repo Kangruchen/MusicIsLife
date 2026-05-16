@@ -96,6 +96,8 @@ func _ready() -> void:
 		EventBus.defense_key_pressed.connect(_on_defense_action)
 	if not EventBus.attack_performed.is_connected(_on_attack_action):
 		EventBus.attack_performed.connect(_on_attack_action)
+	if not EventBus.attack_result_display.is_connected(_on_attack_result_display):
+		EventBus.attack_result_display.connect(_on_attack_result_display)
 	if not EventBus.attack_phase_started.is_connected(_on_attack_phase_started):
 		EventBus.attack_phase_started.connect(_on_attack_phase_started)
 	if not EventBus.attack_phase_ended.is_connected(_on_attack_phase_ended):
@@ -263,18 +265,11 @@ func _on_defense_action(track: Note.NoteType) -> void:
 	_play_anim(anim_name, true)
 
 
-func _on_attack_action(attack_type: int) -> void:
+func _on_attack_action(attack_type: int, _heat_level: int) -> void:
 	if _is_dead:
 		return
 	if _state != PlayerState.ATTACK:
-		return
-	if attack_type == ATTACK_TYPE_HEAL:
-		# 攻击阶段无输入触发的回复只做结算，不播放角色攻击动画。
-		return
-
-	if attack_type == ATTACK_TYPE_ENHANCE:
-		_is_next_attack_charged = true
-		_start_attack_action(ATTACK_TYPE_ENHANCE, false)
+		push_warning("[Character] _on_attack_action 忽略: state=%d (非ATTACK), attack_type=%d" % [_state, attack_type])
 		return
 
 	var use_charged: bool = _is_next_attack_charged
@@ -284,6 +279,70 @@ func _on_attack_action(attack_type: int) -> void:
 	_start_attack_action(attack_type, use_charged)
 	if _attack_type_uses_hitbox(attack_type):
 		_is_next_attack_charged = false
+
+
+func _on_attack_result_display(attack_type: int, is_perfect: bool, heat_level: int) -> void:
+	if _is_dead:
+		return
+	if _state != PlayerState.ATTACK:
+		return
+
+	var text: String = ""
+	var color: Color = Color.WHITE
+
+	match attack_type:
+		ATTACK_TYPE_LIGHT:
+			if is_perfect:
+				text = "Hit"
+				color = Color(0.4, 0.7, 1.0)
+			else:
+				text = "Miss"
+				color = Color(0.7, 0.7, 0.7)
+		ATTACK_TYPE_HEAVY:
+			if heat_level > 0:
+				text = "Critical x%d" % heat_level
+			else:
+				text = "Critical"
+			color = Color(1.0, 0.4, 0.1)
+		ATTACK_TYPE_HEAL:
+			text = "Heal"
+			color = Color(0.2, 1.0, 0.4)
+
+	_spawn_floating_text(text, color)
+
+
+func _spawn_floating_text(text: String, color: Color) -> void:
+	var label: Label = Label.new()
+	label.text = text
+	label.add_theme_font_size_override("font_size", 28)
+	label.add_theme_color_override("font_color", color)
+	label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 1.0))
+	label.add_theme_constant_override("outline_size", 3)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.z_index = 100
+	label.position = _get_floating_text_origin()
+	add_child(label)
+
+	var tween: Tween = create_tween()
+	tween.set_ease(Tween.EASE_OUT)
+	tween.set_trans(Tween.TRANS_CUBIC)
+	tween.tween_property(label, "position:y", label.position.y - 60.0, 0.8)
+	tween.parallel().tween_property(label, "modulate:a", 0.0, 0.8).set_delay(0.3)
+	tween.tween_callback(label.queue_free)
+
+
+func _get_floating_text_origin() -> Vector2:
+	if animated_sprite == null or animated_sprite.sprite_frames == null:
+		return Vector2(0.0, -80.0)
+	var anim_name: String = String(animated_sprite.animation)
+	if anim_name.is_empty() or not animated_sprite.sprite_frames.has_animation(anim_name):
+		return Vector2(0.0, -80.0)
+	var frame_texture: Texture2D = animated_sprite.sprite_frames.get_frame_texture(anim_name, animated_sprite.frame)
+	if frame_texture == null:
+		return Vector2(0.0, -80.0)
+	var tex_height: float = frame_texture.get_size().y * absf(animated_sprite.global_scale.y)
+	return Vector2(0.0, -tex_height * 0.5 - 20.0)
 
 
 func _on_attack_phase_started() -> void:
@@ -479,6 +538,7 @@ func _start_attack_action(attack_type: int, is_charged: bool) -> void:
 
 	var anim_name: String = anim_config.get_attack_anim_with_charge(attack_type, is_charged)
 	if not _has_anim(anim_name):
+		push_warning("[Character] 动画不存在: '%s'，回退到 idle" % anim_name)
 		_finish_attack_action()
 		return
 
@@ -826,10 +886,7 @@ func _on_animation_finished() -> void:
 	if _state == PlayerState.DEFENSE:
 		EventBus.defense_feedback_finished.emit()
 		if _pending_attack_phase_start_transition:
-			if _prep_movement_enabled:
-				_complete_attack_phase_start_transition()
-			else:
-				_play_idle()
+			_complete_attack_phase_start_transition()
 			return
 		_play_idle()
 		return

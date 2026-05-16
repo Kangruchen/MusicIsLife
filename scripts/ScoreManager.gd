@@ -8,7 +8,6 @@ var current_player_health: float = 0.0
 var current_boss_health: float = 0.0
 var current_boss_energy: float = 0.0
 var temporary_energy_reduce: float = 0.0
-var is_next_attack_charged: bool = false
 var pending_attack_hits: Array[Dictionary] = []
 var is_game_over: bool = false
 @export var enabled: bool = true
@@ -112,7 +111,6 @@ func reset_game() -> void:
 	current_boss_health = GameConfigs.judgment.max_boss_health
 	current_boss_energy = GameConfigs.judgment.max_boss_energy
 	temporary_energy_reduce = 0.0
-	is_next_attack_charged = false
 	_update_health_bars()
 
 
@@ -155,26 +153,11 @@ func _on_boss_energy_depleted() -> void:
 		input_manager.pause_input()
 	
 	# 通过 EventBus 通知 UI 层（替代 get_node GameUI）
-	EventBus.show_beat_track_requested.emit()
 	EventBus.show_pause_countdown_requested.emit(bi)
 
 	# 基于音乐时钟计算第一输入拍时间（秒）：不依赖系统时钟，避免进出阶段漂移。
 	var depletion_music_time: float = _get_music_clock_time()
 	var first_beat_abs_time: float = depletion_music_time + 4.0 * bi  # 输入拍第1拍（音乐时间轴）
-	var note1_target: float = first_beat_abs_time
-	var note2_target: float = first_beat_abs_time + bi
-	# 在准备阶段第3拍开始时生成第一个音符
-	get_tree().create_timer(bi * 2.0).timeout.connect(func():
-		if is_game_over:
-			return
-		EventBus.spawn_beat_note_requested.emit(bi, note1_target)
-	)
-	# 在准备阶段第4拍开始时生成第二个音符
-	get_tree().create_timer(bi * 3.0).timeout.connect(func():
-		if is_game_over:
-			return
-		EventBus.spawn_beat_note_requested.emit(bi, note2_target)
-	)
 	# 后四个小节：节拍闪光效果
 	get_tree().create_timer(countdown_duration).timeout.connect(func():
 		if is_game_over:
@@ -239,8 +222,6 @@ func _start_attack_phase(duration: float, bi: float, first_beat_abs_time: float)
 
 	print("攻击阶段开始！")
 	
-	# 重置蓄力状态和临时精力削减量
-	is_next_attack_charged = false
 	temporary_energy_reduce = 0.0
 	pending_attack_hits.clear()
 	
@@ -253,7 +234,7 @@ func _start_attack_phase(duration: float, bi: float, first_beat_abs_time: float)
 
 
 ## 处理攻击效果
-func _on_attack_performed(attack_type: int) -> void:
+func _on_attack_performed(attack_type: int, heat_level: int = 0) -> void:
 	if is_game_over or not enabled:
 		return
 
@@ -262,89 +243,58 @@ func _on_attack_performed(attack_type: int) -> void:
 		return
 
 	_cleanup_pending_attack_hits()
-	
+
 	var player_cost: float = 0.0
 	var boss_damage: float = 0.0
 	var energy_max_reduce: float = 0.0
 	var heal_amount: float = 0.0
-	
+
 	match attack_type:
-		0:  # LIGHT
-			if is_next_attack_charged:
-				# 蓄力轻攻击
-				_play_attack_action_sfx(attack_type, true)
-				player_cost = GameConfigs.sound.charged_light_player_health_cost
-				boss_damage = GameConfigs.sound.charged_light_boss_damage
-				energy_max_reduce = GameConfigs.sound.charged_light_boss_energy_max_reduce
-				print("发动蓄力轻攻击 - 消耗:", player_cost, " 伤害:", boss_damage, " 精力上限减少:", energy_max_reduce)
-				is_next_attack_charged = false  # 消耗蓄力状态
-			else:
-				# 普通轻攻击
-				_play_attack_action_sfx(attack_type, false)
-				player_cost = GameConfigs.sound.light_player_health_cost
-				boss_damage = GameConfigs.sound.light_boss_damage
-				energy_max_reduce = GameConfigs.sound.light_boss_energy_max_reduce
-				print("发动轻攻击 - 消耗:", player_cost, " 伤害:", boss_damage, " 精力上限减少:", energy_max_reduce)
-			
-			# 消耗在出手时结算，伤害在命中判定框时结算。
+		0:  # LIGHT - 积攒热度
+			_play_attack_action_sfx(attack_type, false)
+			player_cost = GameConfigs.sound.light_player_health_cost
+			boss_damage = GameConfigs.sound.light_boss_damage
+			energy_max_reduce = GameConfigs.sound.light_boss_energy_max_reduce
+			print("轻攻击 - 伤害:", boss_damage)
+
 			current_player_health -= player_cost
-			temporary_energy_reduce += energy_max_reduce  # 累加临时削减量
+			temporary_energy_reduce += energy_max_reduce
 			pending_attack_hits.append({
 				"type": attack_type,
 				"damage": boss_damage,
 				"time": Time.get_ticks_msec() / 1000.0
 			})
-		
-		1:  # HEAVY
-			if is_next_attack_charged:
-				# 蓄力重攻击
-				_play_attack_action_sfx(attack_type, true)
-				player_cost = GameConfigs.sound.charged_heavy_player_health_cost
-				boss_damage = GameConfigs.sound.charged_heavy_boss_damage
-				energy_max_reduce = GameConfigs.sound.charged_heavy_boss_energy_max_reduce
-				print("发动蓄力重攻击 - 消耗:", player_cost, " 伤害:", boss_damage, " 精力上限减少:", energy_max_reduce)
-				is_next_attack_charged = false  # 消耗蓄力状态
-			else:
-				# 普通重攻击
-				_play_attack_action_sfx(attack_type, false)
-				player_cost = GameConfigs.sound.heavy_player_health_cost
-				boss_damage = GameConfigs.sound.heavy_boss_damage
-				energy_max_reduce = GameConfigs.sound.heavy_boss_energy_max_reduce
-				print("发动重攻击 - 消耗:", player_cost, " 伤害:", boss_damage, " 精力上限减少:", energy_max_reduce)
-			
-			# 消耗在出手时结算，伤害在命中判定框时结算。
+
+		1:  # HEAVY - 消耗热度
+			_play_attack_action_sfx(attack_type, false)
+			player_cost = GameConfigs.sound.heavy_player_health_cost
+			var heat_multiplier: float = GameConstants.HEAT_DAMAGE_MULTIPLIER_BASE + heat_level * GameConstants.HEAT_DAMAGE_MULTIPLIER_PER_LEVEL
+			boss_damage = GameConfigs.sound.heavy_boss_damage * heat_multiplier
+			energy_max_reduce = GameConfigs.sound.heavy_boss_energy_max_reduce
+			print("重攻击 - 热度:", heat_level, " 倍率:", heat_multiplier, " 伤害:", boss_damage)
+
 			current_player_health -= player_cost
-			temporary_energy_reduce += energy_max_reduce  # 累加临时削减量
+			temporary_energy_reduce += energy_max_reduce
 			pending_attack_hits.append({
 				"type": attack_type,
 				"damage": boss_damage,
 				"time": Time.get_ticks_msec() / 1000.0
 			})
-		
-		2:  # HEAL
-			# 回复
+
+		2:  # HEAL - 回复
 			_play_attack_action_sfx(attack_type, false)
 			heal_amount = GameConfigs.sound.heal_amount
 			current_player_health += heal_amount
-			print("发动回复 - 恢复:", heal_amount)
-		
-		3:  # ENHANCE
-			# 蓄力音效每拍都播放；状态仍只在首次蓄力时置为 true。
-			_play_attack_action_sfx(attack_type, false)
-			if not is_next_attack_charged:
-				is_next_attack_charged = true
-				print("发动蓄力 - 下次攻击将为蓄力版本")
-			else:
-				print("已处于蓄力状态，连续蓄力仅重复播放音效")
-	
-	# 限制数值范围
+			print("回复 - 恢复:", heal_amount)
+
+		_:
+			return
+
 	current_player_health = clampf(current_player_health, 0.0, GameConfigs.judgment.max_player_health)
 	current_boss_health = clampf(current_boss_health, 0.0, GameConfigs.judgment.max_boss_health)
-	
-	# 通过 EventBus 广播血量变化
+
 	_emit_health_update()
-	
-	# 检查胜负
+
 	if current_player_health <= 0.0:
 		_trigger_player_game_over()
 		print("玩家失败！")
@@ -444,7 +394,6 @@ func _trigger_player_game_over() -> void:
 	is_game_over = true
 	is_paused_for_attack = false
 	pending_attack_hits.clear()
-	is_next_attack_charged = false
 
 	if pause_timer != null:
 		pause_timer.stop()
@@ -471,7 +420,6 @@ func _on_boss_defeated() -> void:
 
 	is_game_over = true
 	pending_attack_hits.clear()
-	is_next_attack_charged = false
 
 	if pause_timer != null:
 		pause_timer.stop()
