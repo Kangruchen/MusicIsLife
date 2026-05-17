@@ -7,6 +7,9 @@ extends Node
 ## 当前节拍间隔（秒），由 BeatManager 在音乐开始后设置
 var beat_interval: float = 0.0
 
+## Boss 开场动画是否已完成，由 BossIntroPlayer 写入
+var boss_intro_completed: bool = false
+
 # === 音乐 / 节拍 ===
 signal music_started
 signal beat_hit(beat_number: float, note: Variant)
@@ -38,6 +41,9 @@ signal boss_charge_requested(duration_beats: float)
 signal boss_missile_requested(duration_beats: float)
 signal player_died
 signal boss_defeated
+
+# === Boss 开场动画 ===
+signal boss_intro_finished
 
 # === UI 请求信号（逻辑层 → UI 层） ===
 signal show_attack_ui_requested
@@ -76,6 +82,7 @@ func _suppress_unused_signal_warnings() -> void:
 	boss_missile_requested.emit(0.0)
 	player_died.emit()
 	boss_defeated.emit()
+	boss_intro_finished.emit()
 	show_attack_ui_requested.emit()
 	hide_attack_ui_requested.emit()
 	show_return_countdown_requested.emit(0)

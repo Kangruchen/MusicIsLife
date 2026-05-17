@@ -219,6 +219,7 @@ var _left_part_damage_accumulated: float = 0.0
 var _right_part_damage_accumulated: float = 0.0
 var _boss_attack_beat_index: Dictionary = {}
 var _boss_attack_sound_token: int = 0
+var _waiting_for_intro: bool = false
 var _debug_last_override_enabled: bool = false
 var _debug_last_middle_destroyed: bool = false
 var _debug_last_left_destroyed: bool = false
@@ -244,6 +245,19 @@ func _ready() -> void:
 	_resolve_aim_nodes()
 	_reset_part_health()
 	_connect_global_signals()
+
+	if not EventBus.boss_intro_completed:
+		_waiting_for_intro = true
+		if not EventBus.boss_intro_finished.is_connected(_on_boss_intro_finished):
+			EventBus.boss_intro_finished.connect(_on_boss_intro_finished)
+	else:
+		_set_state(initial_state)
+
+
+func _on_boss_intro_finished() -> void:
+	if not _waiting_for_intro:
+		return
+	_waiting_for_intro = false
 	_set_state(initial_state)
 
 
@@ -251,6 +265,9 @@ func _process(delta: float) -> void:
 	_update_attack_hit_flash(delta)
 	_apply_debug_part_state_override_if_needed()
 	_update_missile_warning_preview()
+
+	if _waiting_for_intro:
+		return
 
 	if _attack_phase_interrupted:
 		return

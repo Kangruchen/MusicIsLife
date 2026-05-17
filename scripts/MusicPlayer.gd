@@ -38,6 +38,7 @@ var attack_player: AudioStreamPlayer = null
 var paused_position: float = 0.0
 var _attack_music_stream: AudioStream = null
 var _attack_music_active: bool = false
+var _waiting_for_boss_intro: bool = false
 
 func _ready() -> void:
 	main_player = AudioStreamPlayer.new()
@@ -79,7 +80,19 @@ func _ready() -> void:
 		push_warning("未在 BGM 总线上找到 Lowpass Filter 效果器")
 
 	if auto_play:
-		call_deferred("load_and_play_music")
+		if not EventBus.boss_intro_completed:
+			_waiting_for_boss_intro = true
+			if not EventBus.boss_intro_finished.is_connected(_on_boss_intro_finished):
+				EventBus.boss_intro_finished.connect(_on_boss_intro_finished)
+		else:
+			call_deferred("load_and_play_music")
+
+
+func _on_boss_intro_finished() -> void:
+	if not _waiting_for_boss_intro:
+		return
+	_waiting_for_boss_intro = false
+	call_deferred("load_and_play_music")
 
 
 func load_and_play_music(custom_path: String = "") -> void:

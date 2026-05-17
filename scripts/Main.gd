@@ -23,6 +23,10 @@ var _attack_zoom_target: Vector2 = Vector2.ONE
 const CAMERA_POSITION_DEADZONE: float = 0.35
 
 
+func _enter_tree() -> void:
+	EventBus.boss_intro_completed = false
+
+
 func _ready() -> void:
 	if camera != null:
 		_camera_default_global_position = camera.global_position
