@@ -299,10 +299,7 @@ func _on_attack_result_display(attack_type: int, is_perfect: bool, heat_level: i
 				text = "Miss"
 				color = Color(0.7, 0.7, 0.7)
 		ATTACK_TYPE_HEAVY:
-			if heat_level > 0:
-				text = "Critical x%d" % heat_level
-			else:
-				text = "Critical"
+			text = "Critical x%d" % (heat_level + 1)
 			color = Color(1.0, 0.4, 0.1)
 		ATTACK_TYPE_HEAL:
 			text = "Heal"
@@ -322,13 +319,14 @@ func _spawn_floating_text(text: String, color: Color) -> void:
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.z_index = 100
 	label.position = _get_floating_text_origin()
+	label.modulate.a = 1.0
 	add_child(label)
 
 	var tween: Tween = create_tween()
 	tween.set_ease(Tween.EASE_OUT)
-	tween.set_trans(Tween.TRANS_CUBIC)
-	tween.tween_property(label, "position:y", label.position.y - 60.0, 0.8)
-	tween.parallel().tween_property(label, "modulate:a", 0.0, 0.8).set_delay(0.3)
+	tween.set_trans(Tween.TRANS_EXPO)
+	tween.tween_property(label, "position:y", label.position.y - 40.0, 0.45)
+	tween.parallel().tween_property(label, "modulate:a", 0.0, 0.4).set_delay(0.08)
 	tween.tween_callback(label.queue_free)
 
 

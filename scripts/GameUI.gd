@@ -38,6 +38,9 @@ var _shake_intensity: float = 0.0
 var _perfect_zones: Array[ColorRect] = []
 var _current_heat_level: int = -1
 var _resolved_zones: Dictionary = {}
+var _heat_dots: Array[ColorRect] = []
+var _heat_dots_container: Control = null
+var _heavy_heat_consumed: bool = false
 
 var _victory_label: Label = null
 var _is_boss_defeated: bool = false
@@ -217,6 +220,48 @@ func _create_attack_ui() -> void:
 	attack_ui_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(attack_ui_container)
 
+	_create_heat_dots()
+
+
+func _create_heat_dots() -> void:
+	const DOT_SIZE: float = 14.0
+	const DOT_SPACING: float = 8.0
+	const TOTAL_WIDTH: float = GameConstants.PERFECTS_PER_LEVEL * DOT_SIZE + (GameConstants.PERFECTS_PER_LEVEL - 1) * DOT_SPACING
+	const DOTS_Y: float = BEAT_TRACK_TOP_OFFSET + BEAT_TRACK_HEIGHT + 12.0
+
+	_heat_dots_container = Control.new()
+	_heat_dots_container.name = "HeatDotsContainer"
+	_heat_dots_container.anchor_left = 0.5
+	_heat_dots_container.anchor_right = 0.5
+	_heat_dots_container.offset_left = -TOTAL_WIDTH / 2.0
+	_heat_dots_container.offset_right = TOTAL_WIDTH / 2.0
+	_heat_dots_container.offset_top = DOTS_Y
+	_heat_dots_container.offset_bottom = DOTS_Y + DOT_SIZE
+	_heat_dots_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_heat_dots_container.visible = false
+	attack_ui_container.add_child(_heat_dots_container)
+
+	for i in range(GameConstants.PERFECTS_PER_LEVEL):
+		var dot: ColorRect = ColorRect.new()
+		dot.name = "HeatDot%d" % i
+		dot.size = Vector2(DOT_SIZE, DOT_SIZE)
+		dot.position.x = i * (DOT_SIZE + DOT_SPACING)
+		dot.color = Color(0.2, 0.2, 0.2, 0.5)
+		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_heat_dots_container.add_child(dot)
+		_heat_dots.append(dot)
+
+
+func _update_heat_dots(heat_counter: int) -> void:
+	for i in range(_heat_dots.size()):
+		var dot: ColorRect = _heat_dots[i]
+		if not is_instance_valid(dot):
+			continue
+		if i < heat_counter:
+			dot.color = Color(1.0, 0.65, 0.0, 1.0)
+		else:
+			dot.color = Color(0.2, 0.2, 0.2, 0.5)
+
 
 func _on_attack_track_setup(bi: float, first_beat_time: float) -> void:
 	_clear_beat_track()
@@ -377,7 +422,9 @@ func _update_perfect_zone_glow(heat_level: int) -> void:
 				zone.color = Color(1.0, 0.95, 0.85, 1.0)
 
 
-func _on_attack_result_display(_attack_type: int, is_perfect: bool, _heat_level: int) -> void:
+func _on_attack_result_display(attack_type: int, is_perfect: bool, _heat_level: int) -> void:
+	if attack_type == 1:  # HEAVY
+		_heavy_heat_consumed = true
 	if _track_bi <= 0.0 or _perfect_zones.is_empty():
 		return
 
@@ -400,6 +447,39 @@ func _on_attack_result_display(_attack_type: int, is_perfect: bool, _heat_level:
 		_resolved_zones[beat_idx] = true
 
 
+func _show_center_text(text: String, color: Color) -> void:
+	var label: Label = Label.new()
+	label.text = text
+	label.add_theme_font_size_override("font_size", 42)
+	label.add_theme_color_override("font_color", color)
+	label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 1.0))
+	label.add_theme_constant_override("outline_size", 5)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.anchor_left = 0.5
+	label.anchor_top = 0.38
+	label.anchor_right = 0.5
+	label.anchor_bottom = 0.38
+	label.offset_left = -220.0
+	label.offset_top = -40.0
+	label.offset_right = 220.0
+	label.offset_bottom = 40.0
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.z_index = 80
+	label.modulate.a = 0.0
+	label.scale = Vector2(0.7, 0.7)
+	add_child(label)
+
+	var tween: Tween = create_tween()
+	tween.set_ease(Tween.EASE_OUT)
+	tween.set_trans(Tween.TRANS_BACK)
+	tween.tween_property(label, "modulate:a", 1.0, 0.2)
+	tween.parallel().tween_property(label, "scale", Vector2(1.0, 1.0), 0.25)
+	tween.tween_property(label, "scale", Vector2(1.05, 1.05), 0.5)
+	tween.parallel().tween_property(label, "modulate:a", 0.0, 0.5)
+	tween.tween_callback(label.queue_free)
+
+
 func _cleanup_heat_effects() -> void:
 	if _heat_tween != null and _heat_tween.is_valid():
 		_heat_tween.kill()
@@ -416,6 +496,8 @@ func _cleanup_heat_effects() -> void:
 func show_attack_ui() -> void:
 	if attack_ui_container:
 		attack_ui_container.visible = true
+	if _heat_dots_container:
+		_heat_dots_container.visible = true
 
 
 func show_return_countdown(count: int) -> void:
@@ -440,27 +522,41 @@ func hide_attack_ui() -> void:
 	if attack_ui_container:
 		attack_ui_container.visible = false
 		attack_ui_container.position = Vector2.ZERO
+	if _heat_dots_container:
+		_heat_dots_container.visible = false
+		_update_heat_dots(0)
 	if countdown_label:
 		countdown_label.visible = false
 	_clear_beat_track()
 	_cleanup_heat_effects()
 
 
-func _on_heat_changed(heat_level: int, _heat_counter: int) -> void:
-	if not beat_flash_effect:
-		return
-	if heat_level == _current_heat_level:
-		return
+func _on_heat_changed(heat_level: int, heat_counter: int) -> void:
+	_update_heat_dots(heat_counter)
 
-	var prev_level: int = _current_heat_level
-	_current_heat_level = heat_level
+	if heat_level != _current_heat_level:
+		var prev_level: int = _current_heat_level
+		_current_heat_level = heat_level
 
-	if _heat_tween != null and _heat_tween.is_valid():
-		_heat_tween.kill()
-	_heat_tween = null
+		if heat_level > prev_level:
+			_show_center_text("Heat Up! Lv%d" % (heat_level + 1), Color(1.0, 0.85, 0.2))
+		elif heat_level < prev_level and prev_level >= 0:
+			if _heavy_heat_consumed and heat_level == 0:
+				_heavy_heat_consumed = false
+			else:
+				_show_center_text("Heat Down", Color(0.5, 0.6, 0.8))
 
-	_flash_perfect_zones_on_heat_change(prev_level, heat_level)
-	_update_perfect_zone_glow(heat_level)
+		if beat_flash_effect:
+			if _heat_tween != null and _heat_tween.is_valid():
+				_heat_tween.kill()
+			_heat_tween = null
+
+			_flash_perfect_zones_on_heat_change(prev_level, heat_level)
+			_update_perfect_zone_glow(heat_level)
+			_apply_heat_beat_flash(heat_level, prev_level)
+
+
+func _apply_heat_beat_flash(heat_level: int, prev_level: int) -> void:
 
 	var is_level_up: bool = heat_level > prev_level
 
@@ -487,21 +583,21 @@ func _on_heat_changed(heat_level: int, _heat_counter: int) -> void:
 			pulse_low = 0.06
 			pulse_high = 0.18
 			pulse_period = 0.6
-			_shake_intensity = 0.0
+			_shake_intensity = 0.4
 		2:
 			flash_color = Color(1.0, 0.4, 0.0)
 			flash_alpha = 0.45 if is_level_up else 0.20
 			pulse_low = 0.10
 			pulse_high = 0.28
 			pulse_period = 0.45
-			_shake_intensity = 0.0
+			_shake_intensity = 0.9
 		3:
 			flash_color = Color(1.0, 0.2, 0.0)
 			flash_alpha = 0.55 if is_level_up else 0.25
 			pulse_low = 0.14
 			pulse_high = 0.38
 			pulse_period = 0.3
-			_shake_intensity = 0.0
+			_shake_intensity = 1.4
 		4:
 			flash_color = Color(1.0, 0.0, 0.0)
 			flash_alpha = 0.65 if is_level_up else 0.30

@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="BossAttackSoundConfig" load_steps=21 format=3 uid="uid://bca4til1gfnnl"]
+[gd_resource type="Resource" script_class="BossAttackSoundConfig" load_steps=21 format=3 uid="uid://c0ip1xr73tmif"]
 
 [ext_resource type="AudioStream" uid="uid://bokuairmkmpt3" path="res://assets/SFX/charge/charge_attack.wav" id="1_charge"]
 [ext_resource type="AudioStream" uid="uid://twemusldji6k" path="res://assets/SFX/laserfull.wav" id="2_laser"]
