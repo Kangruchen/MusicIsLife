@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://cgvgdwlf2rft0"
+path="res://.godot/imported/Chrome Pulse_mixed.mp3-4add1534e05025d854eaa284e20a21d8.mp3str"
+
+[deps]
+
+source_file="res://assets/charts/New Demo/Chrome Pulse_mixed.mp3"
+dest_files=["res://.godot/imported/Chrome Pulse_mixed.mp3-4add1534e05025d854eaa284e20a21d8.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

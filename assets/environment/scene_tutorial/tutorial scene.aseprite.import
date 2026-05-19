@@ -1,0 +1,14 @@
+[remap]
+
+importer="aseprite_wizard.plugin.noop"
+type="PackedDataContainer"
+uid="uid://b2ap2rb057ekj"
+path="res://.godot/imported/tutorial scene.aseprite-21aee623e120d1807401ca25e8ed794a.res"
+
+[deps]
+
+source_file="res://assets/environment/scene_tutorial/tutorial scene.aseprite"
+dest_files=["res://.godot/imported/tutorial scene.aseprite-21aee623e120d1807401ca25e8ed794a.res"]
+
+[params]
+

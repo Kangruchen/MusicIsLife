@@ -4,7 +4,7 @@
 
 # Godot-specific ignores
 *.translation
-*.import
+*.tmp
 
 # Exported EXE/binary files
 *.exe

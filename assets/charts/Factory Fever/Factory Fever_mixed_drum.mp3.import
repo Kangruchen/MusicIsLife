@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://ikh5fto71cwp"
+path="res://.godot/imported/Factory Fever_mixed_drum.mp3-dad93c7be656f6f96ef0e229b0dae1a0.mp3str"
+
+[deps]
+
+source_file="res://assets/charts/Factory Fever/Factory Fever_mixed_drum.mp3"
+dest_files=["res://.godot/imported/Factory Fever_mixed_drum.mp3-dad93c7be656f6f96ef0e229b0dae1a0.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

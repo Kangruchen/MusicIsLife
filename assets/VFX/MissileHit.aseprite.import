@@ -1,0 +1,14 @@
+[remap]
+
+importer="aseprite_wizard.plugin.noop"
+type="PackedDataContainer"
+uid="uid://d15nll7v8e7g7"
+path="res://.godot/imported/MissileHit.aseprite-cbb56a076178f30b91ae5d8c4c918ae7.res"
+
+[deps]
+
+source_file="res://assets/VFX/MissileHit.aseprite"
+dest_files=["res://.godot/imported/MissileHit.aseprite-cbb56a076178f30b91ae5d8c4c918ae7.res"]
+
+[params]
+

@@ -1,0 +1,14 @@
+[remap]
+
+importer="aseprite_wizard.plugin.noop"
+type="PackedDataContainer"
+uid="uid://dao1wvfcfbulp"
+path="res://.godot/imported/Boss_body.aseprite-6fc7cc5ae43217f70a76d7abb4ba7dcb.res"
+
+[deps]
+
+source_file="res://assets/enemy/Boss_body.aseprite"
+dest_files=["res://.godot/imported/Boss_body.aseprite-6fc7cc5ae43217f70a76d7abb4ba7dcb.res"]
+
+[params]
+
