@@ -34,6 +34,14 @@ const HEAT_DAMAGE_MULTIPLIER_PER_LEVEL: float = 2.0  ## 每档额外倍率
 
 
 static func get_action_key_label(action: String, fallback: String = "") -> String:
+	var gamepad_manager: Node = _get_gamepad_manager()
+	if gamepad_manager != null and gamepad_manager.has_method("get_action_prompt"):
+		var prompt: String = String(gamepad_manager.call("get_action_prompt", StringName(action), fallback))
+		if not prompt.is_empty():
+			return prompt
+
+	if not InputMap.has_action(action):
+		return fallback
 	var events: Array = InputMap.action_get_events(action)
 	if events.is_empty():
 		return fallback
@@ -46,4 +54,51 @@ static func get_action_key_label(action: String, fallback: String = "") -> Strin
 			var label: String = OS.get_keycode_string(code)
 			if not label.is_empty():
 				return label
+		elif ev is InputEventMouseButton:
+			var mouse_ev: InputEventMouseButton = ev as InputEventMouseButton
+			match mouse_ev.button_index:
+				MOUSE_BUTTON_LEFT:
+					return "Mouse 1"
+				MOUSE_BUTTON_RIGHT:
+					return "Mouse 2"
+				MOUSE_BUTTON_MIDDLE:
+					return "Mouse 3"
+				_:
+					return "Mouse %d" % mouse_ev.button_index
+		elif ev is InputEventJoypadButton or ev is InputEventJoypadMotion:
+			var label_from_manager: String = _format_input_event_with_manager(ev)
+			if not label_from_manager.is_empty():
+				return label_from_manager
 	return fallback
+
+
+static func get_note_action_label(note_type: int, fallback: String = "") -> String:
+	var gamepad_manager: Node = _get_gamepad_manager()
+	if gamepad_manager != null and gamepad_manager.has_method("get_note_prompt"):
+		var prompt: String = String(gamepad_manager.call("get_note_prompt", note_type, fallback))
+		if not prompt.is_empty():
+			return prompt
+
+	match note_type:
+		Note.NoteType.GUARD:
+			return get_action_key_label("note_guard", "J" if fallback.is_empty() else fallback)
+		Note.NoteType.HIT:
+			return get_action_key_label("note_hit", "I" if fallback.is_empty() else fallback)
+		Note.NoteType.DODGE:
+			return get_action_key_label("note_dodge", "L" if fallback.is_empty() else fallback)
+		_:
+			return fallback
+
+
+static func _get_gamepad_manager() -> Node:
+	var tree: SceneTree = Engine.get_main_loop() as SceneTree
+	if tree == null or tree.root == null:
+		return null
+	return tree.root.get_node_or_null("GamepadManager")
+
+
+static func _format_input_event_with_manager(event: InputEvent) -> String:
+	var gamepad_manager: Node = _get_gamepad_manager()
+	if gamepad_manager != null and gamepad_manager.has_method("format_input_event"):
+		return String(gamepad_manager.call("format_input_event", event))
+	return ""

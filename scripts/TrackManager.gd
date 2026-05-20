@@ -686,17 +686,17 @@ func _spawn_prejudge_key_hint(note_type: Note.NoteType) -> void:
 	if hint == null:
 		return
 
-	var key_text: String = "J"
+	var key_text: String = GameConstants.get_note_action_label(int(note_type), "J")
 	var core_color: Color = Color(0.22, 0.56, 0.98, 0.9)
 	match note_type:
 		Note.NoteType.GUARD:
-			key_text = "J"
+			key_text = GameConstants.get_note_action_label(int(note_type), "J")
 			core_color = Color(0.22, 0.56, 0.98, 0.9)
 		Note.NoteType.HIT:
-			key_text = "I"
+			key_text = GameConstants.get_note_action_label(int(note_type), "I")
 			core_color = Color(0.95, 0.24, 0.24, 0.9)
 		Note.NoteType.DODGE:
-			key_text = "L"
+			key_text = GameConstants.get_note_action_label(int(note_type), "L")
 			core_color = Color(0.20, 0.78, 0.38, 0.9)
 
 	hint.setup(key_text, EventBus.beat_interval, core_color, Color(1.0, 1.0, 1.0, 0.95), Color(1.0, 1.0, 1.0, 1.0))
