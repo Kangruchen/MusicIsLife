@@ -21,7 +21,7 @@
 [ext_resource type="Script" uid="uid://cobiu81cgfg8s" path="res://scripts/tutorial.gd" id="18_tutorial_root"]
 [ext_resource type="PackedScene" path="res://scenes/tutorial_battle_ui.tscn" id="19_tut_battle_ui"]
 [ext_resource type="Resource" uid="uid://byn3f6k3hsxdv" path="res://config/tutorial_battle_2.tres" id="20_tutorial_battle_cfg2"]
-[ext_resource type="Script" path="res://playground/dialogue_test/DialogueLine.gd" id="21_bl2xa"]
+[ext_resource type="Script" uid="uid://c1raarhgki7qr" path="res://playground/dialogue_test/DialogueLine.gd" id="21_bl2xa"]
 [ext_resource type="Texture2D" uid="uid://d3eo1bu6r6og2" path="res://playground/dialogue_test/表情1.png" id="22_7a100"]
 [ext_resource type="Texture2D" uid="uid://pyabo01x3u8q" path="res://playground/dialogue_test/表情4.png" id="23_7a100"]
 [ext_resource type="Texture2D" uid="uid://b78m2ymgycorn" path="res://playground/dialogue_test/表情3.png" id="24_feaue"]
@@ -131,6 +131,7 @@ texture = ExtResource("1_c13y7")
 position = Vector2(1200, -420)
 
 [node name="Player" type="CharacterBody2D" parent="." groups=["player"]]
+z_index = 2
 position = Vector2(-399, 109)
 script = ExtResource("3_tutorial_player")
 move_speed = 500.0
@@ -151,7 +152,7 @@ position_smoothing_enabled = true
 position_smoothing_speed = 6.0
 
 [node name="CharacterVisual" parent="Player" instance=ExtResource("2_8ho6b")]
-position = Vector2(0, -26)
+position = Vector2(0, -30)
 script = null
 
 [node name="PositionNodes" type="Node2D" parent="."]
