@@ -1,7 +1,7 @@
 [gd_scene load_steps=3 format=3 uid="uid://bgai0ghblaof0"]
 
-[ext_resource type="Texture2D" uid="uid://hh1tg6ctalm3" path="res://playground/dialogue_test/对话框.png" id="1_h2gdc"]
-[ext_resource type="AudioStream" uid="uid://cgej12qrpf6p6" path="res://playground/dialogue_test/TypingSFX.wav" id="2_16fx3"]
+[ext_resource type="Texture2D" path="res://playground/dialogue_test/对话框.png" id="1_h2gdc"]
+[ext_resource type="AudioStream" path="res://playground/dialogue_test/TypingSFX.wav" id="2_16fx3"]
 
 [node name="DialogueUi_tscn" type="Control"]
 layout_mode = 3

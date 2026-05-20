@@ -70,6 +70,9 @@ var _beat_generation: int = 0            # 每拍递增，用于使过期回调�
 var _attack_beat_abs_times: PackedFloat64Array = PackedFloat64Array()  # 预计算的每拍绝对时间
 var _next_beat_idx: int = 0  # 下一个待处理的拍子索引
 var _attack_beat_input_states: Dictionary = {}  # key=判定拍编号(1-based), value=该拍是否已有输入/占用
+var attack_countdown_beats: int = GameConstants.COUNTDOWN_BEATS
+var attack_input_beats: int = GameConstants.INPUT_BEATS
+var attack_exit_beats: int = GameConstants.EXIT_BEATS
 var _defense_hit_effect_anchor: Node2D = null
 var _defense_hit_effect_boss: Node2D = null
 
@@ -478,9 +481,19 @@ func resume_input() -> void:
 
 ## 开始攻击阶段
 ## first_beat_abs_time: 第一输入拍的绝对时间（与 ScoreManager 生成的前两个音符共享同一时间网格）
-func start_attack_phase(duration: float, bi: float, first_beat_abs_time: float) -> void:
+func start_attack_phase(
+	duration: float,
+	bi: float,
+	first_beat_abs_time: float,
+	countdown_beats: int = GameConstants.COUNTDOWN_BEATS,
+	input_beats: int = GameConstants.INPUT_BEATS,
+	exit_beats: int = GameConstants.EXIT_BEATS
+) -> void:
 	current_phase = PhaseState.ATTACK
 	attack_beat_interval = bi
+	attack_countdown_beats = maxi(1, countdown_beats)
+	attack_input_beats = maxi(1, input_beats)
+	attack_exit_beats = maxi(1, exit_beats)
 	current_beat_in_attack = 0
 	attack_phase_start_time = _get_music_clock_time()
 	current_beat_start_time = first_beat_abs_time
@@ -494,17 +507,18 @@ func start_attack_phase(duration: float, bi: float, first_beat_abs_time: float) 
 	EventBus.heat_changed.emit(0, 0)
 	
 	_attack_beat_abs_times.clear()
-	_attack_beat_abs_times.resize(GameConstants.INPUT_BEATS + GameConstants.EXIT_BEATS)
-	for i in range(GameConstants.INPUT_BEATS + GameConstants.EXIT_BEATS):
+	_attack_beat_abs_times.resize(attack_input_beats + attack_exit_beats)
+	for i in range(attack_input_beats + attack_exit_beats):
 		_attack_beat_abs_times[i] = first_beat_abs_time + i * attack_beat_interval
 	_next_beat_idx = 0
 	
 	EventBus.show_attack_ui_requested.emit()
-	EventBus.attack_track_setup.emit(bi, first_beat_abs_time)
+	EventBus.attack_track_setup.emit(bi, first_beat_abs_time, attack_countdown_beats, attack_input_beats, attack_exit_beats)
 	EventBus.attack_phase_started.emit()
 	
-	var first_total: int = GameConstants.COUNTDOWN_BEATS + 1
-	print("[总拍", first_total, "/", GameConstants.TOTAL_ATTACK_BEATS, "] 输入阶段 - 拍1/", GameConstants.INPUT_BEATS)
+	var total_attack_beats: int = attack_countdown_beats + attack_input_beats + attack_exit_beats
+	var first_total: int = attack_countdown_beats + 1
+	print("[总拍", first_total, "/", total_attack_beats, "] 输入阶段 - 拍1/", attack_input_beats)
 	
 	attack_phase_timer.start(duration)
 
@@ -523,7 +537,7 @@ func _handle_attack_phase_input(event: InputEvent) -> void:
 		if event.is_action_pressed(action):
 			var current_time: float = synced_now
 			var judge_beat: int = _get_input_judge_beat_for_time(current_time)
-			if judge_beat < 1 or judge_beat > GameConstants.INPUT_BEATS:
+			if judge_beat < 1 or judge_beat > attack_input_beats:
 				print("当前不在可输入拍，忽略攻击输入")
 				return
 
@@ -574,7 +588,7 @@ func _handle_attack_phase_input(event: InputEvent) -> void:
 					EventBus.attack_performed.emit(AttackType.HEAVY, current_heat)
 					EventBus.attack_result_display.emit(AttackType.HEAVY, true, current_heat)
 					EventBus.heat_changed.emit(0, 0)
-					if judge_beat + 1 <= GameConstants.INPUT_BEATS + GameConstants.EXIT_BEATS:
+					if judge_beat + 1 <= attack_input_beats + attack_exit_beats:
 						_attack_beat_input_states[judge_beat + 1] = true
 						_heavy_skip_next_beat = true
 					_log_attack_drum_alignment("heavy")
@@ -592,12 +606,12 @@ func _handle_attack_phase_input(event: InputEvent) -> void:
 func _get_input_judge_beat_for_time(now: float) -> int:
 	if attack_beat_interval <= 0.0:
 		return -1
-	if _attack_beat_abs_times.size() < GameConstants.INPUT_BEATS:
+	if _attack_beat_abs_times.size() < attack_input_beats:
 		return -1
 
 	var best_beat: int = -1
 	var best_dist: float = INF
-	for i in range(GameConstants.INPUT_BEATS):
+	for i in range(attack_input_beats):
 		var dist: float = absf(now - _attack_beat_abs_times[i])
 		if dist < best_dist:
 			best_dist = dist
@@ -631,18 +645,19 @@ func _on_attack_beat_timed(beat_idx: int) -> void:
 		current_beat_has_input = false
 		_attack_beat_input_states[current_beat_in_attack] = false
 
-	if current_beat_in_attack <= GameConstants.INPUT_BEATS:
+	var total_attack_beats: int = attack_countdown_beats + attack_input_beats + attack_exit_beats
+	if current_beat_in_attack <= attack_input_beats:
 		if current_beat_in_attack == 1:
 			EventBus.attack_movement_enabled_changed.emit(true)
 
-		var total_beat: int = current_beat_in_attack + GameConstants.COUNTDOWN_BEATS
-		print("[总拍", total_beat, "/", GameConstants.TOTAL_ATTACK_BEATS, "] 输入阶段 - 拍", current_beat_in_attack, "/", GameConstants.INPUT_BEATS)
-	elif current_beat_in_attack > GameConstants.INPUT_BEATS and current_beat_in_attack <= GameConstants.INPUT_BEATS + GameConstants.EXIT_BEATS:
-		if current_beat_in_attack == GameConstants.INPUT_BEATS + 1:
+		var total_beat: int = current_beat_in_attack + attack_countdown_beats
+		print("[总拍", total_beat, "/", total_attack_beats, "] 输入阶段 - 拍", current_beat_in_attack, "/", attack_input_beats)
+	elif current_beat_in_attack > attack_input_beats and current_beat_in_attack <= attack_input_beats + attack_exit_beats:
+		if current_beat_in_attack == attack_input_beats + 1:
 			EventBus.attack_movement_enabled_changed.emit(false)
-		var countdown: int = GameConstants.INPUT_BEATS + GameConstants.EXIT_BEATS - current_beat_in_attack + 1
-		var total_beat: int = current_beat_in_attack + GameConstants.COUNTDOWN_BEATS
-		print("[总拍", total_beat, "/", GameConstants.TOTAL_ATTACK_BEATS, "] 结束阶段 - 倒计时", countdown)
+		var countdown: int = attack_input_beats + attack_exit_beats - current_beat_in_attack + 1
+		var total_beat: int = current_beat_in_attack + attack_countdown_beats
+		print("[总拍", total_beat, "/", total_attack_beats, "] 结束阶段 - 倒计时", countdown)
 		EventBus.show_return_countdown_requested.emit(countdown)
 
 
@@ -661,7 +676,8 @@ func _on_attack_phase_end() -> void:
 		attack_phase_timer.stop()
 	attack_beat_timer.stop()
 	
-	print("[总拍", GameConstants.TOTAL_ATTACK_BEATS, "/", GameConstants.TOTAL_ATTACK_BEATS, "] 攻击阶段结束")
+	var total_attack_beats: int = attack_countdown_beats + attack_input_beats + attack_exit_beats
+	print("[总拍", total_attack_beats, "/", total_attack_beats, "] 攻击阶段结束")
 	print("========== 攻击阶段结束 ==========\n")
 	
 	EventBus.attack_movement_enabled_changed.emit(false)

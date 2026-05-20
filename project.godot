@@ -22,10 +22,10 @@ offset=200.0
 
 [autoload]
 
-EventBus="*res://scripts/EventBus.gd"
-SFXManager="*res://scripts/SFXManager.gd"
-GameConfigs="*res://scripts/GameConfigs.gd"
-WindowManager="*res://scripts/WindowManager.gd"
+EventBus="*res://scenes/autoload/EventBus.tscn"
+SFXManager="*res://scenes/autoload/SFXManager.tscn"
+GameConfigs="*res://scenes/autoload/GameConfigs.tscn"
+WindowManager="*res://scenes/autoload/WindowManager.tscn"
 
 [debug]
 

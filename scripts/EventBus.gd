@@ -30,7 +30,7 @@ signal attack_phase_started
 signal attack_phase_ended
 signal attack_movement_enabled_changed(enabled: bool)
 signal attack_result_display(attack_type: int, is_perfect: bool, heat_level: int)
-signal attack_track_setup(bi: float, first_beat_time: float)
+signal attack_track_setup(bi: float, first_beat_time: float, countdown_beats: int, input_beats: int, exit_beats: int)
 
 # === 血量 / 状态 ===
 signal player_health_updated(current: float, maximum: float)
@@ -49,7 +49,7 @@ signal boss_intro_finished
 signal show_attack_ui_requested
 signal hide_attack_ui_requested
 signal show_return_countdown_requested(count: int)
-signal show_pause_countdown_requested(bi: float)
+signal show_pause_countdown_requested(bi: float, beat_count: int)
 signal play_beat_flash_requested(bi: float, beat_count: int)
 signal hide_pause_effects_requested
 
@@ -73,7 +73,7 @@ func _suppress_unused_signal_warnings() -> void:
 	attack_phase_ended.emit()
 	attack_movement_enabled_changed.emit(false)
 	attack_result_display.emit(0, false, 0)
-	attack_track_setup.emit(0.0, 0.0)
+	attack_track_setup.emit(0.0, 0.0, 0, 0, 0)
 	player_health_updated.emit(0.0, 0.0)
 	boss_health_updated.emit(0.0, 0.0)
 	boss_energy_updated.emit(0.0, 0.0)
@@ -86,6 +86,6 @@ func _suppress_unused_signal_warnings() -> void:
 	show_attack_ui_requested.emit()
 	hide_attack_ui_requested.emit()
 	show_return_countdown_requested.emit(0)
-	show_pause_countdown_requested.emit(0.0)
+	show_pause_countdown_requested.emit(0.0, 0)
 	play_beat_flash_requested.emit(0.0, 0)
 	hide_pause_effects_requested.emit()

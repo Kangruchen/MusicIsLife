@@ -7,7 +7,18 @@ extends Node
 @export_file("*.mp3", "*.ogg", "*.wav") var music_path: String = ""
 @export_file("*.mp3", "*.ogg", "*.wav") var attack_music_path: String = ""
 @export var auto_play: bool = true
+
+@export_group("Attack Phase Music")
+@export_file("*.mp3", "*.ogg", "*.wav") var attack_intro_music_path: String = ""
+@export_file("*.mp3", "*.ogg", "*.wav") var attack_loop_music_path: String = ""
+@export_file("*.mp3", "*.ogg", "*.wav") var attack_outro_music_path: String = ""
 @export_range(-80.0, 24.0, 0.1) var attack_music_volume_db: float = 0.0
+@export_range(0.0, 0.5, 0.01) var attack_music_fade_seconds: float = 0.08
+@export_range(1, 64, 1) var attack_loop_phrase_beats: int = GameConstants.INPUT_BEATS
+@export_range(0.0, 10.0, 0.001) var attack_intro_offset_seconds: float = 0.0
+@export_range(0.0, 10.0, 0.001) var attack_loop_offset_seconds: float = 0.0
+@export_range(0.0, 10.0, 0.001) var attack_outro_offset_seconds: float = 0.0
+@export var attack_keep_bass_track: bool = false
 
 @export var enable_miss_audio_effect: bool = false
 
@@ -35,36 +46,69 @@ var main_player: AudioStreamPlayer = null
 var drum_player: AudioStreamPlayer = null
 var bass_player: AudioStreamPlayer = null
 var attack_player: AudioStreamPlayer = null
+var attack_loop_player_a: AudioStreamPlayer = null
+var attack_loop_player_b: AudioStreamPlayer = null
+var attack_outro_player: AudioStreamPlayer = null
 var paused_position: float = 0.0
 var _attack_music_stream: AudioStream = null
+var _attack_intro_stream: AudioStream = null
+var _attack_loop_stream: AudioStream = null
+var _attack_outro_stream: AudioStream = null
 var _attack_music_active: bool = false
 var _waiting_for_boss_intro: bool = false
+var _attack_schedule_token: int = 0
+var _attack_track_setup_valid: bool = false
+var _attack_beat_interval: float = 0.0
+var _attack_first_input_time: float = 0.0
+var _attack_countdown_beats: int = GameConstants.COUNTDOWN_BEATS
+var _attack_input_beats: int = GameConstants.INPUT_BEATS
+var _attack_exit_beats: int = GameConstants.EXIT_BEATS
+var _attack_intro_start_time: float = 0.0
+var _attack_loop_start_time: float = 0.0
+var _attack_outro_start_time: float = 0.0
+var _attack_phase_end_time: float = 0.0
+var _active_attack_loop_player: AudioStreamPlayer = null
+var _attack_player_fade_tweens: Dictionary = {}
 
 func _ready() -> void:
 	main_player = AudioStreamPlayer.new()
 	drum_player = AudioStreamPlayer.new()
 	bass_player = AudioStreamPlayer.new()
 	attack_player = AudioStreamPlayer.new()
+	attack_loop_player_a = AudioStreamPlayer.new()
+	attack_loop_player_b = AudioStreamPlayer.new()
+	attack_outro_player = AudioStreamPlayer.new()
 
 	main_player.name = "MainPlayer"
 	drum_player.name = "DrumPlayer"
 	bass_player.name = "BassPlayer"
 	attack_player.name = "AttackPlayer"
+	attack_loop_player_a.name = "AttackLoopPlayerA"
+	attack_loop_player_b.name = "AttackLoopPlayerB"
+	attack_outro_player.name = "AttackOutroPlayer"
 
 	add_child(main_player)
 	add_child(drum_player)
 	add_child(bass_player)
 	add_child(attack_player)
+	add_child(attack_loop_player_a)
+	add_child(attack_loop_player_b)
+	add_child(attack_outro_player)
 
 	main_player.bus = "BGM"
 	drum_player.bus = "BGM"
 	bass_player.bus = "BGM"
 	attack_player.bus = "BGM"
+	attack_loop_player_a.bus = "BGM"
+	attack_loop_player_b.bus = "BGM"
+	attack_outro_player.bus = "BGM"
 
 	if not EventBus.attack_phase_started.is_connected(_on_attack_phase_started):
 		EventBus.attack_phase_started.connect(_on_attack_phase_started)
 	if not EventBus.attack_phase_ended.is_connected(_on_attack_phase_ended):
 		EventBus.attack_phase_ended.connect(_on_attack_phase_ended)
+	if not EventBus.attack_track_setup.is_connected(_on_attack_track_setup):
+		EventBus.attack_track_setup.connect(_on_attack_track_setup)
 
 	var bus_index: int = AudioServer.get_bus_index("BGM")
 	if bus_index != -1:
@@ -155,12 +199,13 @@ func stop_music() -> void:
 	if _attack_mix_tween != null:
 		_attack_mix_tween.kill()
 		_attack_mix_tween = null
+	_attack_schedule_token += 1
 	main_player.stop()
 	drum_player.stop()
 	bass_player.stop()
-	if attack_player != null:
-		attack_player.stop()
+	_stop_attack_players()
 	_attack_music_active = false
+	_attack_mix_active = false
 
 
 func fade_out_all_for_death(duration: float = 1.2, target_volume_db: float = -40.0) -> void:
@@ -183,6 +228,12 @@ func fade_out_all_for_death(duration: float = 1.2, target_volume_db: float = -40
 		volume_tween.tween_property(bass_player, "volume_db", target_db, fade_duration)
 	if attack_player != null and attack_player.stream:
 		volume_tween.tween_property(attack_player, "volume_db", target_db, fade_duration)
+	if attack_loop_player_a != null and attack_loop_player_a.stream:
+		volume_tween.tween_property(attack_loop_player_a, "volume_db", target_db, fade_duration)
+	if attack_loop_player_b != null and attack_loop_player_b.stream:
+		volume_tween.tween_property(attack_loop_player_b, "volume_db", target_db, fade_duration)
+	if attack_outro_player != null and attack_outro_player.stream:
+		volume_tween.tween_property(attack_outro_player, "volume_db", target_db, fade_duration)
 
 
 func pause_music() -> void:
@@ -191,6 +242,12 @@ func pause_music() -> void:
 	bass_player.stream_paused = true
 	if attack_player != null:
 		attack_player.stream_paused = true
+	if attack_loop_player_a != null:
+		attack_loop_player_a.stream_paused = true
+	if attack_loop_player_b != null:
+		attack_loop_player_b.stream_paused = true
+	if attack_outro_player != null:
+		attack_outro_player.stream_paused = true
 	print("音乐已暂停")
 
 
@@ -203,77 +260,26 @@ func resume_music() -> void:
 
 
 func begin_attack_mix_mode() -> void:
-	if _attack_music_active:
-		return
-	if main_player == null or drum_player == null or bass_player == null:
-		return
-	if main_player.stream == null and drum_player.stream == null and bass_player.stream == null:
-		return
-
-	_attack_music_stream = _load_attack_music_stream()
-	if _attack_music_stream == null:
-		push_warning("未配置攻击阶段音乐，无法切换到攻击 BGM")
-		return
-
-	_cached_main_volume_db = main_player.volume_db if main_player != null else 0.0
-	_cached_drum_volume_db = drum_player.volume_db if drum_player != null else 0.0
-	_cached_bass_volume_db = bass_player.volume_db
-
-	if attack_player == null:
-		attack_player = AudioStreamPlayer.new()
-		attack_player.name = "AttackPlayer"
-		attack_player.bus = "BGM"
-		add_child(attack_player)
-
-	if _attack_mix_tween != null:
-		_attack_mix_tween.kill()
-	if attack_player.playing:
-		attack_player.stop()
-
-	var sync_position: float = get_playback_position()
-	attack_player.stream = _attack_music_stream
-	attack_player.volume_db = attack_music_volume_db
-	attack_player.play(sync_position)
-
-	_attack_mix_tween = create_tween()
-	_attack_mix_tween.set_parallel(true)
-	_attack_mix_tween.set_ease(Tween.EASE_OUT)
-	_attack_mix_tween.set_trans(Tween.TRANS_CUBIC)
-
-	if main_player != null and main_player.stream:
-		_attack_mix_tween.tween_property(main_player, "volume_db", -80.0, 0.12)
-	if drum_player != null and drum_player.stream:
-		_attack_mix_tween.tween_property(drum_player, "volume_db", -80.0, 0.12)
-	if bass_player.stream:
-		_attack_mix_tween.tween_property(bass_player, "volume_db", _cached_bass_volume_db, 0.12)
-
-	_attack_mix_active = true
-	print("攻击阶段 BGM 已切换，起始进度: ", sync_position)
+	_begin_attack_mix_mode()
 
 
 func end_attack_mix_mode() -> void:
-	if attack_player != null and attack_player.playing:
-		attack_player.stop()
+	_end_attack_mix_mode()
 
-	if not _attack_mix_active:
-		return
 
-	if _attack_mix_tween != null:
-		_attack_mix_tween.kill()
-
-	_attack_mix_tween = create_tween()
-	_attack_mix_tween.set_parallel(true)
-	_attack_mix_tween.set_ease(Tween.EASE_IN)
-	_attack_mix_tween.set_trans(Tween.TRANS_CUBIC)
-
-	if main_player != null and main_player.stream:
-		_attack_mix_tween.tween_property(main_player, "volume_db", _cached_main_volume_db, 0.12)
-	if drum_player != null and drum_player.stream:
-		_attack_mix_tween.tween_property(drum_player, "volume_db", _cached_drum_volume_db, 0.12)
-	if bass_player != null and bass_player.stream:
-		_attack_mix_tween.tween_property(bass_player, "volume_db", _cached_bass_volume_db, 0.12)
-
-	_attack_mix_active = false
+func _on_attack_track_setup(
+	bi: float,
+	first_beat_time: float,
+	countdown_beats: int = GameConstants.COUNTDOWN_BEATS,
+	input_beats: int = GameConstants.INPUT_BEATS,
+	exit_beats: int = GameConstants.EXIT_BEATS
+) -> void:
+	_attack_track_setup_valid = bi > 0.0
+	_attack_beat_interval = bi
+	_attack_first_input_time = first_beat_time
+	_attack_countdown_beats = maxi(1, countdown_beats)
+	_attack_input_beats = maxi(1, input_beats)
+	_attack_exit_beats = maxi(1, exit_beats)
 
 
 func _on_attack_phase_started() -> void:
@@ -284,19 +290,413 @@ func _on_attack_phase_ended() -> void:
 	end_attack_mix_mode()
 
 
-func _load_attack_music_stream() -> AudioStream:
-	if _attack_music_stream != null:
-		return _attack_music_stream
-	if attack_music_path.is_empty():
+func _begin_attack_mix_mode() -> void:
+	if _attack_music_active:
+		return
+	if main_player == null or drum_player == null or bass_player == null:
+		return
+	if main_player.stream == null and drum_player.stream == null and bass_player.stream == null:
+		return
+
+	if not _load_attack_phase_streams():
+		push_warning("Attack phase music is not configured; keep current BGM mix.")
+		return
+
+	_cached_main_volume_db = main_player.volume_db if main_player != null else 0.0
+	_cached_drum_volume_db = drum_player.volume_db if drum_player != null else 0.0
+	_cached_bass_volume_db = bass_player.volume_db if bass_player != null else 0.0
+
+	if _attack_mix_tween != null:
+		_attack_mix_tween.kill()
+		_attack_mix_tween = null
+
+	_stop_attack_players()
+	_attack_schedule_token += 1
+	_attack_music_active = true
+	_attack_mix_active = true
+	_fade_base_tracks_for_attack()
+
+	var token: int = _attack_schedule_token
+	if _is_legacy_attack_music_mode():
+		_start_legacy_attack_music(token)
+	else:
+		_start_split_attack_music(token)
+
+
+func _end_attack_mix_mode() -> void:
+	_attack_schedule_token += 1
+	_attack_track_setup_valid = false
+	_attack_music_active = false
+	_fade_out_attack_players(attack_music_fade_seconds)
+
+	if not _attack_mix_active:
+		return
+
+	if _attack_mix_tween != null:
+		_attack_mix_tween.kill()
+
+	var fade_duration: float = maxf(0.0, attack_music_fade_seconds)
+	if fade_duration <= 0.0:
+		if main_player != null and main_player.stream:
+			main_player.volume_db = _cached_main_volume_db
+		if drum_player != null and drum_player.stream:
+			drum_player.volume_db = _cached_drum_volume_db
+		if bass_player != null and bass_player.stream:
+			bass_player.volume_db = _cached_bass_volume_db
+		_attack_mix_active = false
+		return
+
+	_attack_mix_tween = create_tween()
+	_attack_mix_tween.set_parallel(true)
+	_attack_mix_tween.set_ease(Tween.EASE_IN)
+	_attack_mix_tween.set_trans(Tween.TRANS_CUBIC)
+
+	if main_player != null and main_player.stream:
+		_attack_mix_tween.tween_property(main_player, "volume_db", _cached_main_volume_db, fade_duration)
+	if drum_player != null and drum_player.stream:
+		_attack_mix_tween.tween_property(drum_player, "volume_db", _cached_drum_volume_db, fade_duration)
+	if bass_player != null and bass_player.stream:
+		_attack_mix_tween.tween_property(bass_player, "volume_db", _cached_bass_volume_db, fade_duration)
+
+	_attack_mix_active = false
+
+
+func _load_attack_phase_streams() -> bool:
+	_attack_music_stream = null
+	_attack_intro_stream = null
+	_attack_loop_stream = null
+	_attack_outro_stream = null
+
+	if _is_legacy_attack_music_mode():
+		_attack_music_stream = _load_attack_stream_from_path(attack_music_path)
+		return _attack_music_stream != null
+
+	_attack_intro_stream = _load_attack_stream_from_path(attack_intro_music_path)
+
+	var loop_path: String = attack_loop_music_path
+	if loop_path.is_empty() and not attack_music_path.is_empty():
+		loop_path = attack_music_path
+	_attack_loop_stream = _load_attack_stream_from_path(loop_path)
+
+	_attack_outro_stream = _load_attack_stream_from_path(attack_outro_music_path)
+
+	return _attack_intro_stream != null or _attack_loop_stream != null or _attack_outro_stream != null
+
+
+func _load_attack_stream_from_path(path: String) -> AudioStream:
+	if path.is_empty():
 		return null
 
-	var music_stream: AudioStream = load(attack_music_path)
-	if music_stream == null:
-		push_error("无法加载攻击阶段音乐文件: " + attack_music_path)
-		return null
+	var stream: AudioStream = load(path)
+	if stream == null:
+		push_error("Unable to load attack phase music: " + path)
+	return stream
 
-	_attack_music_stream = music_stream
-	return _attack_music_stream
+
+func _is_legacy_attack_music_mode() -> bool:
+	return attack_intro_music_path.is_empty() and attack_loop_music_path.is_empty() and attack_outro_music_path.is_empty()
+
+
+func _fade_base_tracks_for_attack() -> void:
+	var fade_duration: float = maxf(0.0, attack_music_fade_seconds)
+	var bass_target_db: float = _cached_bass_volume_db if attack_keep_bass_track else -80.0
+
+	if _attack_mix_tween != null:
+		_attack_mix_tween.kill()
+		_attack_mix_tween = null
+
+	if fade_duration <= 0.0:
+		if main_player != null and main_player.stream:
+			main_player.volume_db = -80.0
+		if drum_player != null and drum_player.stream:
+			drum_player.volume_db = -80.0
+		if bass_player != null and bass_player.stream:
+			bass_player.volume_db = bass_target_db
+		return
+
+	_attack_mix_tween = create_tween()
+	_attack_mix_tween.set_parallel(true)
+	_attack_mix_tween.set_ease(Tween.EASE_OUT)
+	_attack_mix_tween.set_trans(Tween.TRANS_CUBIC)
+
+	if main_player != null and main_player.stream:
+		_attack_mix_tween.tween_property(main_player, "volume_db", -80.0, fade_duration)
+	if drum_player != null and drum_player.stream:
+		_attack_mix_tween.tween_property(drum_player, "volume_db", -80.0, fade_duration)
+	if bass_player != null and bass_player.stream:
+		_attack_mix_tween.tween_property(bass_player, "volume_db", bass_target_db, fade_duration)
+
+
+func _start_legacy_attack_music(token: int) -> void:
+	if token != _attack_schedule_token or _attack_music_stream == null:
+		return
+
+	var sync_position: float = get_playback_position()
+	_start_attack_player_from_offset(attack_player, _attack_music_stream, sync_position)
+	print("Attack phase legacy BGM started at: ", sync_position)
+
+
+func _start_split_attack_music(token: int) -> void:
+	if token != _attack_schedule_token:
+		return
+
+	var bi: float = _resolve_attack_beat_interval()
+	var now: float = _get_music_clock_time()
+	if not _attack_track_setup_valid:
+		_attack_countdown_beats = GameConstants.COUNTDOWN_BEATS
+		_attack_input_beats = GameConstants.INPUT_BEATS
+		_attack_exit_beats = GameConstants.EXIT_BEATS
+		_attack_first_input_time = now + float(_attack_countdown_beats) * bi
+
+	_attack_loop_start_time = _attack_first_input_time
+	_attack_outro_start_time = _attack_first_input_time + float(_attack_input_beats) * bi
+	_attack_phase_end_time = _attack_outro_start_time + float(_attack_exit_beats) * bi
+
+	_attack_intro_start_time = _get_attack_intro_start_time(bi)
+	if _attack_intro_stream != null and now < _attack_loop_start_time:
+		if now < _attack_intro_start_time:
+			_schedule_attack_clock_callback(_attack_intro_start_time, Callable(self, "_start_attack_intro"), token)
+		else:
+			_start_attack_intro(token)
+
+	if _attack_loop_stream != null:
+		if now < _attack_loop_start_time:
+			_schedule_attack_clock_callback(_attack_loop_start_time, Callable(self, "_start_attack_loop"), token)
+		elif now < _attack_outro_start_time:
+			_start_attack_loop(token)
+
+	if _attack_outro_stream != null:
+		if now < _attack_outro_start_time:
+			_schedule_attack_clock_callback(_attack_outro_start_time, Callable(self, "_start_attack_outro"), token)
+		elif now < _attack_phase_end_time:
+			_start_attack_outro(token)
+
+	print("Attack phase split BGM scheduled. bi=", bi,
+		" input=", _attack_loop_start_time,
+		" outro=", _attack_outro_start_time,
+		" end=", _attack_phase_end_time)
+
+
+func _get_attack_intro_start_time(bi: float) -> float:
+	var intro_window_start: float = _attack_loop_start_time - float(_attack_countdown_beats) * bi
+	var intro_window_duration: float = _attack_loop_start_time - intro_window_start
+	var intro_length: float = maxf(0.0, _get_stream_length(_attack_intro_stream) - attack_intro_offset_seconds)
+	if intro_length > 0.0 and intro_length < intro_window_duration:
+		return _attack_loop_start_time - intro_length
+	return intro_window_start
+
+
+func _start_attack_intro(token: int) -> void:
+	if token != _attack_schedule_token or not _attack_music_active:
+		return
+	if _attack_intro_stream == null:
+		return
+	if _get_music_clock_time() >= _attack_loop_start_time:
+		return
+	_play_attack_stream_at_clock(attack_player, _attack_intro_stream, _attack_intro_start_time, false, attack_intro_offset_seconds)
+
+
+func _start_attack_loop(token: int) -> void:
+	if token != _attack_schedule_token or not _attack_music_active:
+		return
+	if _attack_loop_stream == null:
+		return
+	if _get_music_clock_time() >= _attack_outro_start_time:
+		return
+
+	_fade_out_attack_player(attack_player, attack_music_fade_seconds, true)
+	_fade_out_attack_player(attack_outro_player, attack_music_fade_seconds, true)
+
+	_active_attack_loop_player = attack_loop_player_a
+	_play_attack_loop_player(_active_attack_loop_player)
+	_schedule_next_attack_loop_restart(token)
+
+
+func _restart_attack_loop(token: int) -> void:
+	if token != _attack_schedule_token or not _attack_music_active:
+		return
+	if _attack_loop_stream == null:
+		return
+	if _get_music_clock_time() >= _attack_outro_start_time:
+		return
+
+	var old_player: AudioStreamPlayer = _active_attack_loop_player
+	var next_player: AudioStreamPlayer = attack_loop_player_b
+	if old_player == attack_loop_player_b:
+		next_player = attack_loop_player_a
+
+	_play_attack_loop_player(next_player)
+	_active_attack_loop_player = next_player
+
+	if old_player != null and old_player != next_player:
+		_fade_out_attack_player(old_player, attack_music_fade_seconds, true)
+
+	_schedule_next_attack_loop_restart(token)
+
+
+func _start_attack_outro(token: int) -> void:
+	if token != _attack_schedule_token or not _attack_music_active:
+		return
+	if _attack_outro_stream == null:
+		return
+
+	_fade_out_attack_player(attack_player, attack_music_fade_seconds, true)
+	_fade_out_attack_player(attack_loop_player_a, attack_music_fade_seconds, true)
+	_fade_out_attack_player(attack_loop_player_b, attack_music_fade_seconds, true)
+	_active_attack_loop_player = null
+
+	_play_attack_stream_at_clock(attack_outro_player, _attack_outro_stream, _attack_outro_start_time, false, attack_outro_offset_seconds)
+
+
+func _play_attack_loop_player(player: AudioStreamPlayer) -> bool:
+	var bi: float = _resolve_attack_beat_interval()
+	var phrase_duration: float = maxf(0.01, float(maxi(1, attack_loop_phrase_beats)) * bi)
+	var offset: float = fposmod(maxf(0.0, _get_music_clock_time() - _attack_loop_start_time), phrase_duration)
+	var stream_length: float = _get_stream_length(_attack_loop_stream)
+	offset += attack_loop_offset_seconds
+	if stream_length > 0.0:
+		offset = fposmod(offset, stream_length)
+	return _start_attack_player_from_offset(player, _attack_loop_stream, offset)
+
+
+func _play_attack_stream_at_clock(
+	player: AudioStreamPlayer,
+	stream: AudioStream,
+	start_time: float,
+	wrap: bool,
+	stream_offset_seconds: float = 0.0
+) -> bool:
+	if stream == null:
+		return false
+
+	var base_offset: float = maxf(0.0, stream_offset_seconds)
+	var offset: float = base_offset + maxf(0.0, _get_music_clock_time() - start_time)
+	var stream_length: float = _get_stream_length(stream)
+	if stream_length > 0.0:
+		if wrap:
+			var usable_length: float = maxf(0.01, stream_length - base_offset)
+			offset = base_offset + fposmod(offset - base_offset, usable_length)
+		elif offset >= stream_length:
+			return false
+
+	return _start_attack_player_from_offset(player, stream, offset)
+
+
+func _start_attack_player_from_offset(player: AudioStreamPlayer, stream: AudioStream, offset: float) -> bool:
+	if player == null or stream == null:
+		return false
+
+	_kill_attack_player_fade(player)
+	player.stop()
+	player.stream = stream
+	player.stream_paused = false
+	player.pitch_scale = 1.0
+	player.volume_db = attack_music_volume_db
+	player.play(maxf(0.0, offset))
+	return true
+
+
+func _schedule_next_attack_loop_restart(token: int) -> void:
+	var bi: float = _resolve_attack_beat_interval()
+	var phrase_duration: float = maxf(0.01, float(maxi(1, attack_loop_phrase_beats)) * bi)
+	var now: float = _get_music_clock_time()
+	var elapsed: float = maxf(0.0, now - _attack_loop_start_time)
+	var phrase_index: int = int(floor(elapsed / phrase_duration)) + 1
+	var next_time: float = _attack_loop_start_time + float(phrase_index) * phrase_duration
+
+	if next_time >= _attack_outro_start_time - 0.01:
+		return
+
+	_schedule_attack_clock_callback(next_time, Callable(self, "_restart_attack_loop"), token)
+
+
+func _schedule_attack_clock_callback(target_time: float, callback: Callable, token: int) -> void:
+	var delay: float = maxf(0.0, target_time - _get_music_clock_time())
+	get_tree().create_timer(delay).timeout.connect(func() -> void:
+		if token != _attack_schedule_token or not _attack_music_active:
+			return
+		callback.call(token)
+	)
+
+
+func _resolve_attack_beat_interval() -> float:
+	if _attack_beat_interval > 0.0:
+		return _attack_beat_interval
+	if EventBus.beat_interval > 0.0:
+		return EventBus.beat_interval
+	return 0.5
+
+
+func _get_music_clock_time() -> float:
+	return get_playback_position() + AudioServer.get_time_to_next_mix()
+
+
+func _get_stream_length(stream: AudioStream) -> float:
+	if stream == null:
+		return 0.0
+	return maxf(0.0, stream.get_length())
+
+
+func _fade_out_attack_players(duration: float) -> void:
+	for candidate in _get_attack_players():
+		var player: AudioStreamPlayer = candidate as AudioStreamPlayer
+		_fade_out_attack_player(player, duration, true)
+	_active_attack_loop_player = null
+
+
+func _fade_out_attack_player(player: AudioStreamPlayer, duration: float, stop_after: bool) -> void:
+	if player == null:
+		return
+	_kill_attack_player_fade(player)
+	if not player.playing:
+		if stop_after:
+			player.stop()
+		return
+
+	var fade_duration: float = maxf(0.0, duration)
+	if fade_duration <= 0.0:
+		player.volume_db = -80.0
+		if stop_after:
+			player.stop()
+		return
+
+	var player_id: int = player.get_instance_id()
+	var tween: Tween = create_tween()
+	_attack_player_fade_tweens[player_id] = tween
+	tween.tween_property(player, "volume_db", -80.0, fade_duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	if stop_after:
+		tween.finished.connect(func() -> void:
+			if _attack_player_fade_tweens.get(player_id) != tween:
+				return
+			_attack_player_fade_tweens.erase(player_id)
+			if player != null and is_instance_valid(player):
+				player.stop()
+		)
+
+
+func _kill_attack_player_fade(player: AudioStreamPlayer) -> void:
+	if player == null:
+		return
+	var player_id: int = player.get_instance_id()
+	var tween: Tween = _attack_player_fade_tweens.get(player_id) as Tween
+	if tween != null:
+		tween.kill()
+	_attack_player_fade_tweens.erase(player_id)
+
+
+func _stop_attack_players() -> void:
+	for candidate in _get_attack_players():
+		var player: AudioStreamPlayer = candidate as AudioStreamPlayer
+		if player == null:
+			continue
+		_kill_attack_player_fade(player)
+		player.stream_paused = false
+		player.stop()
+	_active_attack_loop_player = null
+
+
+func _get_attack_players() -> Array:
+	return [attack_player, attack_loop_player_a, attack_loop_player_b, attack_outro_player]
 
 
 func get_playback_position() -> float:
@@ -311,7 +711,15 @@ func get_playback_position() -> float:
 
 var playing: bool:
 	get:
-		return main_player.playing or drum_player.playing or bass_player.playing
+		return (
+			main_player.playing
+			or drum_player.playing
+			or bass_player.playing
+			or (attack_player != null and attack_player.playing)
+			or (attack_loop_player_a != null and attack_loop_player_a.playing)
+			or (attack_loop_player_b != null and attack_loop_player_b.playing)
+			or (attack_outro_player != null and attack_outro_player.playing)
+		)
 
 
 func set_main_volume(volume_db: float) -> void:

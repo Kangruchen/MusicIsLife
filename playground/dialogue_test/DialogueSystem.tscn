@@ -1,7 +1,7 @@
 [gd_scene load_steps=4 format=3 uid="uid://dha1pim7hv1gw"]
 
 [ext_resource type="Texture2D" uid="uid://dj3myyqsu3mwv" path="res://playground/dialogue_test/BGImage.png" id="2_r7v8m"]
-[ext_resource type="AudioStream" uid="uid://cgej12qrpf6p6" path="res://playground/dialogue_test/TypingSFX.wav" id="3_2y423"]
+[ext_resource type="AudioStream" path="res://playground/dialogue_test/TypingSFX.wav" id="3_2y423"]
 
 [sub_resource type="GDScript" id="GDScript_ewl02"]
 script/source = "extends CanvasLayer

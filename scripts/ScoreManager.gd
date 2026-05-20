@@ -11,6 +11,10 @@ var temporary_energy_reduce: float = 0.0
 var pending_attack_hits: Array[Dictionary] = []
 var is_game_over: bool = false
 @export var enabled: bool = true
+@export_group("Attack Phase Beats")
+@export_range(1, 32, 1) var attack_countdown_beats: int = GameConstants.COUNTDOWN_BEATS
+@export_range(1, 64, 1) var attack_input_beats: int = GameConstants.INPUT_BEATS
+@export_range(1, 32, 1) var attack_exit_beats: int = GameConstants.EXIT_BEATS
 
 const PENDING_ATTACK_TIMEOUT: float = 0.6
 
@@ -123,20 +127,24 @@ func _on_boss_energy_depleted() -> void:
 	
 	# 使用 @onready 兄弟节点引用 + EventBus 常量
 	var bi: float = beat_manager.beat_interval
-	var countdown_duration: float = bi * GameConstants.COUNTDOWN_BEATS
-	var attack_duration: float = bi * GameConstants.INPUT_BEATS
-	var return_countdown_duration: float = bi * GameConstants.EXIT_BEATS
-	var pause_duration: float = bi * GameConstants.TOTAL_ATTACK_BEATS
+	var countdown_beats: int = maxi(1, attack_countdown_beats)
+	var input_beats: int = maxi(1, attack_input_beats)
+	var exit_beats: int = maxi(1, attack_exit_beats)
+	var total_attack_beats: int = countdown_beats + input_beats + exit_beats
+	var countdown_duration: float = bi * float(countdown_beats)
+	var attack_duration: float = bi * float(input_beats)
+	var return_countdown_duration: float = bi * float(exit_beats)
+	var pause_duration: float = bi * float(total_attack_beats)
 	
-	print("\n========== 攻击阶段开始（共6小节", GameConstants.TOTAL_ATTACK_BEATS, "拍） ==========")
+	print("\n========== 攻击阶段开始（共", total_attack_beats, "拍） ==========")
 	
 	# 为准备阶段添加节拍log
-	for i in range(1, GameConstants.COUNTDOWN_BEATS + 1):
+	for i in range(1, countdown_beats + 1):
 		var beat_num: int = i
 		get_tree().create_timer(bi * (i - 1)).timeout.connect(func():
 			if is_game_over:
 				return
-			print("[总拍", beat_num, "/", GameConstants.TOTAL_ATTACK_BEATS, "] 准备阶段 - 拍", beat_num, "/", GameConstants.COUNTDOWN_BEATS))
+			print("[总拍", beat_num, "/", total_attack_beats, "] 准备阶段 - 拍", beat_num, "/", countdown_beats))
 			
 	
 	# 暂停节拍检测
@@ -153,24 +161,24 @@ func _on_boss_energy_depleted() -> void:
 		input_manager.pause_input()
 	
 	# 通过 EventBus 通知 UI 层（替代 get_node GameUI）
-	EventBus.show_pause_countdown_requested.emit(bi)
+	EventBus.show_pause_countdown_requested.emit(bi, countdown_beats)
 
 	# 基于音乐时钟计算第一输入拍时间（秒）：不依赖系统时钟，避免进出阶段漂移。
 	var depletion_music_time: float = _get_music_clock_time()
-	var first_beat_abs_time: float = depletion_music_time + 4.0 * bi  # 输入拍第1拍（音乐时间轴）
+	var first_beat_abs_time: float = depletion_music_time + float(countdown_beats) * bi  # 输入拍第1拍（音乐时间轴）
 	# 后四个小节：节拍闪光效果
 	get_tree().create_timer(countdown_duration).timeout.connect(func():
 		if is_game_over:
 			return
-		EventBus.play_beat_flash_requested.emit(bi, GameConstants.INPUT_BEATS)
+		EventBus.play_beat_flash_requested.emit(bi, input_beats)
 	)
 	# 在准备阶段开始时，直接启动攻击阶段；真正可输入时机由 beat 事件与 movement enabled 控制
-	_start_attack_phase(countdown_duration + attack_duration + return_countdown_duration, bi, first_beat_abs_time)
+	_start_attack_phase(countdown_duration + attack_duration + return_countdown_duration, bi, first_beat_abs_time, countdown_beats, input_beats, exit_beats)
 
 	# 启动计时器（完整时长）
 	if pause_timer != null:
 		pause_timer.start(pause_duration)
-	print("游戏已进入攻击阶段 ", pause_duration, " 秒（", GameConstants.TOTAL_ATTACK_BEATS, " 拍），音乐进度持续前进")
+	print("游戏已进入攻击阶段 ", pause_duration, " 秒（", total_attack_beats, " 拍），音乐进度持续前进")
 
 
 ## 暂停结束的回调
@@ -216,7 +224,14 @@ func _get_music_clock_time() -> float:
 
 
 ## 开始攻击阶段
-func _start_attack_phase(duration: float, bi: float, first_beat_abs_time: float) -> void:
+func _start_attack_phase(
+	duration: float,
+	bi: float,
+	first_beat_abs_time: float,
+	countdown_beats: int,
+	input_beats: int,
+	exit_beats: int
+) -> void:
 	if is_game_over:
 		return
 
@@ -227,7 +242,7 @@ func _start_attack_phase(duration: float, bi: float, first_beat_abs_time: float)
 	
 	# 启用攻击输入监听（传入 first_beat_abs_time 统一时间基准）
 	if input_manager and input_manager.has_method("start_attack_phase"):
-		input_manager.start_attack_phase(duration, bi, first_beat_abs_time)
+		input_manager.start_attack_phase(duration, bi, first_beat_abs_time, countdown_beats, input_beats, exit_beats)
 	
 	# 通过 EventBus 通知 UI 显示攻击界面
 	EventBus.show_attack_ui_requested.emit()

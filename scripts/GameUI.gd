@@ -32,6 +32,7 @@ var _track_bi: float = 0.0
 var _track_first_beat_time: float = 0.0
 var _track_segment_width: float = 0.0
 var _track_width: float = 0.0
+var _track_input_beats: int = GameConstants.INPUT_BEATS
 
 var _heat_tween: Tween = null
 var _shake_intensity: float = 0.0
@@ -151,18 +152,19 @@ func _on_boss_energy_updated(current: float, maximum: float) -> void:
 		boss_guard_bar.value = current
 
 
-func _on_show_pause_countdown(bi: float) -> void:
-	_show_pause_countdown_impl(bi)
+func _on_show_pause_countdown(bi: float, beat_count: int = GameConstants.COUNTDOWN_BEATS) -> void:
+	_show_pause_countdown_impl(bi, beat_count)
 
 
-func _show_pause_countdown_impl(bi: float) -> void:
+func _show_pause_countdown_impl(bi: float, beat_count: int = GameConstants.COUNTDOWN_BEATS) -> void:
 	if not countdown_label:
 		return
 
 	countdown_label.visible = true
 
-	for i in range(GameConstants.COUNTDOWN_BEATS):
-		var count_num: int = GameConstants.COUNTDOWN_BEATS - i
+	var safe_beat_count: int = maxi(1, beat_count)
+	for i in range(safe_beat_count):
+		var count_num: int = safe_beat_count - i
 		countdown_label.text = str(count_num)
 
 		var scale_tween: Tween = create_tween()
@@ -263,7 +265,14 @@ func _update_heat_dots(heat_counter: int) -> void:
 			dot.color = Color(0.2, 0.2, 0.2, 0.5)
 
 
-func _on_attack_track_setup(bi: float, first_beat_time: float) -> void:
+func _on_attack_track_setup(
+	bi: float,
+	first_beat_time: float,
+	_countdown_beats: int = GameConstants.COUNTDOWN_BEATS,
+	input_beats: int = GameConstants.INPUT_BEATS,
+	_exit_beats: int = GameConstants.EXIT_BEATS
+) -> void:
+	_track_input_beats = maxi(1, input_beats)
 	_clear_beat_track()
 	_create_beat_track(bi, first_beat_time)
 
@@ -277,7 +286,7 @@ func _create_beat_track(bi: float, first_beat_time: float) -> void:
 
 	var screen_width: float = get_viewport().get_visible_rect().size.x
 	_track_width = screen_width * BEAT_TRACK_WIDTH_RATIO
-	_track_segment_width = _track_width / GameConstants.INPUT_BEATS
+	_track_segment_width = _track_width / float(_track_input_beats)
 
 	var perfect_ratio: float = GameConstants.ATTACK_PERFECT_WINDOW / bi
 	var perfect_width: float = _track_segment_width * perfect_ratio
@@ -301,7 +310,7 @@ func _create_beat_track(bi: float, first_beat_time: float) -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	beat_track_container.add_child(bg)
 
-	for i in range(GameConstants.INPUT_BEATS):
+	for i in range(_track_input_beats):
 		var x: float = i * _track_segment_width
 
 		var left_miss: ColorRect = ColorRect.new()
