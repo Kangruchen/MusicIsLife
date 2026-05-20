@@ -28,6 +28,7 @@ const PENDING_ATTACK_TIMEOUT: float = 0.6
 # 暂停相关
 var is_paused_for_attack: bool = false
 var pause_timer: Timer = null
+var pause_end_music_time: float = 0.0
 
 
 func _ready() -> void:
@@ -48,6 +49,11 @@ func _ready() -> void:
 	
 	# 延迟一帧广播初始血量（确保 GameUI 已连接 EventBus）
 	call_deferred("_emit_health_update")
+
+
+func _process(_delta: float) -> void:
+	if is_paused_for_attack and pause_end_music_time > 0.0 and _get_music_clock_time() >= pause_end_music_time:
+		_on_pause_timeout()
 
 
 ## 广播所有血量/精力状态到 EventBus
@@ -138,15 +144,6 @@ func _on_boss_energy_depleted() -> void:
 	
 	print("\n========== 攻击阶段开始（共", total_attack_beats, "拍） ==========")
 	
-	# 为准备阶段添加节拍log
-	for i in range(1, countdown_beats + 1):
-		var beat_num: int = i
-		get_tree().create_timer(bi * (i - 1)).timeout.connect(func():
-			if is_game_over:
-				return
-			print("[总拍", beat_num, "/", total_attack_beats, "] 准备阶段 - 拍", beat_num, "/", countdown_beats))
-			
-	
 	# 暂停节拍检测
 	beat_manager.pause_beat_detection()
 	
@@ -161,34 +158,36 @@ func _on_boss_energy_depleted() -> void:
 		input_manager.pause_input()
 	
 	# 通过 EventBus 通知 UI 层（替代 get_node GameUI）
-	EventBus.show_pause_countdown_requested.emit(bi, countdown_beats)
+	var depletion_music_time: float = _get_music_clock_time()
+	EventBus.show_pause_countdown_requested.emit(bi, countdown_beats, depletion_music_time)
 
 	# 基于音乐时钟计算第一输入拍时间（秒）：不依赖系统时钟，避免进出阶段漂移。
-	var depletion_music_time: float = _get_music_clock_time()
 	var first_beat_abs_time: float = depletion_music_time + float(countdown_beats) * bi  # 输入拍第1拍（音乐时间轴）
+	pause_end_music_time = depletion_music_time + pause_duration
 	# 后四个小节：节拍闪光效果
-	get_tree().create_timer(countdown_duration).timeout.connect(func():
-		if is_game_over:
-			return
-		EventBus.play_beat_flash_requested.emit(bi, input_beats)
-	)
+	EventBus.play_beat_flash_requested.emit(bi, input_beats, first_beat_abs_time)
 	# 在准备阶段开始时，直接启动攻击阶段；真正可输入时机由 beat 事件与 movement enabled 控制
 	_start_attack_phase(countdown_duration + attack_duration + return_countdown_duration, bi, first_beat_abs_time, countdown_beats, input_beats, exit_beats)
 
-	# 启动计时器（完整时长）
+	# 保留 Timer 作为兜底清理；真正的阶段边界由音乐时钟驱动。
 	if pause_timer != null:
-		pause_timer.start(pause_duration)
+		pause_timer.start(pause_duration + 0.5)
 	print("游戏已进入攻击阶段 ", pause_duration, " 秒（", total_attack_beats, " 拍），音乐进度持续前进")
 
 
 ## 暂停结束的回调
 func _on_pause_timeout() -> void:
+	if not is_paused_for_attack and pause_end_music_time <= 0.0:
+		return
+	if pause_end_music_time > 0.0 and _get_music_clock_time() < pause_end_music_time:
+		return
 	if is_game_over:
 		return
 	if current_boss_health <= 0.0:
 		return
 
 	is_paused_for_attack = false
+	pause_end_music_time = 0.0
 	
 	# 通知 UI 隐藏暂停效果
 	EventBus.hide_pause_effects_requested.emit()
@@ -219,7 +218,9 @@ func _get_music_clock_time() -> float:
 	if music_player == null:
 		return 0.0
 	if music_player.has_method("get_playback_position"):
-		return float(music_player.get_playback_position()) + AudioServer.get_time_to_next_mix()
+		if music_player.has_method("get_song_time"):
+			return float(music_player.get_song_time())
+		return float(music_player.get_playback_position())
 	return 0.0
 
 
@@ -277,7 +278,7 @@ func _on_attack_performed(attack_type: int, heat_level: int = 0) -> void:
 			pending_attack_hits.append({
 				"type": attack_type,
 				"damage": boss_damage,
-				"time": Time.get_ticks_msec() / 1000.0
+				"time": _get_music_clock_time()
 			})
 
 		1:  # HEAVY - 消耗热度
@@ -293,7 +294,7 @@ func _on_attack_performed(attack_type: int, heat_level: int = 0) -> void:
 			pending_attack_hits.append({
 				"type": attack_type,
 				"damage": boss_damage,
-				"time": Time.get_ticks_msec() / 1000.0
+				"time": _get_music_clock_time()
 			})
 
 		2:  # HEAL - 回复
@@ -386,7 +387,7 @@ func _resolve_boss_node() -> Node:
 
 
 func _cleanup_pending_attack_hits() -> void:
-	var now_time: float = Time.get_ticks_msec() / 1000.0
+	var now_time: float = _get_music_clock_time()
 	for i in range(pending_attack_hits.size() - 1, -1, -1):
 		var pending_time: float = float(pending_attack_hits[i].get("time", 0.0))
 		if now_time - pending_time > PENDING_ATTACK_TIMEOUT:
@@ -408,6 +409,7 @@ func _trigger_player_game_over() -> void:
 
 	is_game_over = true
 	is_paused_for_attack = false
+	pause_end_music_time = 0.0
 	pending_attack_hits.clear()
 
 	if pause_timer != null:
@@ -434,6 +436,7 @@ func _on_boss_defeated() -> void:
 		return
 
 	is_game_over = true
+	pause_end_music_time = 0.0
 	pending_attack_hits.clear()
 
 	if pause_timer != null:

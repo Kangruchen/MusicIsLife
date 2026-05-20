@@ -64,6 +64,7 @@ var current_beat_in_attack: int = 0
 var attack_beat_interval: float = 0.0
 var current_beat_start_time: float = 0.0  # 当前拍的开始时间
 var attack_phase_start_time: float = 0.0  # 攻击阶段开始时间
+var attack_phase_end_time: float = 0.0
 var current_beat_has_input: bool = false  # 当前拍是否已有输入
 var _heavy_skip_next_beat: bool = false    # 重击占用下一拍标志
 var _beat_generation: int = 0            # 每拍递增，用于使过期回调失效
@@ -82,6 +83,8 @@ var heat_level: int = 0    # 当前热度档位 (0~MAX_HEAT_LEVEL)
 
 
 func _ready() -> void:
+	Input.use_accumulated_input = false
+
 	# 创建攻击阶段计时器
 	attack_phase_timer = Timer.new()
 	attack_phase_timer.one_shot = true
@@ -123,6 +126,8 @@ func _process(_delta: float) -> void:
 	
 	var now: float = _get_music_clock_time()
 	_advance_attack_beats_to_time(now)
+	if attack_phase_end_time > 0.0 and now >= attack_phase_end_time:
+		_on_attack_phase_end()
 
 
 func _input(event: InputEvent) -> void:
@@ -159,7 +164,7 @@ func _handle_input(track_type: Note.NoteType) -> void:
 		return
 	
 	# 获取当前时间
-	var current_time: float = music_player.get_playback_position() + AudioServer.get_time_to_next_mix()
+	var current_time: float = _get_music_clock_time()
 	
 	# 查找该轨道上最近的可视音符
 	var closest_note: NoteVisual = null
@@ -463,6 +468,7 @@ func _on_miss_triggered(track_type: int) -> void:
 ## 暂停输入检测
 func pause_input() -> void:
 	current_phase = PhaseState.PAUSED
+	attack_phase_end_time = 0.0
 	_attack_beat_abs_times.clear()
 	_attack_beat_input_states.clear()
 	_next_beat_idx = 0
@@ -482,7 +488,7 @@ func resume_input() -> void:
 ## 开始攻击阶段
 ## first_beat_abs_time: 第一输入拍的绝对时间（与 ScoreManager 生成的前两个音符共享同一时间网格）
 func start_attack_phase(
-	duration: float,
+	_duration: float,
 	bi: float,
 	first_beat_abs_time: float,
 	countdown_beats: int = GameConstants.COUNTDOWN_BEATS,
@@ -496,6 +502,7 @@ func start_attack_phase(
 	attack_exit_beats = maxi(1, exit_beats)
 	current_beat_in_attack = 0
 	attack_phase_start_time = _get_music_clock_time()
+	attack_phase_end_time = first_beat_abs_time + float(attack_input_beats + attack_exit_beats) * attack_beat_interval
 	current_beat_start_time = first_beat_abs_time
 	current_beat_has_input = false
 	_heavy_skip_next_beat = false
@@ -520,7 +527,7 @@ func start_attack_phase(
 	var first_total: int = attack_countdown_beats + 1
 	print("[总拍", first_total, "/", total_attack_beats, "] 输入阶段 - 拍1/", attack_input_beats)
 	
-	attack_phase_timer.start(duration)
+	attack_phase_timer.stop()
 
 
 ## 攻击阶段的输入处理
@@ -668,6 +675,7 @@ func _on_attack_phase_end() -> void:
 		return
 
 	current_phase = PhaseState.DEFENSE
+	attack_phase_end_time = 0.0
 	_beat_generation += 1
 	_attack_beat_abs_times.clear()
 	_attack_beat_input_states.clear()
@@ -690,6 +698,7 @@ func force_end_attack_phase() -> void:
 		return
 
 	current_phase = PhaseState.DEFENSE
+	attack_phase_end_time = 0.0
 	_beat_generation += 1
 	_attack_beat_abs_times.clear()
 	_attack_beat_input_states.clear()
@@ -744,4 +753,6 @@ func _log_attack_drum_alignment(tag: String) -> void:
 func _get_music_clock_time() -> float:
 	if music_player == null:
 		return 0.0
-	return float(music_player.get_playback_position()) + AudioServer.get_time_to_next_mix()
+	if music_player.has_method("get_song_time"):
+		return float(music_player.get_song_time())
+	return float(music_player.get_playback_position())

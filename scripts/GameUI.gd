@@ -21,6 +21,16 @@ const CURSOR_HALF_WIDTH: float = 2.0
 # 暂停阶段视觉效果元素
 var countdown_label: Label = null
 var beat_flash_effect: ColorRect = null
+var _countdown_active: bool = false
+var _countdown_start_time: float = 0.0
+var _countdown_beat_interval: float = 0.0
+var _countdown_beat_count: int = 0
+var _countdown_last_index: int = -1
+var _beat_flash_active: bool = false
+var _beat_flash_start_time: float = 0.0
+var _beat_flash_interval: float = 0.0
+var _beat_flash_count: int = 0
+var _beat_flash_last_index: int = -1
 
 # 攻击阶段UI元素
 var attack_ui_container: Control = null
@@ -109,11 +119,15 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	_update_beat_cursor()
 	_update_heat_shake()
+	_update_pause_countdown_by_clock()
+	_update_beat_flash_by_clock()
 
 
 func _get_beat_clock_time() -> float:
 	if music_player != null and music_player.has_method("get_playback_position"):
-		return float(music_player.get_playback_position()) + AudioServer.get_time_to_next_mix()
+		if music_player.has_method("get_song_time"):
+			return float(music_player.get_song_time())
+		return float(music_player.get_playback_position())
 	return Time.get_ticks_msec() / 1000.0
 
 
@@ -152,59 +166,116 @@ func _on_boss_energy_updated(current: float, maximum: float) -> void:
 		boss_guard_bar.value = current
 
 
-func _on_show_pause_countdown(bi: float, beat_count: int = GameConstants.COUNTDOWN_BEATS) -> void:
-	_show_pause_countdown_impl(bi, beat_count)
-
-
-func _show_pause_countdown_impl(bi: float, beat_count: int = GameConstants.COUNTDOWN_BEATS) -> void:
+func _on_show_pause_countdown(bi: float, beat_count: int = GameConstants.COUNTDOWN_BEATS, start_time: float = 0.0) -> void:
 	if not countdown_label:
 		return
+	if bi <= 0.0:
+		_countdown_active = false
+		countdown_label.visible = false
+		return
+	_countdown_active = true
+	_countdown_start_time = start_time
+	_countdown_beat_interval = bi
+	_countdown_beat_count = maxi(1, beat_count)
+	_countdown_last_index = -1
 
 	countdown_label.visible = true
-
-	var safe_beat_count: int = maxi(1, beat_count)
-	for i in range(safe_beat_count):
-		var count_num: int = safe_beat_count - i
-		countdown_label.text = str(count_num)
-
-		var scale_tween: Tween = create_tween()
-		scale_tween.set_ease(Tween.EASE_OUT)
-		scale_tween.set_trans(Tween.TRANS_BACK)
-		countdown_label.scale = Vector2(1.5, 1.5)
-		scale_tween.tween_property(countdown_label, "scale", Vector2(1.0, 1.0), bi * 0.3)
-
-		var alpha_tween: Tween = create_tween()
-		alpha_tween.set_ease(Tween.EASE_OUT)
-		countdown_label.modulate.a = 1.0
-		alpha_tween.tween_property(countdown_label, "modulate:a", 0.5, bi * 0.8)
-
-		await get_tree().create_timer(bi).timeout
-
-	countdown_label.visible = false
+	_update_pause_countdown_by_clock()
 
 
-func _on_play_beat_flash(bi: float, beat_count: int) -> void:
+func _update_pause_countdown_by_clock() -> void:
+	if not _countdown_active:
+		return
+	if not countdown_label:
+		_countdown_active = false
+		return
+	if _countdown_beat_interval <= 0.0:
+		_countdown_active = false
+		countdown_label.visible = false
+		return
+
+	var elapsed: float = _get_beat_clock_time() - _countdown_start_time
+	var index: int = int(floor(elapsed / _countdown_beat_interval))
+	if index < 0:
+		return
+	if index >= _countdown_beat_count:
+		_countdown_active = false
+		countdown_label.visible = false
+		return
+	if index == _countdown_last_index:
+		return
+
+	_countdown_last_index = index
+	var count_num: int = _countdown_beat_count - index
+	_pulse_countdown(count_num, _countdown_beat_interval)
+
+
+func _pulse_countdown(count_num: int, bi: float) -> void:
+	countdown_label.text = str(count_num)
+
+	var scale_tween: Tween = create_tween()
+	scale_tween.set_ease(Tween.EASE_OUT)
+	scale_tween.set_trans(Tween.TRANS_BACK)
+	countdown_label.scale = Vector2(1.5, 1.5)
+	scale_tween.tween_property(countdown_label, "scale", Vector2(1.0, 1.0), bi * 0.3)
+
+	var alpha_tween: Tween = create_tween()
+	alpha_tween.set_ease(Tween.EASE_OUT)
+	countdown_label.modulate.a = 1.0
+	alpha_tween.tween_property(countdown_label, "modulate:a", 0.5, bi * 0.8)
+
+
+func _on_play_beat_flash(bi: float, beat_count: int, start_time: float = 0.0) -> void:
 	if _is_boss_defeated:
 		return
-	_play_beat_flash_impl(bi, beat_count)
-
-
-func _play_beat_flash_impl(bi: float, beat_count: int = 16) -> void:
 	if not beat_flash_effect:
 		return
+	if bi <= 0.0 or beat_count <= 0:
+		_beat_flash_active = false
+		return
+	_beat_flash_active = true
+	_beat_flash_start_time = start_time
+	_beat_flash_interval = bi
+	_beat_flash_count = beat_count
+	_beat_flash_last_index = -1
+	_update_beat_flash_by_clock()
 
-	for i in range(beat_count):
-		var flash_tween: Tween = create_tween()
-		flash_tween.set_ease(Tween.EASE_OUT)
-		flash_tween.set_trans(Tween.TRANS_CUBIC)
 
-		beat_flash_effect.color = Color(1.0, 1.0, 0.8, 0.3)
-		flash_tween.tween_property(beat_flash_effect, "color:a", 0.0, bi * 0.6)
+func _update_beat_flash_by_clock() -> void:
+	if not _beat_flash_active:
+		return
+	if _is_boss_defeated or not beat_flash_effect:
+		_beat_flash_active = false
+		return
+	if _beat_flash_interval <= 0.0:
+		_beat_flash_active = false
+		return
 
-		await get_tree().create_timer(bi).timeout
+	var elapsed: float = _get_beat_clock_time() - _beat_flash_start_time
+	var index: int = int(floor(elapsed / _beat_flash_interval))
+	if index < 0:
+		return
+	if index >= _beat_flash_count:
+		_beat_flash_active = false
+		return
+	if index == _beat_flash_last_index:
+		return
+
+	_beat_flash_last_index = index
+	_pulse_beat_flash(_beat_flash_interval)
+
+
+func _pulse_beat_flash(bi: float) -> void:
+	var flash_tween: Tween = create_tween()
+	flash_tween.set_ease(Tween.EASE_OUT)
+	flash_tween.set_trans(Tween.TRANS_CUBIC)
+	beat_flash_effect.color = Color(1.0, 1.0, 0.8, 0.3)
+	flash_tween.tween_property(beat_flash_effect, "color:a", 0.0, bi * 0.6)
 
 
 func hide_pause_effects() -> void:
+	_countdown_active = false
+	_beat_flash_active = false
 	if countdown_label:
 		countdown_label.visible = false
 	if beat_flash_effect:

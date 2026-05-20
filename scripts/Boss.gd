@@ -219,6 +219,8 @@ var _left_part_damage_accumulated: float = 0.0
 var _right_part_damage_accumulated: float = 0.0
 var _boss_attack_beat_index: Dictionary = {}
 var _boss_attack_sound_token: int = 0
+var _music_player: Node = null
+var _music_clock_events: Array[Dictionary] = []
 var _waiting_for_intro: bool = false
 var _debug_last_override_enabled: bool = false
 var _debug_last_middle_destroyed: bool = false
@@ -243,6 +245,7 @@ func _ready() -> void:
 	_spawn_position = global_position
 	_resolve_animation_nodes()
 	_resolve_aim_nodes()
+	_resolve_music_player()
 	_reset_part_health()
 	_connect_global_signals()
 
@@ -265,6 +268,7 @@ func _process(delta: float) -> void:
 	_update_attack_hit_flash(delta)
 	_apply_debug_part_state_override_if_needed()
 	_update_missile_warning_preview()
+	_process_music_clock_events(_get_now_seconds())
 
 	if _waiting_for_intro:
 		return
@@ -364,6 +368,24 @@ func _resolve_aim_nodes() -> void:
 			_target_character = parent_node.get_node_or_null("Character") as Node2D
 
 
+func _resolve_music_player() -> void:
+	if _music_player != null and is_instance_valid(_music_player):
+		return
+
+	var scene_root: Node = get_tree().current_scene
+	if scene_root != null:
+		var game_manager: Node = scene_root.get_node_or_null("GameManager")
+		if game_manager != null:
+			_music_player = game_manager.get_node_or_null("MusicPlayer")
+		if _music_player == null:
+			_music_player = scene_root.find_child("MusicPlayer", true, false)
+
+	if _music_player == null:
+		var parent_node: Node = get_parent()
+		if parent_node != null:
+			_music_player = parent_node.get_node_or_null("GameManager/MusicPlayer")
+
+
 func _play_boss_attack_sound(attack_type: int) -> void:
 	if GameConfigs.sound == null or GameConfigs.sound.boss_sounds == null:
 		return
@@ -417,13 +439,15 @@ func _schedule_boss_attack_sound_from_sprite(attack_type: int, sprite: AnimatedS
 		return
 
 	var token: int = _boss_attack_sound_token
-	get_tree().create_timer(delay).timeout.connect(func() -> void:
-		if token != _boss_attack_sound_token:
-			return
-		if is_dead or _attack_phase_interrupted:
-			return
-		_play_boss_attack_sound(attack_type)
-	)
+	_schedule_music_clock_event(_get_now_seconds() + delay, Callable(self, "_on_boss_attack_sound_time"), [token, attack_type])
+
+
+func _on_boss_attack_sound_time(token: int, attack_type: int) -> void:
+	if token != _boss_attack_sound_token:
+		return
+	if is_dead or _attack_phase_interrupted:
+		return
+	_play_boss_attack_sound(attack_type)
 
 
 func _find_timing_sprite(root: Node) -> AnimatedSprite2D:
@@ -2016,7 +2040,7 @@ func _start_missile_warning_blink(missile: Node2D, token: int) -> void:
 	if beat_seconds <= 0.0:
 		beat_seconds = 0.5
 	var missile_instance_id: int = missile.get_instance_id()
-	get_tree().create_timer(beat_seconds).timeout.connect(_on_missile_warning_blink_timeout.bind(token, missile_instance_id))
+	_schedule_music_clock_event(_get_now_seconds() + beat_seconds, Callable(self, "_on_missile_warning_blink_timeout"), [token, missile_instance_id])
 
 
 func _on_missile_warning_blink_timeout(token: int, missile_instance_id: int) -> void:
@@ -2160,15 +2184,17 @@ func _start_missile_warning_preview_blink(token: int) -> void:
 	if beat_seconds <= 0.0:
 		beat_seconds = 0.5
 
-	get_tree().create_timer(beat_seconds).timeout.connect(func() -> void:
-		if token != _missile_warning_preview_token:
-			return
-		if not missile_warning_preview_on_boss:
-			return
-		if _missile_warning_preview_light == null or not is_instance_valid(_missile_warning_preview_light):
-			return
-		_start_missile_warning_preview_blink(token)
-	)
+	_schedule_music_clock_event(_get_now_seconds() + beat_seconds, Callable(self, "_on_missile_warning_preview_blink_timeout"), [token])
+
+
+func _on_missile_warning_preview_blink_timeout(token: int) -> void:
+	if token != _missile_warning_preview_token:
+		return
+	if not missile_warning_preview_on_boss:
+		return
+	if _missile_warning_preview_light == null or not is_instance_valid(_missile_warning_preview_light):
+		return
+	_start_missile_warning_preview_blink(token)
 
 
 func _clear_missile_warning_preview() -> void:
@@ -2351,7 +2377,40 @@ func _stop_return_to_origin_transition() -> void:
 
 
 func _get_now_seconds() -> float:
+	if _music_player == null or not is_instance_valid(_music_player):
+		_resolve_music_player()
+	if _music_player != null:
+		if _music_player.has_method("get_song_time"):
+			return float(_music_player.get_song_time())
+		if _music_player.has_method("get_playback_position"):
+			return float(_music_player.get_playback_position())
 	return float(Time.get_ticks_msec()) / 1000.0
+
+
+func _schedule_music_clock_event(target_time: float, callback: Callable, args: Array = []) -> void:
+	if not callback.is_valid():
+		return
+	_music_clock_events.append({
+		"time": target_time,
+		"callback": callback,
+		"args": args
+	})
+	_music_clock_events.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return float(a["time"]) < float(b["time"])
+	)
+
+
+func _process_music_clock_events(now: float) -> void:
+	while not _music_clock_events.is_empty():
+		var event: Dictionary = _music_clock_events[0]
+		if float(event["time"]) > now:
+			return
+		_music_clock_events.pop_front()
+
+		var callback: Callable = event["callback"]
+		if callback.is_valid():
+			var args: Array = event["args"]
+			callback.callv(args)
 
 
 func get_spawn_position() -> Vector2:
@@ -2402,11 +2461,13 @@ func _play_shield_break_sound_delayed() -> void:
 	var break_sound: RandomSoundPool = GameConfigs.sound.player_defense.guard_success
 	if break_sound == null:
 		return
-	get_tree().create_timer(0.08).timeout.connect(func() -> void:
-		if is_dead or current_state != BossState.BROKEN:
-			return
-		SFXManager.play_pool(break_sound, GameConfigs.sound.player_defense.sfx_bus)
-	)
+	_schedule_music_clock_event(_get_now_seconds() + 0.08, Callable(self, "_on_shield_break_sound_time"), [break_sound])
+
+
+func _on_shield_break_sound_time(break_sound: RandomSoundPool) -> void:
+	if is_dead or current_state != BossState.BROKEN:
+		return
+	SFXManager.play_pool(break_sound, GameConfigs.sound.player_defense.sfx_bus)
 
 
 func _stop_break_transition() -> void:
@@ -2575,9 +2636,7 @@ func _emit_player_dash_afterimage_loop(token: int, end_time: float) -> void:
 
 	_spawn_player_afterimage()
 	var interval: float = maxf(0.01, player_dash_afterimage_interval)
-	get_tree().create_timer(interval).timeout.connect(func() -> void:
-		_emit_player_dash_afterimage_loop(token, end_time)
-	)
+	_schedule_music_clock_event(_get_now_seconds() + interval, Callable(self, "_emit_player_dash_afterimage_loop"), [token, end_time])
 
 
 func _spawn_player_afterimage() -> void:

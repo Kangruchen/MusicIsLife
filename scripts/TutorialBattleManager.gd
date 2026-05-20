@@ -58,6 +58,7 @@ var _beat_manager: Node = null
 var _track_manager: Node = null
 var _last_generated_beat: float = 0.0
 var _ending_scheduled: bool = false
+var _battle_end_target_time: float = -1.0
 var _cannon_bullet_fired: bool = false
 var _cannon_warn_played: bool = false
 var _cannon_last_logged_frame: int = -1
@@ -74,6 +75,8 @@ var _missile_fired_count: int = 0
 var _missile_warning_light_texture: Texture2D = null
 var _missile_warning_light_texture_signature: String = ""
 var _missile_warning_blink_token: int = 0
+var _missile_warning_next_blink_time: float = -1.0
+var _missile_warning_blink_instance_id: int = 0
 
 signal battle_started(battle_id: int)
 signal battle_ended(battle_id: int)
@@ -88,6 +91,8 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if _state != BattleState.PLAYING:
 		return
+	_process_scheduled_battle_end()
+	_process_missile_warning_blink()
 	if _battle_active:
 		if _track_manager and _track_manager.scheduled_notes.size() <= 4:
 			_append_more_notes()
@@ -106,11 +111,11 @@ func _track_cannon_frames() -> void:
 		return
 	var cur_frame: int = _cannon.frame
 	if _cannon_anim_start_time < 0.0:
-		_cannon_anim_start_time = Time.get_ticks_usec() / 1000000.0
+		_cannon_anim_start_time = _get_music_clock_time()
 	if cur_frame == _cannon_last_logged_frame:
 		return
 	_cannon_last_logged_frame = cur_frame
-	var now: float = Time.get_ticks_usec() / 1000000.0
+	var now: float = _get_music_clock_time()
 	var elapsed: float = now - _cannon_anim_start_time
 	var beat_interval: float = EventBus.beat_interval
 	var beat_num: float = elapsed / beat_interval if beat_interval > 0.0 else 0.0
@@ -482,10 +487,7 @@ func _on_judgment_made(track: int, judgment: int, _timing_diff: float) -> void:
 				
 				# 两个都达到required_successes时过关
 				if _cannon_success_count >= _current_config.required_successes and _missile_success_count >= _current_config.required_successes and not _ending_scheduled:
-					_battle_active = false
-					_ending_scheduled = true
-					var delay: float = _beat_interval * 2.0
-					get_tree().create_timer(delay).timeout.connect(_end_battle)
+					_schedule_end_battle_after_beats(2.0)
 			else:
 				# 其他ALTERNATING_MISSILE_CHARGE战斗沿用旧逻辑
 				if track == int(Note.NoteType.HIT):
@@ -504,28 +506,43 @@ func _on_judgment_made(track: int, judgment: int, _timing_diff: float) -> void:
 				if _battle_ui and _battle_ui.has_method("set_progress"):
 					_battle_ui.set_progress(_success_count)
 				if _success_count >= _current_config.required_successes and not _ending_scheduled:
-					_battle_active = false
-					_ending_scheduled = true
-					var delay: float = _beat_interval * 2.0
-					get_tree().create_timer(delay).timeout.connect(_end_battle)
+					_schedule_end_battle_after_beats(2.0)
 		else:
 			_success_count += 1
 			
 			if _battle_ui and _battle_ui.has_method("set_progress"):
 				_battle_ui.set_progress(_success_count)
 			if _success_count >= _current_config.required_successes and not _ending_scheduled:
-				_battle_active = false
-				_ending_scheduled = true
-				var delay: float = _beat_interval * 2.0
-				get_tree().create_timer(delay).timeout.connect(_end_battle)
+				_schedule_end_battle_after_beats(2.0)
+
+
+func _schedule_end_battle_after_beats(beats: float) -> void:
+	_battle_active = false
+	_ending_scheduled = true
+	var beat_seconds: float = _beat_interval
+	if beat_seconds <= 0.0:
+		beat_seconds = EventBus.beat_interval
+	if beat_seconds <= 0.0:
+		beat_seconds = 0.5
+	_battle_end_target_time = _get_music_clock_time() + maxf(0.0, beats) * beat_seconds
+
+
+func _process_scheduled_battle_end() -> void:
+	if not _ending_scheduled or _battle_end_target_time < 0.0:
+		return
+	if _get_music_clock_time() < _battle_end_target_time:
+		return
+	_end_battle()
 
 
 func _end_battle() -> void:
 	_state = BattleState.ENDED
 	_battle_active = false
 	_ending_scheduled = false
+	_battle_end_target_time = -1.0
 	_cannon_bullet_fired = false
 	_clear_active_cannon_bullet()
+	_clear_active_missile()
 
 	if _battle_ui and _battle_ui.has_method("hide_ui"):
 		_battle_ui.hide_ui()
@@ -840,7 +857,7 @@ func _start_missile_warning_blink(missile: Node2D) -> void:
 		beat_seconds = 0.5
 	var missile_instance_id: int = missile.get_instance_id()
 	var token: int = _missile_warning_blink_token
-	get_tree().create_timer(beat_seconds).timeout.connect(_on_missile_warning_blink_timeout.bind(token, missile_instance_id))
+	_schedule_missile_warning_blink(token, missile_instance_id, beat_seconds)
 
 
 func _on_missile_warning_blink_timeout(token: int, missile_instance_id: int) -> void:
@@ -854,7 +871,25 @@ func _on_missile_warning_blink_timeout(token: int, missile_instance_id: int) -> 
 	var beat_seconds: float = EventBus.beat_interval
 	if beat_seconds <= 0.0:
 		beat_seconds = 0.5
-	get_tree().create_timer(beat_seconds).timeout.connect(_on_missile_warning_blink_timeout.bind(token, missile_instance_id))
+	_schedule_missile_warning_blink(token, missile_instance_id, beat_seconds)
+
+
+func _schedule_missile_warning_blink(token: int, missile_instance_id: int, beat_seconds: float) -> void:
+	if token != _missile_warning_blink_token:
+		return
+	_missile_warning_blink_instance_id = missile_instance_id
+	_missile_warning_next_blink_time = _get_music_clock_time() + beat_seconds
+
+
+func _process_missile_warning_blink() -> void:
+	if _missile_warning_next_blink_time < 0.0:
+		return
+	if _get_music_clock_time() < _missile_warning_next_blink_time:
+		return
+	var missile_instance_id: int = _missile_warning_blink_instance_id
+	var token: int = _missile_warning_blink_token
+	_missile_warning_next_blink_time = -1.0
+	_on_missile_warning_blink_timeout(token, missile_instance_id)
 
 
 func _blink_missile_warning_once(missile: Node2D, _token: int) -> void:
@@ -898,6 +933,8 @@ func _on_missile_finished(missile_instance_id: int) -> void:
 
 func _clear_active_missile() -> void:
 	_missile_warning_blink_token += 1
+	_missile_warning_next_blink_time = -1.0
+	_missile_warning_blink_instance_id = 0
 	if _active_missile != null and is_instance_valid(_active_missile):
 		_active_missile.queue_free()
 	_active_missile = null
@@ -909,7 +946,7 @@ func _try_fire_missiles() -> void:
 	if _music_player == null:
 		return
 
-	var current_time: float = _music_player.get_playback_position() + AudioServer.get_time_to_next_mix()
+	var current_time: float = _get_music_clock_time()
 	var beat_interval: float = EventBus.beat_interval
 	if beat_interval <= 0.0:
 		beat_interval = 0.5
@@ -922,3 +959,11 @@ func _try_fire_missiles() -> void:
 			_spawn_missile(target_time)
 		else:
 			break
+
+
+func _get_music_clock_time() -> float:
+	if _music_player == null:
+		return 0.0
+	if _music_player.has_method("get_song_time"):
+		return float(_music_player.get_song_time())
+	return float(_music_player.get_playback_position())

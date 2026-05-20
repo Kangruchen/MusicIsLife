@@ -47,7 +47,7 @@ func _ready() -> void:
 	load_user_offset()
 	
 	# 计算节拍间隔
-	beat_interval = 60.0 / bpm
+	beat_interval = 60.0 / bpm if bpm > 0.0 else 0.0
 	
 	# 通过 EventBus 监听音乐开始信号（替代直连 MusicPlayer）
 	EventBus.music_started.connect(_on_music_started)
@@ -58,11 +58,14 @@ func _process(delta: float) -> void:
 	if not is_playing or is_paused:
 		return
 	
-	# 获取当前音乐播放位置（加上音频延迟补偿）
-	var current_time: float = music_player.get_playback_position() + AudioServer.get_time_to_next_mix()
+	if beat_interval <= 0.0:
+		return
+
+	# 获取当前音乐播放位置（统一走 MusicPlayer 的音频硬件时钟）
+	var current_time: float = music_player.get_song_time() if music_player.has_method("get_song_time") else music_player.get_playback_position()
 	
 	# 检查是否到达下一个节拍
-	if current_time >= next_beat_time:
+	while current_time >= next_beat_time:
 		_on_beat()
 		# 计算下一个节拍时间
 		next_beat_time += beat_interval

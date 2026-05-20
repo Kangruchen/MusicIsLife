@@ -49,8 +49,8 @@ signal boss_intro_finished
 signal show_attack_ui_requested
 signal hide_attack_ui_requested
 signal show_return_countdown_requested(count: int)
-signal show_pause_countdown_requested(bi: float, beat_count: int)
-signal play_beat_flash_requested(bi: float, beat_count: int)
+signal show_pause_countdown_requested(bi: float, beat_count: int, start_time: float)
+signal play_beat_flash_requested(bi: float, beat_count: int, start_time: float)
 signal hide_pause_effects_requested
 
 
@@ -86,6 +86,6 @@ func _suppress_unused_signal_warnings() -> void:
 	show_attack_ui_requested.emit()
 	hide_attack_ui_requested.emit()
 	show_return_countdown_requested.emit(0)
-	show_pause_countdown_requested.emit(0.0, 0)
-	play_beat_flash_requested.emit(0.0, 0)
+	show_pause_countdown_requested.emit(0.0, 0, 0.0)
+	play_beat_flash_requested.emit(0.0, 0, 0.0)
 	hide_pause_effects_requested.emit()

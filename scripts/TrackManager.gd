@@ -144,6 +144,7 @@ var _active_key_hints: Array[Node2D] = []
 var _hint_mode_toast_label: Label = null
 var _hint_mode_toast_tween: Tween = null
 var _hint_mode_toast_token: int = 0
+var _music_clock_events: Array[Dictionary] = []
 var _defense_hint_shown_counts: Dictionary = {
 	Note.NoteType.GUARD: 0,
 	Note.NoteType.HIT: 0,
@@ -288,7 +289,8 @@ func _process(_delta: float) -> void:
 	
 	# 获取当前音乐时间
 	if music_player and music_player.playing:
-		current_time = music_player.get_playback_position() + AudioServer.get_time_to_next_mix()
+		current_time = _get_music_clock_time()
+		_process_music_clock_events(current_time)
 		
 		# 检查是否需要生成音符（基于时间）
 		_check_and_spawn_notes_by_time(current_time)
@@ -659,13 +661,15 @@ func _schedule_prejudge_key_hint(note: Note) -> void:
 			_spawn_prejudge_key_hint(note.type)
 		return
 
-	get_tree().create_timer(delay).timeout.connect(func() -> void:
-		if token != _hint_runtime_token:
-			return
-		if _attack_phase_blocked:
-			return
-		_spawn_prejudge_key_hint(note.type)
-	)
+	_schedule_music_clock_event(hint_time, Callable(self, "_on_prejudge_key_hint_time"), [token, note.type])
+
+
+func _on_prejudge_key_hint_time(token: int, note_type: Note.NoteType) -> void:
+	if token != _hint_runtime_token:
+		return
+	if _attack_phase_blocked:
+		return
+	_spawn_prejudge_key_hint(note_type)
 
 
 func _spawn_prejudge_key_hint(note_type: Note.NoteType) -> void:
@@ -736,6 +740,7 @@ func clear_all_notes() -> void:
 	tracked_notes.clear()
 	_missile_request_sent_notes.clear()
 	_charge_request_sent_notes.clear()
+	_music_clock_events.clear()
 	# 清除所有活跃的 Bling 特效
 	for track_type in _active_blings:
 		for bling in _active_blings[track_type]:
@@ -775,6 +780,7 @@ func _clear_active_key_hints() -> void:
 func _invalidate_effect_callbacks() -> void:
 	_effect_runtime_token += 1
 	_hint_runtime_token += 1
+	_music_clock_events.clear()
 	for note_type in _external_anim_tokens.keys():
 		_external_anim_tokens[note_type] = int(_external_anim_tokens[note_type]) + 1
 
@@ -795,6 +801,7 @@ func _invalidate_effect_callbacks() -> void:
 func pause_note_spawning() -> void:
 	is_paused = true
 	pause_start_time = current_time
+	_music_clock_events.clear()
 	print("音符生成已暂停，时间: ", pause_start_time)
 
 
@@ -802,7 +809,7 @@ func pause_note_spawning() -> void:
 func resume_note_spawning() -> void:
 	# 先更新当前时间到最新值（避免使用暂停前的旧时间）
 	if music_player and music_player.playing:
-		current_time = music_player.get_playback_position() + AudioServer.get_time_to_next_mix()
+		current_time = _get_music_clock_time()
 	
 	# 清理所有已错过“生成时机”的音符，避免恢复后首帧补生成并立刻 MISS。
 	var removed_count: int = 0
@@ -934,7 +941,7 @@ func _spawn_warn(note: Note, warn_scene: PackedScene, counter: int) -> void:
 	var warn_duration: float = EventBus.beat_interval
 	var token: int = _effect_runtime_token
 	var warn_instance_id: int = instance.get_instance_id()
-	get_tree().create_timer(warn_duration).timeout.connect(_on_warn_effect_timeout.bind(token, warn_instance_id))
+	_schedule_music_clock_event(_get_music_clock_time() + warn_duration, Callable(self, "_on_warn_effect_timeout"), [token, warn_instance_id])
 	
 	print("[Warn] %s | counter=%d | duration=%.4fs" % [note.get_type_string(), counter, warn_duration])
 
@@ -1069,11 +1076,7 @@ func _spawn_main_animation(note: Note, target_beats: int, counter: int) -> void:
 		var attack_delay: float = remaining_to_judge
 		if attack_delay > 0.01:
 			var attack_sound_token: int = _effect_runtime_token
-			get_tree().create_timer(attack_delay).timeout.connect(func() -> void:
-				if attack_sound_token != _effect_runtime_token or _attack_phase_blocked:
-					return
-				_play_boss_attack_sound_for_note_type(note.type, false)
-			)
+			_schedule_music_clock_event(note.beat_time, Callable(self, "_on_guard_attack_sound_time"), [attack_sound_token, note.type])
 	
 	# 追踪活跃特效（用于默认 Bling 槽位避重）
 	if not _active_blings.has(note.type):
@@ -1216,12 +1219,14 @@ func _start_external_track_animation(note_type: int, token: int, runtime_token: 
 	anim_sprite.frame_progress = 0.0
 
 	print("[ExtAnim] PLAY t=%.3f frame=%d progress=%.3f speed=%.4f anim=%s" % [
-		Time.get_ticks_msec() / 1000.0, anim_sprite.frame, anim_sprite.frame_progress,
+		_get_music_clock_time(), anim_sprite.frame, anim_sprite.frame_progress,
 		anim_sprite.speed_scale, anim_name
 	])
 
-	get_tree().create_timer(maxf(0.05, play_duration)).timeout.connect(
-		_on_external_anim_stop_timeout.bind(note_type, token, runtime_token, anim_sprite_id)
+	_schedule_music_clock_event(
+		_get_music_clock_time() + maxf(0.05, play_duration),
+		Callable(self, "_on_external_anim_stop_timeout"),
+		[note_type, token, runtime_token, anim_sprite_id]
 	)
 
 
@@ -1310,6 +1315,38 @@ func _get_bling_x_offset(note_type: Note.NoteType) -> float:
 
 
 ## 播放音符生成音效
+func _schedule_music_clock_event(target_time: float, callback: Callable, args: Array = []) -> void:
+	if not callback.is_valid():
+		return
+	_music_clock_events.append({
+		"time": target_time,
+		"callback": callback,
+		"args": args
+	})
+	_music_clock_events.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return float(a["time"]) < float(b["time"])
+	)
+
+
+func _process_music_clock_events(now: float) -> void:
+	while not _music_clock_events.is_empty():
+		var event: Dictionary = _music_clock_events[0]
+		if float(event["time"]) > now:
+			return
+		_music_clock_events.pop_front()
+
+		var callback: Callable = event["callback"]
+		if callback.is_valid():
+			var args: Array = event["args"]
+			callback.callv(args)
+
+
+func _on_guard_attack_sound_time(token: int, note_type: Note.NoteType) -> void:
+	if token != _effect_runtime_token or _attack_phase_blocked:
+		return
+	_play_boss_attack_sound_for_note_type(note_type, false)
+
+
 func _play_spawn_sound(note_type: Note.NoteType) -> void:
 	if GameConfigs.sound == null:
 		return
@@ -1344,3 +1381,11 @@ func _play_boss_attack_sound_for_note_type(note_type: Note.NoteType, is_warn: bo
 		return
 	var bus: StringName = cfg.sfx_bus
 	SFXManager.play_pool(pool, bus)
+
+
+func _get_music_clock_time() -> float:
+	if music_player == null:
+		return 0.0
+	if music_player.has_method("get_song_time"):
+		return float(music_player.get_song_time())
+	return float(music_player.get_playback_position())

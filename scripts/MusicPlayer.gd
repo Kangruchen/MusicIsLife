@@ -69,8 +69,13 @@ var _attack_outro_start_time: float = 0.0
 var _attack_phase_end_time: float = 0.0
 var _active_attack_loop_player: AudioStreamPlayer = null
 var _attack_player_fade_tweens: Dictionary = {}
+var _attack_clock_callbacks: Array[Dictionary] = []
+var _output_latency_seconds: float = 0.0
+var _last_song_time: float = 0.0
 
 func _ready() -> void:
+	_output_latency_seconds = AudioServer.get_output_latency()
+
 	main_player = AudioStreamPlayer.new()
 	drum_player = AudioStreamPlayer.new()
 	bass_player = AudioStreamPlayer.new()
@@ -132,6 +137,10 @@ func _ready() -> void:
 			call_deferred("load_and_play_music")
 
 
+func _process(_delta: float) -> void:
+	_process_attack_clock_callbacks()
+
+
 func _on_boss_intro_finished() -> void:
 	if not _waiting_for_boss_intro:
 		return
@@ -187,6 +196,7 @@ func _load_single_track(path: String) -> void:
 
 
 func _play_all_tracks() -> void:
+	_last_song_time = 0.0
 	if main_player.stream:
 		main_player.play()
 	if drum_player.stream:
@@ -200,12 +210,14 @@ func stop_music() -> void:
 		_attack_mix_tween.kill()
 		_attack_mix_tween = null
 	_attack_schedule_token += 1
+	_attack_clock_callbacks.clear()
 	main_player.stop()
 	drum_player.stop()
 	bass_player.stop()
 	_stop_attack_players()
 	_attack_music_active = false
 	_attack_mix_active = false
+	_last_song_time = 0.0
 
 
 func fade_out_all_for_death(duration: float = 1.2, target_volume_db: float = -40.0) -> void:
@@ -312,6 +324,7 @@ func _begin_attack_mix_mode() -> void:
 
 	_stop_attack_players()
 	_attack_schedule_token += 1
+	_attack_clock_callbacks.clear()
 	_attack_music_active = true
 	_attack_mix_active = true
 	_fade_base_tracks_for_attack()
@@ -325,6 +338,7 @@ func _begin_attack_mix_mode() -> void:
 
 func _end_attack_mix_mode() -> void:
 	_attack_schedule_token += 1
+	_attack_clock_callbacks.clear()
 	_attack_track_setup_valid = false
 	_attack_music_active = false
 	_fade_out_attack_players(attack_music_fade_seconds)
@@ -431,7 +445,7 @@ func _start_legacy_attack_music(token: int) -> void:
 	if token != _attack_schedule_token or _attack_music_stream == null:
 		return
 
-	var sync_position: float = get_playback_position()
+	var sync_position: float = get_song_time()
 	_start_attack_player_from_offset(attack_player, _attack_music_stream, sync_position)
 	print("Attack phase legacy BGM started at: ", sync_position)
 
@@ -611,12 +625,33 @@ func _schedule_next_attack_loop_restart(token: int) -> void:
 
 
 func _schedule_attack_clock_callback(target_time: float, callback: Callable, token: int) -> void:
-	var delay: float = maxf(0.0, target_time - _get_music_clock_time())
-	get_tree().create_timer(delay).timeout.connect(func() -> void:
-		if token != _attack_schedule_token or not _attack_music_active:
-			return
-		callback.call(token)
+	_attack_clock_callbacks.append({
+		"time": target_time,
+		"callback": callback,
+		"token": token
+	})
+	_attack_clock_callbacks.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return float(a["time"]) < float(b["time"])
 	)
+
+
+func _process_attack_clock_callbacks() -> void:
+	if _attack_clock_callbacks.is_empty():
+		return
+
+	var now: float = _get_music_clock_time()
+	while not _attack_clock_callbacks.is_empty():
+		var event: Dictionary = _attack_clock_callbacks[0]
+		if float(event["time"]) > now:
+			return
+		_attack_clock_callbacks.pop_front()
+
+		var token: int = int(event["token"])
+		if token != _attack_schedule_token or not _attack_music_active:
+			continue
+		var callback: Callable = event["callback"]
+		if callback.is_valid():
+			callback.call(token)
 
 
 func _resolve_attack_beat_interval() -> float:
@@ -628,7 +663,7 @@ func _resolve_attack_beat_interval() -> float:
 
 
 func _get_music_clock_time() -> float:
-	return get_playback_position() + AudioServer.get_time_to_next_mix()
+	return get_song_time()
 
 
 func _get_stream_length(stream: AudioStream) -> float:
@@ -709,6 +744,15 @@ func get_playback_position() -> float:
 	return 0.0
 
 
+func get_song_time() -> float:
+	var song_time: float = get_playback_position() + AudioServer.get_time_since_last_mix() - _output_latency_seconds
+	song_time = maxf(0.0, song_time)
+	if song_time < _last_song_time:
+		return _last_song_time
+	_last_song_time = song_time
+	return song_time
+
+
 var playing: bool:
 	get:
 		return (
@@ -736,7 +780,7 @@ func set_bass_volume(volume_db: float) -> void:
 
 func get_drum_playback_position() -> float:
 	if drum_player and drum_player.stream and drum_player.playing:
-		return drum_player.get_playback_position() + AudioServer.get_time_to_next_mix()
+		return maxf(0.0, drum_player.get_playback_position() + AudioServer.get_time_since_last_mix() - _output_latency_seconds)
 	return -1.0
 
 
