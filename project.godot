@@ -18,11 +18,11 @@ config/icon="res://icon.svg"
 [audio]
 
 buses/default_bus_layout="res://config/default_bus_layout.tres"
-offset=200.0
 
 [autoload]
 
 EventBus="*res://scenes/autoload/EventBus.tscn"
+GamepadManager="*res://scenes/autoload/GamepadManager.tscn"
 SFXManager="*res://scenes/autoload/SFXManager.tscn"
 GameConfigs="*res://scenes/autoload/GameConfigs.tscn"
 WindowManager="*res://scenes/autoload/WindowManager.tscn"

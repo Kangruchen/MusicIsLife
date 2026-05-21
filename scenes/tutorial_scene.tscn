@@ -608,7 +608,7 @@ position = Vector2(1935, -423)
 texture = ExtResource("29_astrp")
 
 [node name="Light" type="Sprite2D" parent="."]
-self_modulate = Color(1, 1, 1, 0.5882353)
+self_modulate = Color(1, 1, 1, 0.56078434)
 z_index = 4
 position = Vector2(-5, -7)
 texture = ExtResource("18_xptte")

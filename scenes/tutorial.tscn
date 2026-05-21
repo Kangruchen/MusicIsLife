@@ -128,11 +128,11 @@ scale = Vector2(0.333, 0.333)
 texture = ExtResource("1_c13y7")
 
 [node name="tutorial_scene" parent="." instance=ExtResource("3_ckvwl")]
-position = Vector2(1200, -420)
+position = Vector2(1204, -420)
 
 [node name="Player" type="CharacterBody2D" parent="." groups=["player"]]
 z_index = 2
-position = Vector2(-399, 109)
+position = Vector2(-98, 109)
 script = ExtResource("3_tutorial_player")
 move_speed = 500.0
 walkable_slope_angle_degrees = 60.0
