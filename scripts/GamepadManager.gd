@@ -1,5 +1,4 @@
 extends Node
-class_name GamepadManager
 
 signal input_scheme_changed(is_gamepad: bool)
 
@@ -10,6 +9,9 @@ const SETTINGS_RUMBLE_STRENGTH: String = "rumble_strength"
 
 const SCHEME_KEYBOARD_MOUSE: StringName = &"keyboard_mouse"
 const SCHEME_GAMEPAD: StringName = &"gamepad"
+const NOTE_TYPE_GUARD: int = 0
+const NOTE_TYPE_HIT: int = 1
+const NOTE_TYPE_DODGE: int = 2
 
 const BUTTON_LABELS_XBOX := {
 	JOY_BUTTON_A: "A",
@@ -75,18 +77,22 @@ func _ready() -> void:
 	_load_settings()
 	Input.joy_connection_changed.connect(_on_joy_connection_changed)
 
-	if not EventBus.judgment_made.is_connected(_on_judgment_made):
-		EventBus.judgment_made.connect(_on_judgment_made)
-	if not EventBus.attack_result_display.is_connected(_on_attack_result_display):
-		EventBus.attack_result_display.connect(_on_attack_result_display)
-	if not EventBus.heat_changed.is_connected(_on_heat_changed):
-		EventBus.heat_changed.connect(_on_heat_changed)
-	if not EventBus.boss_energy_depleted.is_connected(_on_boss_energy_depleted):
-		EventBus.boss_energy_depleted.connect(_on_boss_energy_depleted)
-	if not EventBus.player_died.is_connected(_on_player_died):
-		EventBus.player_died.connect(_on_player_died)
-	if not EventBus.boss_defeated.is_connected(_on_boss_defeated):
-		EventBus.boss_defeated.connect(_on_boss_defeated)
+	var event_bus: Node = get_node_or_null("/root/EventBus")
+	if event_bus == null:
+		return
+
+	if not event_bus.judgment_made.is_connected(_on_judgment_made):
+		event_bus.judgment_made.connect(_on_judgment_made)
+	if not event_bus.attack_result_display.is_connected(_on_attack_result_display):
+		event_bus.attack_result_display.connect(_on_attack_result_display)
+	if not event_bus.heat_changed.is_connected(_on_heat_changed):
+		event_bus.heat_changed.connect(_on_heat_changed)
+	if not event_bus.boss_energy_depleted.is_connected(_on_boss_energy_depleted):
+		event_bus.boss_energy_depleted.connect(_on_boss_energy_depleted)
+	if not event_bus.player_died.is_connected(_on_player_died):
+		event_bus.player_died.connect(_on_player_died)
+	if not event_bus.boss_defeated.is_connected(_on_boss_defeated):
+		event_bus.boss_defeated.connect(_on_boss_defeated)
 
 
 func _input(event: InputEvent) -> void:
@@ -136,11 +142,11 @@ func get_action_prompt(action: StringName, fallback: String = "") -> String:
 
 func get_note_prompt(note_type: int, fallback: String = "") -> String:
 	match note_type:
-		Note.NoteType.GUARD:
+		NOTE_TYPE_GUARD:
 			return get_action_prompt(&"note_guard", "J" if fallback.is_empty() else fallback)
-		Note.NoteType.HIT:
+		NOTE_TYPE_HIT:
 			return get_action_prompt(&"note_hit", "I" if fallback.is_empty() else fallback)
-		Note.NoteType.DODGE:
+		NOTE_TYPE_DODGE:
 			return get_action_prompt(&"note_dodge", "L" if fallback.is_empty() else fallback)
 		_:
 			return fallback

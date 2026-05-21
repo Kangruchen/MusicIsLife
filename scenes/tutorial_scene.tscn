@@ -544,7 +544,7 @@ position = Vector2(722, -170)
 texture = ExtResource("23_154sd")
 
 [node name="Light" type="Sprite2D" parent="."]
-self_modulate = Color(1, 1, 1, 0.5882353)
+self_modulate = Color(1, 1, 1, 0.56078434)
 z_index = 4
 texture = ExtResource("18_xptte")
 metadata/_aseprite_wizard_interface_config_ = {

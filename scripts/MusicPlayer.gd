@@ -15,9 +15,9 @@ extends Node
 @export_range(-80.0, 24.0, 0.1) var attack_music_volume_db: float = 0.0
 @export_range(0.0, 0.5, 0.01) var attack_music_fade_seconds: float = 0.08
 @export_range(1, 64, 1) var attack_loop_phrase_beats: int = GameConstants.INPUT_BEATS
-@export_range(0.0, 10.0, 0.001) var attack_intro_offset_seconds: float = 0.0
-@export_range(0.0, 10.0, 0.001) var attack_loop_offset_seconds: float = 0.0
-@export_range(0.0, 10.0, 0.001) var attack_outro_offset_seconds: float = 0.0
+@export_range(-10.0, 10.0, 0.001) var attack_intro_offset_seconds: float = 0.0
+@export_range(-10.0, 10.0, 0.001) var attack_loop_offset_seconds: float = 0.0
+@export_range(-10.0, 10.0, 0.001) var attack_outro_offset_seconds: float = 0.0
 @export var attack_keep_bass_track: bool = false
 
 @export var enable_miss_audio_effect: bool = false
@@ -38,10 +38,6 @@ var _cached_main_volume_db: float = 0.0
 var _cached_drum_volume_db: float = 0.0
 var _cached_bass_volume_db: float = 0.0
 
-const ATTACK_DRUM_PATH: String = "res://assets/music/AISample/AISample_drum.mp3"
-var _pre_attack_drum_stream: AudioStream = null
-var _pre_attack_drum_volume_db: float = 0.0
-
 var main_player: AudioStreamPlayer = null
 var drum_player: AudioStreamPlayer = null
 var bass_player: AudioStreamPlayer = null
@@ -49,7 +45,6 @@ var attack_player: AudioStreamPlayer = null
 var attack_loop_player_a: AudioStreamPlayer = null
 var attack_loop_player_b: AudioStreamPlayer = null
 var attack_outro_player: AudioStreamPlayer = null
-var paused_position: float = 0.0
 var _attack_music_stream: AudioStream = null
 var _attack_intro_stream: AudioStream = null
 var _attack_loop_stream: AudioStream = null
@@ -263,10 +258,6 @@ func pause_music() -> void:
 	print("音乐已暂停")
 
 
-func pause_music_keep_drum(drum_seek_time: float = -1.0) -> void:
-	begin_attack_mix_mode()
-
-
 func resume_music() -> void:
 	end_attack_mix_mode()
 
@@ -468,20 +459,25 @@ func _start_split_attack_music(token: int) -> void:
 
 	_attack_intro_start_time = _get_attack_intro_start_time(bi)
 	if _attack_intro_stream != null and now < _attack_loop_start_time:
-		if now < _attack_intro_start_time:
-			_schedule_attack_clock_callback(_attack_intro_start_time, Callable(self, "_start_attack_intro"), token)
+		var intro_stream_start_time: float = _get_attack_stream_start_time(_attack_intro_start_time, attack_intro_offset_seconds)
+		if now < intro_stream_start_time:
+			_schedule_attack_clock_callback(intro_stream_start_time, Callable(self, "_start_attack_intro"), token)
 		else:
 			_start_attack_intro(token)
 
 	if _attack_loop_stream != null:
-		if now < _attack_loop_start_time:
-			_schedule_attack_clock_callback(_attack_loop_start_time, Callable(self, "_start_attack_loop"), token)
+		var initial_loop_phrase_index: int = _get_loop_phrase_index_for_time(now)
+		var initial_loop_grid_start: float = _get_loop_phrase_grid_start(initial_loop_phrase_index, bi)
+		var initial_loop_stream_start: float = _get_attack_stream_start_time(initial_loop_grid_start, attack_loop_offset_seconds)
+		if now < initial_loop_stream_start:
+			_schedule_attack_clock_callback(initial_loop_stream_start, Callable(self, "_start_attack_loop"), token, [initial_loop_phrase_index])
 		elif now < _attack_outro_start_time:
-			_start_attack_loop(token)
+			_start_attack_loop(token, initial_loop_phrase_index)
 
 	if _attack_outro_stream != null:
-		if now < _attack_outro_start_time:
-			_schedule_attack_clock_callback(_attack_outro_start_time, Callable(self, "_start_attack_outro"), token)
+		var outro_stream_start_time: float = _get_attack_stream_start_time(_attack_outro_start_time, attack_outro_offset_seconds)
+		if now < outro_stream_start_time:
+			_schedule_attack_clock_callback(outro_stream_start_time, Callable(self, "_start_attack_outro"), token)
 		elif now < _attack_phase_end_time:
 			_start_attack_outro(token)
 
@@ -510,42 +506,48 @@ func _start_attack_intro(token: int) -> void:
 	_play_attack_stream_at_clock(attack_player, _attack_intro_stream, _attack_intro_start_time, false, attack_intro_offset_seconds)
 
 
-func _start_attack_loop(token: int) -> void:
+func _start_attack_loop(token: int, phrase_index: int = -1) -> void:
 	if token != _attack_schedule_token or not _attack_music_active:
 		return
 	if _attack_loop_stream == null:
 		return
 	if _get_music_clock_time() >= _attack_outro_start_time:
 		return
+
+	if phrase_index < 0:
+		phrase_index = _get_loop_phrase_index_for_time(_get_music_clock_time())
 
 	_fade_out_attack_player(attack_player, attack_music_fade_seconds, true)
 	_fade_out_attack_player(attack_outro_player, attack_music_fade_seconds, true)
 
 	_active_attack_loop_player = attack_loop_player_a
-	_play_attack_loop_player(_active_attack_loop_player)
-	_schedule_next_attack_loop_restart(token)
+	_play_attack_loop_player(_active_attack_loop_player, phrase_index)
+	_schedule_next_attack_loop_restart(token, phrase_index)
 
 
-func _restart_attack_loop(token: int) -> void:
+func _restart_attack_loop(token: int, phrase_index: int = -1) -> void:
 	if token != _attack_schedule_token or not _attack_music_active:
 		return
 	if _attack_loop_stream == null:
 		return
 	if _get_music_clock_time() >= _attack_outro_start_time:
 		return
+
+	if phrase_index < 0:
+		phrase_index = _get_loop_phrase_index_for_time(_get_music_clock_time())
 
 	var old_player: AudioStreamPlayer = _active_attack_loop_player
 	var next_player: AudioStreamPlayer = attack_loop_player_b
 	if old_player == attack_loop_player_b:
 		next_player = attack_loop_player_a
 
-	_play_attack_loop_player(next_player)
+	_play_attack_loop_player(next_player, phrase_index)
 	_active_attack_loop_player = next_player
 
 	if old_player != null and old_player != next_player:
 		_fade_out_attack_player(old_player, attack_music_fade_seconds, true)
 
-	_schedule_next_attack_loop_restart(token)
+	_schedule_next_attack_loop_restart(token, phrase_index)
 
 
 func _start_attack_outro(token: int) -> void:
@@ -562,15 +564,10 @@ func _start_attack_outro(token: int) -> void:
 	_play_attack_stream_at_clock(attack_outro_player, _attack_outro_stream, _attack_outro_start_time, false, attack_outro_offset_seconds)
 
 
-func _play_attack_loop_player(player: AudioStreamPlayer) -> bool:
+func _play_attack_loop_player(player: AudioStreamPlayer, phrase_index: int) -> bool:
 	var bi: float = _resolve_attack_beat_interval()
-	var phrase_duration: float = maxf(0.01, float(maxi(1, attack_loop_phrase_beats)) * bi)
-	var offset: float = fposmod(maxf(0.0, _get_music_clock_time() - _attack_loop_start_time), phrase_duration)
-	var stream_length: float = _get_stream_length(_attack_loop_stream)
-	offset += attack_loop_offset_seconds
-	if stream_length > 0.0:
-		offset = fposmod(offset, stream_length)
-	return _start_attack_player_from_offset(player, _attack_loop_stream, offset)
+	var phrase_grid_start: float = _get_loop_phrase_grid_start(phrase_index, bi)
+	return _play_attack_stream_at_clock(player, _attack_loop_stream, phrase_grid_start, true, attack_loop_offset_seconds)
 
 
 func _play_attack_stream_at_clock(
@@ -583,13 +580,14 @@ func _play_attack_stream_at_clock(
 	if stream == null:
 		return false
 
-	var base_offset: float = maxf(0.0, stream_offset_seconds)
-	var offset: float = base_offset + maxf(0.0, _get_music_clock_time() - start_time)
+	var offset: float = _get_music_clock_time() - start_time - stream_offset_seconds
+	if offset < 0.0:
+		return false
+
 	var stream_length: float = _get_stream_length(stream)
 	if stream_length > 0.0:
 		if wrap:
-			var usable_length: float = maxf(0.01, stream_length - base_offset)
-			offset = base_offset + fposmod(offset - base_offset, usable_length)
+			offset = fposmod(offset, stream_length)
 		elif offset >= stream_length:
 			return false
 
@@ -610,25 +608,25 @@ func _start_attack_player_from_offset(player: AudioStreamPlayer, stream: AudioSt
 	return true
 
 
-func _schedule_next_attack_loop_restart(token: int) -> void:
+func _schedule_next_attack_loop_restart(token: int, current_phrase_index: int) -> void:
 	var bi: float = _resolve_attack_beat_interval()
 	var phrase_duration: float = maxf(0.01, float(maxi(1, attack_loop_phrase_beats)) * bi)
-	var now: float = _get_music_clock_time()
-	var elapsed: float = maxf(0.0, now - _attack_loop_start_time)
-	var phrase_index: int = int(floor(elapsed / phrase_duration)) + 1
-	var next_time: float = _attack_loop_start_time + float(phrase_index) * phrase_duration
+	var next_phrase_index: int = maxi(0, current_phrase_index + 1)
+	var next_phrase_grid_start: float = _attack_loop_start_time + float(next_phrase_index) * phrase_duration
 
-	if next_time >= _attack_outro_start_time - 0.01:
+	if next_phrase_grid_start >= _attack_outro_start_time - 0.01:
 		return
 
-	_schedule_attack_clock_callback(next_time, Callable(self, "_restart_attack_loop"), token)
+	var next_stream_start_time: float = _get_attack_stream_start_time(next_phrase_grid_start, attack_loop_offset_seconds)
+	_schedule_attack_clock_callback(next_stream_start_time, Callable(self, "_restart_attack_loop"), token, [next_phrase_index])
 
 
-func _schedule_attack_clock_callback(target_time: float, callback: Callable, token: int) -> void:
+func _schedule_attack_clock_callback(target_time: float, callback: Callable, token: int, args: Array = []) -> void:
 	_attack_clock_callbacks.append({
 		"time": target_time,
 		"callback": callback,
-		"token": token
+		"token": token,
+		"args": args
 	})
 	_attack_clock_callbacks.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		return float(a["time"]) < float(b["time"])
@@ -651,7 +649,10 @@ func _process_attack_clock_callbacks() -> void:
 			continue
 		var callback: Callable = event["callback"]
 		if callback.is_valid():
-			callback.call(token)
+			var callback_args: Array = [token]
+			var extra_args: Array = event.get("args", []) as Array
+			callback_args.append_array(extra_args)
+			callback.callv(callback_args)
 
 
 func _resolve_attack_beat_interval() -> float:
@@ -660,6 +661,22 @@ func _resolve_attack_beat_interval() -> float:
 	if EventBus.beat_interval > 0.0:
 		return EventBus.beat_interval
 	return 0.5
+
+
+func _get_attack_stream_start_time(grid_start_time: float, stream_offset_seconds: float) -> float:
+	return grid_start_time + stream_offset_seconds
+
+
+func _get_loop_phrase_grid_start(phrase_index: int, bi: float) -> float:
+	var phrase_duration: float = maxf(0.01, float(maxi(1, attack_loop_phrase_beats)) * bi)
+	return _attack_loop_start_time + float(maxi(0, phrase_index)) * phrase_duration
+
+
+func _get_loop_phrase_index_for_time(time: float) -> int:
+	var bi: float = _resolve_attack_beat_interval()
+	var phrase_duration: float = maxf(0.01, float(maxi(1, attack_loop_phrase_beats)) * bi)
+	var elapsed: float = maxf(0.0, time - _attack_loop_start_time)
+	return int(floor(elapsed / phrase_duration))
 
 
 func _get_music_clock_time() -> float:

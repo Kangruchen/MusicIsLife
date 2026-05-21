@@ -21,8 +21,6 @@ static func load_from_sm(sm_path: String, difficulty: String = "") -> Chart:
 	if artist:
 		chart.chart_name += " - " + artist
 	
-	chart.music_path = "res://music/" + _extract_tag(content, "MUSIC")
-	
 	# 解析 BPM（只取第一个 BPM 值，暂不支持变速）
 	var bpms_str := _extract_tag(content, "BPMS")
 	chart.bpm = _parse_first_bpm(bpms_str)
@@ -34,6 +32,7 @@ static func load_from_sm(sm_path: String, difficulty: String = "") -> Chart:
 	# 因此应映射为 chart.offset = -sm_offset，不能取绝对值。
 	var offset_str := _extract_tag(content, "OFFSET")
 	var sm_offset := offset_str.to_float()
+	chart.source_offset = sm_offset
 	chart.offset = -sm_offset
 	
 	# 解析音符数据

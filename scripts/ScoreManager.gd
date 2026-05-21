@@ -29,6 +29,7 @@ const PENDING_ATTACK_TIMEOUT: float = 0.6
 var is_paused_for_attack: bool = false
 var pause_timer: Timer = null
 var pause_end_music_time: float = 0.0
+var pending_attack_anchor_music_time: float = -1.0
 
 
 func _ready() -> void:
@@ -81,6 +82,7 @@ func _on_judgment_made(track: int, judgment: int, _timing_diff: float) -> void:
 	# 根据音符类型和判定等级获取数值
 	var energy_cost: float = GameConfigs.judgment.get_boss_damage(track, judgment)
 	var health_change: float = GameConfigs.judgment.get_player_health_change(track, judgment)
+	var judgment_target_music_time: float = _get_music_clock_time() - _timing_diff
 	
 	# 减少Boss精力
 	var old_energy: float = current_boss_energy
@@ -89,6 +91,7 @@ func _on_judgment_made(track: int, judgment: int, _timing_diff: float) -> void:
 	
 	# 检测精力条是否被打空
 	if old_energy > 0.0 and current_boss_energy <= 0.0:
+		pending_attack_anchor_music_time = judgment_target_music_time
 		EventBus.boss_energy_depleted.emit()
 		_on_boss_energy_depleted()
 		print("Boss 精力耗尽！")
@@ -127,6 +130,7 @@ func reset_game() -> void:
 ## Boss 精力耗尽时的处理（进入攻击阶段）
 func _on_boss_energy_depleted() -> void:
 	if is_paused_for_attack:
+		pending_attack_anchor_music_time = -1.0
 		return  # 已经在暂停状态，不重复处理
 	
 	is_paused_for_attack = true
@@ -158,7 +162,7 @@ func _on_boss_energy_depleted() -> void:
 		input_manager.pause_input()
 	
 	# 通过 EventBus 通知 UI 层（替代 get_node GameUI）
-	var depletion_music_time: float = _get_music_clock_time()
+	var depletion_music_time: float = _consume_attack_anchor_music_time()
 	EventBus.show_pause_countdown_requested.emit(bi, countdown_beats, depletion_music_time)
 
 	# 基于音乐时钟计算第一输入拍时间（秒）：不依赖系统时钟，避免进出阶段漂移。
@@ -222,6 +226,14 @@ func _get_music_clock_time() -> float:
 			return float(music_player.get_song_time())
 		return float(music_player.get_playback_position())
 	return 0.0
+
+
+func _consume_attack_anchor_music_time() -> float:
+	if pending_attack_anchor_music_time >= 0.0:
+		var anchor_time := pending_attack_anchor_music_time
+		pending_attack_anchor_music_time = -1.0
+		return anchor_time
+	return _get_music_clock_time()
 
 
 ## 开始攻击阶段

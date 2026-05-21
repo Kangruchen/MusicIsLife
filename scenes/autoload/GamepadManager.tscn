@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://c8x6wswdrtq07"]
+
+[ext_resource type="Script" uid="uid://digv1x0ybkdyb" path="res://scripts/GamepadManager.gd" id="1_3qj8m"]
+
+[node name="GamepadManager" type="Node"]
+script = ExtResource("1_3qj8m")

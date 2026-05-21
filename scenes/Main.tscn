@@ -90,7 +90,12 @@ position = Vector2(0, 130)
 [node name="MusicPlayer" type="Node" parent="GameManager"]
 script = ExtResource("1_h5v3q")
 music_path = "uid://cyvxtvuk4kkc5"
-attack_music_path = "res://assets/charts/New Demo/Chrome Pulse_mixed.mp3"
+attack_intro_music_path = "res://assets/music/attack/in.ogg"
+attack_loop_music_path = "res://assets/music/attack/loop.ogg"
+attack_outro_music_path = "res://assets/music/attack/out.ogg"
+attack_intro_offset_seconds = -0.096
+attack_loop_offset_seconds = -0.03
+attack_outro_offset_seconds = -0.045
 enable_miss_audio_effect = true
 
 [node name="BeatManager" type="Node" parent="GameManager"]
@@ -112,6 +117,7 @@ ignore_empty_press_without_nearby_notes = true
 
 [node name="ScoreManager" type="Node" parent="GameManager"]
 script = ExtResource("6_score_mgr")
+attack_countdown_beats = 8
 
 [node name="Boss" parent="." instance=ExtResource("16_cvmbd")]
 light_mask = 0
