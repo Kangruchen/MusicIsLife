@@ -152,7 +152,7 @@ position_smoothing_enabled = true
 position_smoothing_speed = 6.0
 
 [node name="CharacterVisual" parent="Player" instance=ExtResource("2_8ho6b")]
-position = Vector2(0, -30)
+position = Vector2(-5, -31)
 script = null
 
 [node name="PositionNodes" type="Node2D" parent="."]
@@ -180,17 +180,27 @@ script = ExtResource("11_beat_mgr")
 bpm = 0.0
 generate_test_chart = false
 
-[node name="TrackManager" type="Node" parent="GameManager" node_paths=PackedStringArray("guard_position_nodes", "game_ui")]
+[node name="TrackManager" type="Node" parent="GameManager" node_paths=PackedStringArray("game_ui")]
 script = ExtResource("12_track_mgr")
+boss_node_path = null
+boss_charge_prepare_lead_beats = null
+boss_return_prepare_max_beats = null
+debug_missile_timing = null
+debug_charge_timing = null
 track_animation_config = ExtResource("15_track_anim")
-guard_position_nodes = [NodePath("../../PositionNodes/Laser1"), NodePath("../../PositionNodes/Laser2")]
+guard_external_anim_sprite_path = null
+hit_external_anim_sprite_path = null
 dodge_external_anim_sprite_path = NodePath("../../tutorial_scene/Cannon")
 dodge_external_anim_persistent = true
 tutorial_mode = true
-game_ui = NodePath("../../GameUI")
+enable_prejudge_key_hint = null
+prejudge_key_hint_display_mode = null
+defense_hint_max_per_attack_type = null
 hint_player_node_path = NodePath("../../Player")
 hint_guard_offset = Vector2(0, -120)
+hint_hit_offset = null
 hint_dodge_offset = Vector2(0, -120)
+game_ui = NodePath("../../GameUI")
 
 [node name="InputManager" type="Node" parent="GameManager"]
 script = ExtResource("13_input_mgr")
@@ -344,3 +354,6 @@ script = ExtResource("5_quit")
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Quit Zone"]
 position = Vector2(-476, -359)
 shape = SubResource("RectangleShape2D_cmspm")
+
+[node name="Marker2D" type="Marker2D" parent="."]
+position = Vector2(-402, 92)
