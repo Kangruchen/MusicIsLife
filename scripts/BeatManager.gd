@@ -2,7 +2,7 @@ extends Node
 
 @export var bpm: float = 128.0
 @export var offset: float = 0.0
-@export var generate_test_chart: bool = true
+@export var generate_test_chart: bool = false
 @export_file("*.sm") var chart_sm_path: String = ""
 
 # Global player/device calibration in seconds.
