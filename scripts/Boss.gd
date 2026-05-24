@@ -1,6 +1,7 @@
 extends Node2D
 
 const RhythmClock := preload("res://scripts/RhythmClock.gd")
+const MusicClockEventQueue := preload("res://scripts/MusicClockEventQueue.gd")
 ## Boss 状态机控制器
 ## 提供可扩展状态流转，并支持初始测试：在指定范围内持续随机移动。
 
@@ -222,7 +223,7 @@ var _right_part_damage_accumulated: float = 0.0
 var _boss_attack_beat_index: Dictionary = {}
 var _boss_attack_sound_token: int = 0
 var _music_player: Node = null
-var _music_clock_events: Array[Dictionary] = []
+var _music_clock_events: RefCounted = MusicClockEventQueue.new()
 var _waiting_for_intro: bool = false
 var _debug_last_override_enabled: bool = false
 var _debug_last_middle_destroyed: bool = false
@@ -2385,29 +2386,11 @@ func _get_now_seconds() -> float:
 
 
 func _schedule_music_clock_event(target_time: float, callback: Callable, args: Array = []) -> void:
-	if not callback.is_valid():
-		return
-	_music_clock_events.append({
-		"time": target_time,
-		"callback": callback,
-		"args": args
-	})
-	_music_clock_events.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		return float(a["time"]) < float(b["time"])
-	)
+	_music_clock_events.schedule(target_time, callback, args)
 
 
 func _process_music_clock_events(now: float) -> void:
-	while not _music_clock_events.is_empty():
-		var event: Dictionary = _music_clock_events[0]
-		if float(event["time"]) > now:
-			return
-		_music_clock_events.pop_front()
-
-		var callback: Callable = event["callback"]
-		if callback.is_valid():
-			var args: Array = event["args"]
-			callback.callv(args)
+	_music_clock_events.process(now)
 
 
 func get_spawn_position() -> Vector2:

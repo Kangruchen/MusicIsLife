@@ -1,6 +1,7 @@
 extends Node
 
 const RhythmClock := preload("res://scripts/RhythmClock.gd")
+const MusicClockEventQueue := preload("res://scripts/MusicClockEventQueue.gd")
 ## 轨道管理器 - 负责生成和管理音符的可视化
 
 
@@ -146,7 +147,7 @@ var _active_key_hints: Array[Node2D] = []
 var _hint_mode_toast_label: Label = null
 var _hint_mode_toast_tween: Tween = null
 var _hint_mode_toast_token: int = 0
-var _music_clock_events: Array[Dictionary] = []
+var _music_clock_events: RefCounted = MusicClockEventQueue.new()
 var _defense_hint_shown_counts: Dictionary = {
 	Note.NoteType.GUARD: 0,
 	Note.NoteType.HIT: 0,
@@ -1318,29 +1319,11 @@ func _get_bling_x_offset(note_type: Note.NoteType) -> float:
 
 ## 播放音符生成音效
 func _schedule_music_clock_event(target_time: float, callback: Callable, args: Array = []) -> void:
-	if not callback.is_valid():
-		return
-	_music_clock_events.append({
-		"time": target_time,
-		"callback": callback,
-		"args": args
-	})
-	_music_clock_events.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		return float(a["time"]) < float(b["time"])
-	)
+	_music_clock_events.schedule(target_time, callback, args)
 
 
 func _process_music_clock_events(now: float) -> void:
-	while not _music_clock_events.is_empty():
-		var event: Dictionary = _music_clock_events[0]
-		if float(event["time"]) > now:
-			return
-		_music_clock_events.pop_front()
-
-		var callback: Callable = event["callback"]
-		if callback.is_valid():
-			var args: Array = event["args"]
-			callback.callv(args)
+	_music_clock_events.process(now)
 
 
 func _on_guard_attack_sound_time(token: int, note_type: Note.NoteType) -> void:
