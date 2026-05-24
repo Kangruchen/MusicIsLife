@@ -2,6 +2,7 @@ extends Node
 
 const RhythmClock := preload("res://scripts/RhythmClock.gd")
 const AttackHeatModel := preload("res://scripts/AttackHeatModel.gd")
+const AttackBeatGrid := preload("res://scripts/AttackBeatGrid.gd")
 ## 输入管理器 - 处理玩家输入和判定逻辑
 
 
@@ -71,9 +72,7 @@ var attack_phase_end_time: float = 0.0
 var current_beat_has_input: bool = false  # 当前拍是否已有输入
 var _heavy_skip_next_beat: bool = false    # 重击占用下一拍标志
 var _beat_generation: int = 0            # 每拍递增，用于使过期回调失效
-var _attack_beat_abs_times: PackedFloat64Array = PackedFloat64Array()  # 预计算的每拍绝对时间
-var _next_beat_idx: int = 0  # 下一个待处理的拍子索引
-var _attack_beat_input_states: Dictionary = {}  # key=判定拍编号(1-based), value=该拍是否已有输入/占用
+var attack_beat_grid: RefCounted = AttackBeatGrid.new()
 var attack_countdown_beats: int = GameConstants.COUNTDOWN_BEATS
 var attack_input_beats: int = GameConstants.INPUT_BEATS
 var attack_exit_beats: int = GameConstants.EXIT_BEATS
@@ -470,9 +469,7 @@ func _on_miss_triggered(track_type: int) -> void:
 func pause_input() -> void:
 	current_phase = PhaseState.PAUSED
 	attack_phase_end_time = 0.0
-	_attack_beat_abs_times.clear()
-	_attack_beat_input_states.clear()
-	_next_beat_idx = 0
+	attack_beat_grid.clear()
 	if attack_phase_timer != null:
 		attack_phase_timer.stop()
 	if attack_beat_timer != null:
@@ -508,16 +505,11 @@ func start_attack_phase(
 	current_beat_has_input = false
 	_heavy_skip_next_beat = false
 	_beat_generation += 1
-	_attack_beat_input_states.clear()
 	
 	heat_model.reset()
 	EventBus.heat_changed.emit(0, 0)
 	
-	_attack_beat_abs_times.clear()
-	_attack_beat_abs_times.resize(attack_input_beats + attack_exit_beats)
-	for i in range(attack_input_beats + attack_exit_beats):
-		_attack_beat_abs_times[i] = first_beat_abs_time + i * attack_beat_interval
-	_next_beat_idx = 0
+	attack_beat_grid.configure(first_beat_abs_time, attack_beat_interval, attack_input_beats, attack_exit_beats)
 	
 	EventBus.show_attack_ui_requested.emit()
 	EventBus.attack_track_setup.emit(bi, first_beat_abs_time, attack_countdown_beats, attack_input_beats, attack_exit_beats)
@@ -558,15 +550,15 @@ func _handle_attack_phase_input(event: InputEvent) -> void:
 				Note.NoteType.DODGE:
 					attack_type = AttackType.HEAL
 
-			var beat_used: bool = bool(_attack_beat_input_states.get(judge_beat, false))
+			var beat_used: bool = attack_beat_grid.is_beat_used(judge_beat)
 			if beat_used:
 				print("当前拍已被占用，等待下一次未占用拍")
 				return
 
-			var beat_start_time: float = _attack_beat_abs_times[judge_beat - 1]
+			var beat_start_time: float = attack_beat_grid.get_beat_time(judge_beat)
 			var time_since_beat: float = current_time - beat_start_time
 
-			_attack_beat_input_states[judge_beat] = true
+			attack_beat_grid.set_beat_used(judge_beat, true)
 			if judge_beat == current_beat_in_attack:
 				current_beat_has_input = true
 
@@ -586,7 +578,7 @@ func _handle_attack_phase_input(event: InputEvent) -> void:
 					EventBus.attack_result_display.emit(AttackType.HEAVY, true, current_heat)
 					EventBus.heat_changed.emit(0, 0)
 					if judge_beat + 1 <= attack_input_beats + attack_exit_beats:
-						_attack_beat_input_states[judge_beat + 1] = true
+						attack_beat_grid.set_beat_used(judge_beat + 1, true)
 						_heavy_skip_next_beat = true
 					_log_attack_drum_alignment("heavy")
 					print("重攻击 - 消耗热度:", current_heat, " 伤害倍率:", 1 + current_heat * GameConstants.HEAT_DAMAGE_MULTIPLIER_PER_LEVEL)
@@ -601,46 +593,28 @@ func _handle_attack_phase_input(event: InputEvent) -> void:
 
 
 func _get_input_judge_beat_for_time(now: float) -> int:
-	if attack_beat_interval <= 0.0:
-		return -1
-	if _attack_beat_abs_times.size() < attack_input_beats:
-		return -1
-
-	var best_beat: int = -1
-	var best_dist: float = INF
-	for i in range(attack_input_beats):
-		var dist: float = absf(now - _attack_beat_abs_times[i])
-		if dist < best_dist:
-			best_dist = dist
-			best_beat = i + 1
-
-	if best_beat > 0 and best_dist < attack_beat_interval * 0.5:
-		return best_beat
-
-	return -1
+	return attack_beat_grid.get_input_judge_beat(now)
 
 
 func _advance_attack_beats_to_time(now: float) -> void:
 	if current_phase != PhaseState.ATTACK:
 		return
-	while _next_beat_idx < _attack_beat_abs_times.size() and now >= _attack_beat_abs_times[_next_beat_idx]:
-		_on_attack_beat_timed(_next_beat_idx)
-		_next_beat_idx += 1
+	attack_beat_grid.advance_due_beats(now, Callable(self, "_on_attack_beat_timed"))
 
 
 ## 攻击节拍触发（基于绝对时间，由 _process 调用）
-## beat_idx: 半拍子在 _attack_beat_abs_times 数组中的索引
+## beat_idx: beat index inside the attack beat grid.
 func _on_attack_beat_timed(beat_idx: int) -> void:
 	current_beat_in_attack += 1
-	current_beat_start_time = _attack_beat_abs_times[beat_idx]
+	current_beat_start_time = attack_beat_grid.get_beat_time_by_index(beat_idx)
 
 	if _heavy_skip_next_beat:
 		current_beat_has_input = true
-		_attack_beat_input_states[current_beat_in_attack] = true
+		attack_beat_grid.set_beat_used(current_beat_in_attack, true)
 		_heavy_skip_next_beat = false
 	else:
 		current_beat_has_input = false
-		_attack_beat_input_states[current_beat_in_attack] = false
+		attack_beat_grid.set_beat_used(current_beat_in_attack, false)
 
 	var total_attack_beats: int = attack_countdown_beats + attack_input_beats + attack_exit_beats
 	if current_beat_in_attack <= attack_input_beats:
@@ -667,8 +641,7 @@ func _on_attack_phase_end() -> void:
 	current_phase = PhaseState.DEFENSE
 	attack_phase_end_time = 0.0
 	_beat_generation += 1
-	_attack_beat_abs_times.clear()
-	_attack_beat_input_states.clear()
+	attack_beat_grid.clear()
 	_heavy_skip_next_beat = false
 	if attack_phase_timer != null:
 		attack_phase_timer.stop()
@@ -690,8 +663,7 @@ func force_end_attack_phase() -> void:
 	current_phase = PhaseState.DEFENSE
 	attack_phase_end_time = 0.0
 	_beat_generation += 1
-	_attack_beat_abs_times.clear()
-	_attack_beat_input_states.clear()
+	attack_beat_grid.clear()
 	_heavy_skip_next_beat = false
 
 	if attack_phase_timer != null:
