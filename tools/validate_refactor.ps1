@@ -1,0 +1,69 @@
+param(
+    [string]$GodotExe = "d:\Godot\Godot_v4.5.2-stable_win64.exe",
+    [switch]$RunImport
+)
+
+$ErrorActionPreference = "Stop"
+
+$RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+$LogDir = Join-Path $RepoRoot ".codex-godot"
+New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+
+function Invoke-GodotCheck {
+    param(
+        [string]$Name,
+        [string[]]$Arguments
+    )
+
+    $LogPath = Join-Path $LogDir "$Name.log"
+    if (Test-Path $LogPath) {
+        Remove-Item -LiteralPath $LogPath -Force
+    }
+
+    $FullArgs = @("--path", $RepoRoot) + $Arguments + @("--log-file", $LogPath)
+    $Process = Start-Process -FilePath $GodotExe -ArgumentList $FullArgs -Wait -PassThru -WindowStyle Hidden
+    if ($Process.ExitCode -ne 0) {
+        if (Test-Path $LogPath) {
+            Get-Content $LogPath -Tail 200
+        }
+        throw "$Name failed with exit code $($Process.ExitCode)"
+    }
+
+    if (Test-Path $LogPath) {
+        $ProblemLines = Select-String -Path $LogPath -Pattern "ERROR:|SCRIPT ERROR:|Parse Error|Failed to create an autoload" |
+            Where-Object {
+                $_.Line -notmatch "resources still in use at exit"
+            }
+        if ($ProblemLines) {
+            $ProblemLines | Select-Object -First 80
+            throw "$Name wrote errors to $LogPath"
+        }
+    }
+
+    Write-Host "[ok] $Name"
+}
+
+Push-Location $RepoRoot
+try {
+    if (-not (Test-Path $GodotExe)) {
+        throw "Godot executable not found: $GodotExe"
+    }
+
+    git diff --check
+    Write-Host "[ok] git diff --check"
+
+    Invoke-GodotCheck "check-gamepad-manager" @("--headless", "--check-only", "--script", "res://scripts/GamepadManager.gd")
+    Invoke-GodotCheck "check-event-bus" @("--headless", "--check-only", "--script", "res://scripts/EventBus.gd")
+    Invoke-GodotCheck "project-headless" @("--headless", "--quit-after", "10")
+    Invoke-GodotCheck "main-scene-smoke" @("--headless", "--scene", "res://scenes/Main.tscn", "--quit-after", "30")
+    Invoke-GodotCheck "tutorial-scene-smoke" @("--headless", "--scene", "res://scenes/tutorial.tscn", "--quit-after", "30")
+
+    if ($RunImport) {
+        Invoke-GodotCheck "editor-import" @("--import")
+    } else {
+        Write-Host "[skip] editor-import (pass -RunImport outside sandbox when needed)"
+    }
+}
+finally {
+    Pop-Location
+}
