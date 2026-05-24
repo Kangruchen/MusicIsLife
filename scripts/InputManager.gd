@@ -1,6 +1,7 @@
 extends Node
 
 const RhythmClock := preload("res://scripts/RhythmClock.gd")
+const AttackHeatModel := preload("res://scripts/AttackHeatModel.gd")
 ## 输入管理器 - 处理玩家输入和判定逻辑
 
 
@@ -79,9 +80,7 @@ var attack_exit_beats: int = GameConstants.EXIT_BEATS
 var _defense_hit_effect_anchor: Node2D = null
 var _defense_hit_effect_boss: Node2D = null
 
-# 热度系统
-var heat_counter: int = 0  # 当前档位内 Perfect 计数 (0~PERFECTS_PER_LEVEL-1)
-var heat_level: int = 0    # 当前热度档位 (0~MAX_HEAT_LEVEL)
+var heat_model: RefCounted = AttackHeatModel.new()
 
 
 func _ready() -> void:
@@ -511,8 +510,7 @@ func start_attack_phase(
 	_beat_generation += 1
 	_attack_beat_input_states.clear()
 	
-	heat_counter = 0
-	heat_level = 0
+	heat_model.reset()
 	EventBus.heat_changed.emit(0, 0)
 	
 	_attack_beat_abs_times.clear()
@@ -575,25 +573,15 @@ func _handle_attack_phase_input(event: InputEvent) -> void:
 			match attack_type:
 				AttackType.LIGHT:
 					var is_perfect: bool = absf(time_since_beat) < GameConstants.ATTACK_PERFECT_WINDOW
-					if is_perfect:
-						heat_counter += 1
-						if heat_counter >= GameConstants.PERFECTS_PER_LEVEL:
-							heat_counter = 0
-							heat_level = mini(heat_level + 1, GameConstants.MAX_HEAT_LEVEL)
-					else:
-						heat_counter = 0
-						if heat_level > 0:
-							heat_level -= 1
+					heat_model.record_light_result(is_perfect)
 					EventBus.attack_performed.emit(AttackType.LIGHT, 0)
-					EventBus.attack_result_display.emit(AttackType.LIGHT, is_perfect, heat_level)
-					EventBus.heat_changed.emit(heat_level, heat_counter)
+					EventBus.attack_result_display.emit(AttackType.LIGHT, is_perfect, heat_model.heat_level)
+					EventBus.heat_changed.emit(heat_model.heat_level, heat_model.heat_counter)
 					_log_attack_drum_alignment("light_" + ("perfect" if is_perfect else "miss"))
-					print("轻攻击 - ", "PERFECT" if is_perfect else "MISS", " 热度:", heat_level, "(", heat_counter, "/", GameConstants.PERFECTS_PER_LEVEL, ")")
+					print("轻攻击 - ", "PERFECT" if is_perfect else "MISS", " 热度:", heat_model.heat_level, "(", heat_model.heat_counter, "/", GameConstants.PERFECTS_PER_LEVEL, ")")
 
 				AttackType.HEAVY:
-					var current_heat: int = heat_level
-					heat_level = 0
-					heat_counter = 0
+					var current_heat: int = heat_model.consume_heavy_heat()
 					EventBus.attack_performed.emit(AttackType.HEAVY, current_heat)
 					EventBus.attack_result_display.emit(AttackType.HEAVY, true, current_heat)
 					EventBus.heat_changed.emit(0, 0)
