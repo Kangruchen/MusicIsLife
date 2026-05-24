@@ -1,4 +1,6 @@
 extends Node2D
+
+const RhythmClock := preload("res://scripts/RhythmClock.gd")
 ## Boss 状态机控制器
 ## 提供可扩展状态流转，并支持初始测试：在指定范围内持续随机移动。
 
@@ -2379,12 +2381,7 @@ func _stop_return_to_origin_transition() -> void:
 func _get_now_seconds() -> float:
 	if _music_player == null or not is_instance_valid(_music_player):
 		_resolve_music_player()
-	if _music_player != null:
-		if _music_player.has_method("get_song_time"):
-			return float(_music_player.get_song_time())
-		if _music_player.has_method("get_playback_position"):
-			return float(_music_player.get_playback_position())
-	return float(Time.get_ticks_msec()) / 1000.0
+	return RhythmClock.get_music_or_wall_time(_music_player)
 
 
 func _schedule_music_clock_event(target_time: float, callback: Callable, args: Array = []) -> void:

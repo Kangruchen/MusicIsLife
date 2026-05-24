@@ -1,4 +1,6 @@
 extends Node
+
+const RhythmClock := preload("res://scripts/RhythmClock.gd")
 ## 输入管理器 - 处理玩家输入和判定逻辑
 
 
@@ -751,8 +753,4 @@ func _log_attack_drum_alignment(tag: String) -> void:
 
 
 func _get_music_clock_time() -> float:
-	if music_player == null:
-		return 0.0
-	if music_player.has_method("get_song_time"):
-		return float(music_player.get_song_time())
-	return float(music_player.get_playback_position())
+	return RhythmClock.get_music_time(music_player)

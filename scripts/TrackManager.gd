@@ -1,4 +1,6 @@
 extends Node
+
+const RhythmClock := preload("res://scripts/RhythmClock.gd")
 ## 轨道管理器 - 负责生成和管理音符的可视化
 
 
@@ -1384,8 +1386,4 @@ func _play_boss_attack_sound_for_note_type(note_type: Note.NoteType, is_warn: bo
 
 
 func _get_music_clock_time() -> float:
-	if music_player == null:
-		return 0.0
-	if music_player.has_method("get_song_time"):
-		return float(music_player.get_song_time())
-	return float(music_player.get_playback_position())
+	return RhythmClock.get_music_time(music_player)

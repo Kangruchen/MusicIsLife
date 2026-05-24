@@ -1,5 +1,8 @@
 extends Node
+
 class_name TutorialBattleManager
+
+const RhythmClock := preload("res://scripts/RhythmClock.gd")
 
 enum BattleState {
 	IDLE,
@@ -962,8 +965,4 @@ func _try_fire_missiles() -> void:
 
 
 func _get_music_clock_time() -> float:
-	if _music_player == null:
-		return 0.0
-	if _music_player.has_method("get_song_time"):
-		return float(_music_player.get_song_time())
-	return float(_music_player.get_playback_position())
+	return RhythmClock.get_music_time(_music_player)

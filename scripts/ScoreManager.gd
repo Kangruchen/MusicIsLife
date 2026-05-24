@@ -1,4 +1,6 @@
 extends Node
+
+const RhythmClock := preload("res://scripts/RhythmClock.gd")
 ## 分数管理器 - 管理玩家分数、血量、Boss体力
 
 signal player_died()
@@ -219,13 +221,7 @@ func _on_pause_timeout() -> void:
 	
 	print("暂停结束，游戏继续 - BOSS精力恢复到:", recovery_amount, " (临时削减:", temporary_energy_reduce, ")")
 func _get_music_clock_time() -> float:
-	if music_player == null:
-		return 0.0
-	if music_player.has_method("get_playback_position"):
-		if music_player.has_method("get_song_time"):
-			return float(music_player.get_song_time())
-		return float(music_player.get_playback_position())
-	return 0.0
+	return RhythmClock.get_music_time(music_player)
 
 
 func _consume_attack_anchor_music_time() -> float:

@@ -54,6 +54,7 @@ try {
 
     Invoke-GodotCheck "check-gamepad-manager" @("--headless", "--check-only", "--script", "res://scripts/GamepadManager.gd")
     Invoke-GodotCheck "check-event-bus" @("--headless", "--check-only", "--script", "res://scripts/EventBus.gd")
+    Invoke-GodotCheck "check-rhythm-clock" @("--headless", "--check-only", "--script", "res://scripts/RhythmClock.gd")
     Invoke-GodotCheck "project-headless" @("--headless", "--quit-after", "10")
     Invoke-GodotCheck "main-scene-smoke" @("--headless", "--scene", "res://scenes/Main.tscn", "--quit-after", "30")
     Invoke-GodotCheck "tutorial-scene-smoke" @("--headless", "--scene", "res://scenes/tutorial.tscn", "--quit-after", "30")

@@ -1,4 +1,6 @@
 extends CanvasLayer
+
+const RhythmClock := preload("res://scripts/RhythmClock.gd")
 ## 游戏UI - 管理血条显示和攻击阶段UI
 
 # 轨道配置（游戏逻辑坐标，用于判定计算）
@@ -124,11 +126,7 @@ func _process(_delta: float) -> void:
 
 
 func _get_beat_clock_time() -> float:
-	if music_player != null and music_player.has_method("get_playback_position"):
-		if music_player.has_method("get_song_time"):
-			return float(music_player.get_song_time())
-		return float(music_player.get_playback_position())
-	return Time.get_ticks_msec() / 1000.0
+	return RhythmClock.get_music_or_wall_time(music_player)
 
 
 func get_track_y(note_type: Note.NoteType) -> float:
