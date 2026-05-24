@@ -57,6 +57,7 @@ try {
     Invoke-GodotCheck "check-rhythm-clock" @("--headless", "--check-only", "--script", "res://scripts/RhythmClock.gd")
     Invoke-GodotCheck "check-attack-heat-model" @("--headless", "--check-only", "--script", "res://scripts/AttackHeatModel.gd")
     Invoke-GodotCheck "check-attack-beat-grid" @("--headless", "--check-only", "--script", "res://scripts/AttackBeatGrid.gd")
+    Invoke-GodotCheck "check-defense-judgment-rules" @("--headless", "--check-only", "--script", "res://scripts/DefenseJudgmentRules.gd")
     Invoke-GodotCheck "check-music-clock-event-queue" @("--headless", "--check-only", "--script", "res://scripts/MusicClockEventQueue.gd")
     Invoke-GodotCheck "project-headless" @("--headless", "--quit-after", "10")
     Invoke-GodotCheck "main-scene-smoke" @("--headless", "--scene", "res://scenes/Main.tscn", "--quit-after", "30")

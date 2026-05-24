@@ -3,6 +3,7 @@ extends Node
 const RhythmClock := preload("res://scripts/RhythmClock.gd")
 const AttackHeatModel := preload("res://scripts/AttackHeatModel.gd")
 const AttackBeatGrid := preload("res://scripts/AttackBeatGrid.gd")
+const DefenseJudgmentRules := preload("res://scripts/DefenseJudgmentRules.gd")
 ## 输入管理器 - 处理玩家输入和判定逻辑
 
 
@@ -26,13 +27,6 @@ enum PhaseState {
 	DEFENSE,  # 防御阶段（正常游戏）
 	ATTACK,   # 攻击阶段（含输入和退出）
 	PAUSED    # 暂停（准备阶段等）
-}
-
-# 判定时间窗口（秒）— 值与 GameConstants 同步
-const JUDGMENT_WINDOWS := {
-	JudgmentType.PERFECT: GameConstants.PERFECT_WINDOW,
-	JudgmentType.GREAT: GameConstants.GREAT_WINDOW,
-	JudgmentType.GOOD: GameConstants.GOOD_WINDOW,
 }
 
 # 动作映射到音符类型
@@ -178,7 +172,7 @@ func _handle_input(track_type: Note.NoteType) -> void:
 		if not note_visual.is_active:
 			continue
 		var time_diff: float = abs(current_time - note_visual.target_time)
-		if time_diff <= JUDGMENT_WINDOWS[JudgmentType.GOOD]:
+		if time_diff <= DefenseJudgmentRules.good_window():
 			if time_diff < min_time_diff:
 				min_time_diff = time_diff
 				closest_note = note_visual
@@ -208,7 +202,7 @@ func _handle_input(track_type: Note.NoteType) -> void:
 		if note.type != track_type:
 			continue
 		var time_diff: float = abs(current_time - note.beat_time)
-		if time_diff <= JUDGMENT_WINDOWS[JudgmentType.GOOD]:
+		if time_diff <= DefenseJudgmentRules.good_window():
 			if time_diff < min_tracked_diff:
 				min_tracked_diff = time_diff
 				closest_tracked = note
@@ -235,7 +229,7 @@ func _handle_input(track_type: Note.NoteType) -> void:
 		if note.type == track_type:
 			continue  # 跳过同轨道（前面已搜索过）
 		var time_diff: float = abs(current_time - note.beat_time)
-		if time_diff <= JUDGMENT_WINDOWS[JudgmentType.GOOD] and time_diff < wrong_diff:
+		if time_diff <= DefenseJudgmentRules.good_window() and time_diff < wrong_diff:
 			wrong_diff = time_diff
 			wrong_note = note
 	
@@ -410,14 +404,7 @@ func _free_node_by_instance_id(node_instance_id: int) -> void:
 
 ## 计算判定等级
 func _calculate_judgment(time_diff: float) -> JudgmentType:
-	if time_diff < JUDGMENT_WINDOWS[JudgmentType.PERFECT]:
-		return JudgmentType.PERFECT
-	elif time_diff < JUDGMENT_WINDOWS[JudgmentType.GREAT]:
-		return JudgmentType.GREAT
-	elif time_diff < JUDGMENT_WINDOWS[JudgmentType.GOOD]:
-		return JudgmentType.GOOD
-	else:
-		return JudgmentType.MISS
+	return DefenseJudgmentRules.calculate(time_diff)
 
 
 ## 应用 Miss 音效
@@ -428,32 +415,12 @@ func _apply_miss_audio_effect() -> void:
 
 ## 获取判定文本
 func _get_judgment_text(judgment: JudgmentType) -> String:
-	match judgment:
-		JudgmentType.PERFECT:
-			return "PERFECT"
-		JudgmentType.GREAT:
-			return "GREAT"
-		JudgmentType.GOOD:
-			return "GOOD"
-		JudgmentType.MISS:
-			return "MISS"
-		_:
-			return "UNKNOWN"
+	return DefenseJudgmentRules.get_text(judgment)
 
 
 ## 获取判定颜色
 func get_judgment_color(judgment: JudgmentType) -> Color:
-	match judgment:
-		JudgmentType.PERFECT:
-			return Color(1.0, 0.84, 0.0)  # 金色
-		JudgmentType.GREAT:
-			return Color(0.0, 1.0, 0.5)   # 青绿色
-		JudgmentType.GOOD:
-			return Color(0.5, 0.5, 1.0)   # 淡蓝色
-		JudgmentType.MISS:
-			return Color(0.7, 0.7, 0.7)   # 灰色
-		_:
-			return Color.WHITE
+	return DefenseJudgmentRules.get_color(judgment)
 
 
 ## 由 TrackManager 通过 EventBus.miss_triggered 触发
