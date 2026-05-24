@@ -5,7 +5,7 @@
 [ext_resource type="PackedScene" uid="uid://c6yxi20pgmbbx" path="res://scenes/tutorial_scene.tscn" id="3_ckvwl"]
 [ext_resource type="Script" uid="uid://e8i1qf3cicia" path="res://scripts/TutorialPlatformPlayer.gd" id="3_tutorial_player"]
 [ext_resource type="Script" uid="uid://ca0r3f27db17c" path="res://scripts/dialog_trigger.gd" id="4_4kmhl"]
-[ext_resource type="PackedScene" uid="uid://bgai0ghblaof0" path="res://scenes/DialogueUI.tscn.tscn" id="5_cq4me"]
+[ext_resource type="PackedScene" path="res://scenes/DialogueUI.tscn" id="5_cq4me"]
 [ext_resource type="Script" uid="uid://btdm7ywklxoiy" path="res://scripts/quit_zone.gd" id="5_quit"]
 [ext_resource type="Script" uid="uid://nfo3c4c1ywks" path="res://scenes/dialogue_ui.tscn.gd" id="6_6yjpi"]
 [ext_resource type="Script" uid="uid://dc42mm2n7qheh" path="res://scripts/TutorialBattleConfig.gd" id="9_cmspm"]
