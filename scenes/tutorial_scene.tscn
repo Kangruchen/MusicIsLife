@@ -1,4 +1,4 @@
-[gd_scene load_steps=82 format=4 uid="uid://c6yxi20pgmbbx"]
+[gd_scene load_steps=84 format=4 uid="uid://c6yxi20pgmbbx"]
 
 [ext_resource type="Texture2D" uid="uid://bixshvvvi35xi" path="res://assets/environment/scene_tutorial/background.png" id="1_k1v41"]
 [ext_resource type="Texture2D" uid="uid://2luontrbyikd" path="res://assets/environment/scene_tutorial/machine.png" id="2_7ncn3"]
@@ -15,7 +15,9 @@
 [ext_resource type="Texture2D" uid="uid://hw5lc1v4fiww" path="res://assets/environment/scene_tutorial/warn_light.png" id="12_fuyrj"]
 [ext_resource type="Texture2D" uid="uid://b863twija10i0" path="res://assets/environment/scene_tutorial/doors.png" id="13_getnj"]
 [ext_resource type="Texture2D" uid="uid://b1egjm3f33igc" path="res://assets/environment/scene_tutorial/shadow.png" id="15_6m8eg"]
+[ext_resource type="Texture2D" uid="uid://2rkfyob2ioer" path="res://assets/environment/scene_tutorial/elevator_2.png" id="15_vqpaf"]
 [ext_resource type="Texture2D" uid="uid://dovpo1keougv" path="res://assets/environment/scene_tutorial/gadgets.png" id="16_t3n2b"]
+[ext_resource type="Texture2D" uid="uid://bc62btooxy313" path="res://assets/environment/scene_tutorial/elevator_door_left.png" id="16_yv6gy"]
 [ext_resource type="Texture2D" uid="uid://brtsr0m18wd25" path="res://assets/environment/scene_tutorial/frame_2.png" id="17_3t30l"]
 [ext_resource type="Texture2D" uid="uid://bfr5vjyhpj2jy" path="res://assets/environment/scene_tutorial/elevator.png" id="17_50lb2"]
 [ext_resource type="Texture2D" uid="uid://bruoau4667wwq" path="res://assets/environment/scene_tutorial/doorframe_back_1.png" id="18_6lktx"]
@@ -517,6 +519,16 @@ modulate = Color(0.92941177, 0.92941177, 0.92941177, 1)
 texture = ExtResource("16_t3n2b")
 
 [node name="Elevator" type="Sprite2D" parent="."]
+texture = ExtResource("15_vqpaf")
+
+[node name="elevator_door_left" type="Sprite2D" parent="."]
+visible = false
+position = Vector2(-1972, -154)
+texture = ExtResource("16_yv6gy")
+
+[node name="elevator_door_right" type="Sprite2D" parent="."]
+visible = false
+position = Vector2(-1883, -152)
 texture = ExtResource("17_50lb2")
 
 [node name="Frame" type="Sprite2D" parent="."]

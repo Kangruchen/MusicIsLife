@@ -1,4 +1,4 @@
-[gd_scene load_steps=47 format=3 uid="uid://6o6cnudua672"]
+[gd_scene load_steps=48 format=3 uid="uid://6o6cnudua672"]
 
 [ext_resource type="Texture2D" uid="uid://dchsy7ncprqnu" path="res://assets/environment/scene_tutorial/工厂背景.png" id="1_c13y7"]
 [ext_resource type="PackedScene" uid="uid://da8ttcx4kdymg" path="res://scenes/character.tscn" id="2_8ho6b"]
@@ -6,7 +6,6 @@
 [ext_resource type="Script" uid="uid://e8i1qf3cicia" path="res://scripts/TutorialPlatformPlayer.gd" id="3_tutorial_player"]
 [ext_resource type="Script" uid="uid://ca0r3f27db17c" path="res://scripts/dialog_trigger.gd" id="4_4kmhl"]
 [ext_resource type="PackedScene" uid="uid://bgai0ghblaof0" path="res://scenes/DialogueUI.tscn.tscn" id="5_cq4me"]
-[ext_resource type="Script" uid="uid://btdm7ywklxoiy" path="res://scripts/quit_zone.gd" id="5_quit"]
 [ext_resource type="Script" uid="uid://nfo3c4c1ywks" path="res://scenes/dialogue_ui.tscn.gd" id="6_6yjpi"]
 [ext_resource type="Script" uid="uid://dc42mm2n7qheh" path="res://scripts/TutorialBattleConfig.gd" id="9_cmspm"]
 [ext_resource type="PackedScene" uid="uid://c8jx3vn5qwm4r" path="res://scenes/GameUI.tscn" id="9_game_ui"]
@@ -25,6 +24,8 @@
 [ext_resource type="Texture2D" uid="uid://d3eo1bu6r6og2" path="res://playground/dialogue_test/表情1.png" id="22_7a100"]
 [ext_resource type="Texture2D" uid="uid://pyabo01x3u8q" path="res://playground/dialogue_test/表情4.png" id="23_7a100"]
 [ext_resource type="Texture2D" uid="uid://b78m2ymgycorn" path="res://playground/dialogue_test/表情3.png" id="24_feaue"]
+[ext_resource type="Texture2D" uid="uid://bc62btooxy313" path="res://assets/environment/scene_tutorial/elevator_door_left.png" id="26_qbchm"]
+[ext_resource type="Texture2D" uid="uid://dlouqtv77mcuc" path="res://assets/environment/scene_tutorial/elevator_door_right.png" id="27_gxgfo"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_player"]
 size = Vector2(70, 140)
@@ -104,8 +105,14 @@ metadata/_custom_type_script = "uid://c1raarhgki7qr"
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ej4tf"]
 size = Vector2(223.5, 95)
 
-[node name="Tutorial" type="Node2D"]
+[node name="Tutorial" type="Node2D" node_paths=PackedStringArray("player", "walk_in_target", "elevator_interact_area", "left_door", "right_door", "interact_prompt")]
 script = ExtResource("18_tutorial_root")
+player = NodePath("Player")
+walk_in_target = NodePath("WalkInTarget")
+elevator_interact_area = NodePath("Quit Zone")
+left_door = NodePath("tutorial_scene/elevator_door_left2")
+right_door = NodePath("tutorial_scene/elevator_door_right2")
+interact_prompt = NodePath("Label")
 
 [node name="UILayer" type="CanvasLayer" parent="."]
 
@@ -129,6 +136,14 @@ texture = ExtResource("1_c13y7")
 
 [node name="tutorial_scene" parent="." instance=ExtResource("3_ckvwl")]
 position = Vector2(1204, -420)
+
+[node name="elevator_door_left2" type="Sprite2D" parent="tutorial_scene"]
+position = Vector2(-1978, -158)
+texture = ExtResource("26_qbchm")
+
+[node name="elevator_door_right2" type="Sprite2D" parent="tutorial_scene"]
+position = Vector2(-1889, -156)
+texture = ExtResource("27_gxgfo")
 
 [node name="Player" type="CharacterBody2D" parent="." groups=["player"]]
 z_index = 2
@@ -193,6 +208,7 @@ hit_external_anim_sprite_path = null
 dodge_external_anim_sprite_path = NodePath("../../tutorial_scene/Cannon")
 dodge_external_anim_persistent = true
 tutorial_mode = true
+game_ui = NodePath("../../GameUI")
 enable_prejudge_key_hint = null
 prejudge_key_hint_display_mode = null
 defense_hint_max_per_attack_type = null
@@ -200,7 +216,6 @@ hint_player_node_path = NodePath("../../Player")
 hint_guard_offset = Vector2(0, -120)
 hint_hit_offset = null
 hint_dodge_offset = Vector2(0, -120)
-game_ui = NodePath("../../GameUI")
 
 [node name="InputManager" type="Node" parent="GameManager"]
 script = ExtResource("13_input_mgr")
@@ -349,7 +364,6 @@ shape = SubResource("RectangleShape2D_ej4tf")
 
 [node name="Quit Zone" type="Area2D" parent="."]
 position = Vector2(-245, -361)
-script = ExtResource("5_quit")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Quit Zone"]
 position = Vector2(-476, -359)
@@ -357,3 +371,12 @@ shape = SubResource("RectangleShape2D_cmspm")
 
 [node name="Marker2D" type="Marker2D" parent="."]
 position = Vector2(-402, 92)
+
+[node name="WalkInTarget" type="Marker2D" parent="."]
+position = Vector2(-717, -525)
+
+[node name="Label" type="Label" parent="."]
+visible = false
+offset_right = 40.0
+offset_bottom = 23.0
+text = "\"E\""
