@@ -1,4 +1,6 @@
 extends Node
+
+const MusicClockEventQueue := preload("res://scripts/MusicClockEventQueue.gd")
 ## 音乐播放器 - 负责加载和播放多轨道音乐
 ## BGM 轨道路由到 "BGM" 总线（受 LowPass 滤镜影响）
 ## Miss 音效通过 SFXManager 路由到 "SFX" 总线（不受 LowPass 影响）
@@ -64,7 +66,7 @@ var _attack_outro_start_time: float = 0.0
 var _attack_phase_end_time: float = 0.0
 var _active_attack_loop_player: AudioStreamPlayer = null
 var _attack_player_fade_tweens: Dictionary = {}
-var _attack_clock_callbacks: Array[Dictionary] = []
+var _attack_clock_callbacks: RefCounted = MusicClockEventQueue.new()
 var _output_latency_seconds: float = 0.0
 var _last_song_time: float = 0.0
 
@@ -622,37 +624,20 @@ func _schedule_next_attack_loop_restart(token: int, current_phrase_index: int) -
 
 
 func _schedule_attack_clock_callback(target_time: float, callback: Callable, token: int, args: Array = []) -> void:
-	_attack_clock_callbacks.append({
-		"time": target_time,
-		"callback": callback,
-		"token": token,
-		"args": args
-	})
-	_attack_clock_callbacks.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		return float(a["time"]) < float(b["time"])
-	)
+	_attack_clock_callbacks.schedule(target_time, Callable(self, "_on_attack_clock_callback_due"), [token, callback, args])
 
 
 func _process_attack_clock_callbacks() -> void:
-	if _attack_clock_callbacks.is_empty():
+	_attack_clock_callbacks.process(_get_music_clock_time())
+
+
+func _on_attack_clock_callback_due(token: int, callback: Callable, args: Array) -> void:
+	if token != _attack_schedule_token or not _attack_music_active:
 		return
-
-	var now: float = _get_music_clock_time()
-	while not _attack_clock_callbacks.is_empty():
-		var event: Dictionary = _attack_clock_callbacks[0]
-		if float(event["time"]) > now:
-			return
-		_attack_clock_callbacks.pop_front()
-
-		var token: int = int(event["token"])
-		if token != _attack_schedule_token or not _attack_music_active:
-			continue
-		var callback: Callable = event["callback"]
-		if callback.is_valid():
-			var callback_args: Array = [token]
-			var extra_args: Array = event.get("args", []) as Array
-			callback_args.append_array(extra_args)
-			callback.callv(callback_args)
+	if callback.is_valid():
+		var callback_args: Array = [token]
+		callback_args.append_array(args)
+		callback.callv(callback_args)
 
 
 func _resolve_attack_beat_interval() -> float:
