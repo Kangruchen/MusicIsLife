@@ -3,6 +3,7 @@ extends Node
 const RhythmClock := preload("res://scripts/RhythmClock.gd")
 const MusicClockEventQueue := preload("res://scripts/MusicClockEventQueue.gd")
 const HitNoteSideAssignments := preload("res://scripts/HitNoteSideAssignments.gd")
+const TrackCueRequestRegistry := preload("res://scripts/TrackCueRequestRegistry.gd")
 ## 轨道管理器 - 负责生成和管理音符的可视化
 
 
@@ -51,8 +52,7 @@ var note_visual_enabled: bool = false
 
 # 非可视音符追踪（用于判定和 MISS 检测）
 var tracked_notes: Array[Note] = []
-var _missile_request_sent_notes: Array[Note] = []
-var _charge_request_sent_notes: Array[Note] = []
+var _cue_requests: RefCounted = TrackCueRequestRegistry.new()
 var _hit_note_sides: RefCounted = HitNoteSideAssignments.new()
 var _boss_node: Node2D = null
 
@@ -365,8 +365,7 @@ func _check_and_spawn_notes_by_time(now_time: float) -> void:
 			if _is_missile_side_destroyed(marked_side):
 
 				scheduled_notes.erase(note)
-				_missile_request_sent_notes.erase(note)
-				_charge_request_sent_notes.erase(note)
+				_cue_requests.erase(note)
 				_hit_note_sides.erase(note)
 
 				if debug_missile_timing:
@@ -376,8 +375,7 @@ func _check_and_spawn_notes_by_time(now_time: float) -> void:
 
 		if not _is_note_type_enabled_by_boss_parts(note.type):
 			scheduled_notes.erase(note)
-			_missile_request_sent_notes.erase(note)
-			_charge_request_sent_notes.erase(note)
+			_cue_requests.erase(note)
 			if debug_missile_timing and note.type == Note.NoteType.HIT:
 				print("[MissileDebug][Track] skip hit_note=#", note.beat_number, " reason=missile_parts_destroyed")
 			if debug_charge_timing and note.type == Note.NoteType.DODGE:
@@ -392,7 +390,7 @@ func _check_and_spawn_notes_by_time(now_time: float) -> void:
 		if note.type == Note.NoteType.HIT:
 			var prepare_seconds: float = _get_boss_return_prepare_seconds()
 			var request_time: float = spawn_time - prepare_seconds
-			if now_time >= request_time and not _missile_request_sent_notes.has(note):
+			if now_time >= request_time and not _cue_requests.has_missile_request(note):
 				var remaining_beats_to_hit: float = maxf(0.0, (note.beat_time - now_time) / beat_interval)
 				var marked_side: int = _hit_note_sides.get_side(note)
 				if _boss_node != null and is_instance_valid(_boss_node) and _boss_node.has_method("enqueue_missile_forced_side"):
@@ -407,12 +405,12 @@ func _check_and_spawn_notes_by_time(now_time: float) -> void:
 						" prepare_s=", "%.3f" % prepare_seconds,
 						" remain_beats=", "%.3f" % remaining_beats_to_hit,
 						" side=", side_name)
-				_missile_request_sent_notes.append(note)
+				_cue_requests.mark_missile_request(note)
 
 		if note.type == Note.NoteType.DODGE:
 			var charge_prepare_lead_beats: float = maxf(0.0, boss_charge_prepare_lead_beats)
 			var charge_request_time: float = spawn_time - charge_prepare_lead_beats * beat_interval
-			if now_time >= charge_request_time and not _charge_request_sent_notes.has(note):
+			if now_time >= charge_request_time and not _cue_requests.has_charge_request(note):
 				var charge_remaining_beats_to_hit: float = maxf(0.0, (note.beat_time - now_time) / beat_interval)
 				EventBus.boss_charge_requested.emit(charge_remaining_beats_to_hit)
 				if debug_charge_timing:
@@ -421,7 +419,7 @@ func _check_and_spawn_notes_by_time(now_time: float) -> void:
 						" request_time=", "%.3f" % charge_request_time,
 						" spawn_time=", "%.3f" % spawn_time,
 						" remain_beats=", "%.3f" % charge_remaining_beats_to_hit)
-				_charge_request_sent_notes.append(note)
+				_cue_requests.mark_charge_request(note)
 		
 		# 如果当前时间已经到达或超过音符的生成时间
 		if now_time >= spawn_time:
@@ -436,8 +434,7 @@ func _check_and_spawn_notes_by_time(now_time: float) -> void:
 
 			if (note.type == Note.NoteType.HIT or note.type == Note.NoteType.DODGE) and not tutorial_mode and not _is_attack_visual_ready_for_note(note.type):
 				scheduled_notes.erase(note)
-				_missile_request_sent_notes.erase(note)
-				_charge_request_sent_notes.erase(note)
+				_cue_requests.erase(note)
 				if debug_missile_timing and note.type == Note.NoteType.HIT:
 					print("[MissileDebug][Track] skip hit_note=#", note.beat_number, " reason=visual_not_active")
 				if debug_charge_timing and note.type == Note.NoteType.DODGE:
@@ -446,8 +443,7 @@ func _check_and_spawn_notes_by_time(now_time: float) -> void:
 
 			_spawn_note(note)
 			scheduled_notes.erase(note)
-			_missile_request_sent_notes.erase(note)
-			_charge_request_sent_notes.erase(note)
+			_cue_requests.erase(note)
 
 
 func _is_attack_visual_ready_for_note(note_type: Note.NoteType) -> bool:
@@ -606,8 +602,7 @@ func _should_silently_drop_runtime_note(note: Note) -> bool:
 func _erase_note_runtime_state(note: Note) -> void:
 	if note == null:
 		return
-	_missile_request_sent_notes.erase(note)
-	_charge_request_sent_notes.erase(note)
+	_cue_requests.erase(note)
 	if note.type == Note.NoteType.HIT:
 		_hit_note_sides.erase(note)
 
@@ -710,8 +705,7 @@ func clear_all_notes() -> void:
 			note_visual.destroy()
 	active_notes.clear()
 	tracked_notes.clear()
-	_missile_request_sent_notes.clear()
-	_charge_request_sent_notes.clear()
+	_cue_requests.clear()
 	_music_clock_events.clear()
 	# 清除所有活跃的 Bling 特效
 	for track_type in _active_blings:
@@ -789,8 +783,7 @@ func resume_note_spawning() -> void:
 		var spawn_time: float = note.beat_time - advance_beats * beat_interval
 		if spawn_time <= current_time:
 			scheduled_notes.erase(note)
-			_missile_request_sent_notes.erase(note)
-			_charge_request_sent_notes.erase(note)
+			_cue_requests.erase(note)
 			_hit_note_sides.erase(note)
 			removed_count += 1
 	
