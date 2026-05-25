@@ -2,6 +2,7 @@ extends Node2D
 
 const RhythmClock := preload("res://scripts/RhythmClock.gd")
 const MusicClockEventQueue := preload("res://scripts/MusicClockEventQueue.gd")
+const BossPartHealthModel := preload("res://scripts/BossPartHealthModel.gd")
 ## Boss 状态机控制器
 ## 提供可扩展状态流转，并支持初始测试：在指定范围内持续随机移动。
 
@@ -217,9 +218,7 @@ var _active_charge_bullet: Node2D = null
 var _charge_cycle_id: int = 0
 var _charge_play_call_count: int = 0
 var _charge_animation_started_in_cycle: bool = false
-var _middle_part_damage_accumulated: float = 0.0
-var _left_part_damage_accumulated: float = 0.0
-var _right_part_damage_accumulated: float = 0.0
+var _part_health: RefCounted = BossPartHealthModel.new()
 var _boss_attack_beat_index: Dictionary = {}
 var _boss_attack_sound_token: int = 0
 var _music_player: Node = null
@@ -1350,32 +1349,12 @@ func _get_part_from_visual(hit_visual: CanvasItem) -> int:
 
 
 func _is_part_destroyed(part: int) -> bool:
-	if part == BOSS_PART_MIDDLE:
-		return _middle_part_damage_accumulated >= maxf(1.0, middle_part_break_damage_threshold)
-	if part == BOSS_PART_LEFT:
-		return _left_part_damage_accumulated >= maxf(1.0, left_part_break_damage_threshold)
-	if part == BOSS_PART_RIGHT:
-		return _right_part_damage_accumulated >= maxf(1.0, right_part_break_damage_threshold)
-	return false
+	return _part_health.is_destroyed(part)
 
 
 func _apply_damage_to_part(part: int, damage: float) -> void:
-	if part == BOSS_PART_MIDDLE:
-		_middle_part_damage_accumulated += damage
-		if _middle_part_damage_accumulated >= maxf(1.0, middle_part_break_damage_threshold):
-			_on_part_destroyed(part)
-		return
-
-	if part == BOSS_PART_LEFT:
-		_left_part_damage_accumulated += damage
-		if _left_part_damage_accumulated >= maxf(1.0, left_part_break_damage_threshold):
-			_on_part_destroyed(part)
-		return
-
-	if part == BOSS_PART_RIGHT:
-		_right_part_damage_accumulated += damage
-		if _right_part_damage_accumulated >= maxf(1.0, right_part_break_damage_threshold):
-			_on_part_destroyed(part)
+	if _part_health.apply_damage(part, damage):
+		_on_part_destroyed(part)
 
 
 func _on_part_destroyed(part: int) -> void:
@@ -1426,32 +1405,22 @@ func _apply_debug_part_state_override_if_needed() -> void:
 
 
 func _set_part_destroyed_for_debug(part: int, destroyed: bool) -> void:
-	var currently_destroyed: bool = _is_part_destroyed(part)
-	if currently_destroyed == destroyed:
+	if not _part_health.set_destroyed_for_debug(part, destroyed):
 		return
 
 	if destroyed:
-		if part == BOSS_PART_MIDDLE:
-			_middle_part_damage_accumulated = maxf(1.0, middle_part_break_damage_threshold)
-		elif part == BOSS_PART_LEFT:
-			_left_part_damage_accumulated = maxf(1.0, left_part_break_damage_threshold)
-		elif part == BOSS_PART_RIGHT:
-			_right_part_damage_accumulated = maxf(1.0, right_part_break_damage_threshold)
 		_on_part_destroyed(part)
 		return
 
 	if part == BOSS_PART_MIDDLE:
-		_middle_part_damage_accumulated = 0.0
 		_set_visual_frame(_middle_body_visual, middle_part_normal_frame)
 		_middle_red_flash_remaining = 0.0
 		_set_part_hurtbox_active(BOSS_PART_MIDDLE, true)
 	elif part == BOSS_PART_LEFT:
-		_left_part_damage_accumulated = 0.0
 		_set_visual_frame(_left_missile_visual, left_part_normal_frame)
 		_left_red_flash_remaining = 0.0
 		_set_part_hurtbox_active(BOSS_PART_LEFT, true)
 	elif part == BOSS_PART_RIGHT:
-		_right_part_damage_accumulated = 0.0
 		_set_visual_frame(_right_missile_visual, right_part_normal_frame)
 		_right_red_flash_remaining = 0.0
 		_set_part_hurtbox_active(BOSS_PART_RIGHT, true)
@@ -1481,13 +1450,16 @@ func _cancel_missile_flow_after_parts_broken() -> void:
 
 
 func _are_missile_parts_all_destroyed() -> bool:
-	return _is_part_destroyed(BOSS_PART_LEFT) and _is_part_destroyed(BOSS_PART_RIGHT)
+	return _part_health.are_missile_parts_all_destroyed()
 
 
 func _reset_part_health() -> void:
-	_middle_part_damage_accumulated = 0.0
-	_left_part_damage_accumulated = 0.0
-	_right_part_damage_accumulated = 0.0
+	_part_health.configure(
+		middle_part_break_damage_threshold,
+		left_part_break_damage_threshold,
+		right_part_break_damage_threshold
+	)
+	_part_health.reset()
 	_pending_missile_forced_sides.clear()
 	_set_part_hurtbox_active(BOSS_PART_MIDDLE, true)
 	_set_part_hurtbox_active(BOSS_PART_LEFT, true)
