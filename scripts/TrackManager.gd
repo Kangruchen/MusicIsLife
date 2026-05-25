@@ -163,7 +163,6 @@ func _ready() -> void:
 	spawn_x = get_viewport().get_visible_rect().size.x + 100.0
 	
 	# 通过 EventBus 连接信号（替代 get_node 硬编码路径）
-	EventBus.beat_hit.connect(_on_beat_hit)
 	EventBus.chart_loaded.connect(set_chart)
 	EventBus.boss_energy_depleted.connect(_on_attack_phase_started)
 	EventBus.attack_phase_started.connect(_on_attack_phase_started)
@@ -367,15 +366,6 @@ func _assign_hit_note_sides() -> void:
 		next_side = MISSILE_SIDE_RIGHT if next_side == MISSILE_SIDE_LEFT else MISSILE_SIDE_LEFT
 
 
-## 节拍触发回调
-func _on_beat_hit(beat_number: float, _note: Note) -> void:
-	if not current_chart:
-		return
-	
-	# 检查是否需要提前生成音符
-	_check_and_spawn_notes(beat_number)
-
-
 ## 检查并生成需要提前生成的音符（基于时间）
 func _check_and_spawn_notes_by_time(now_time: float) -> void:
 	for note in scheduled_notes.duplicate():
@@ -546,13 +536,6 @@ func _resolve_boss_node() -> void:
 
 	if debug_missile_timing:
 		print("[MissileDebug][Track] boss resolved: ", _boss_node.get_path(), " origin=", _boss_origin_position)
-
-
-## 检查并生成需要提前生成的音符（已废弃，保留用于节拍信号触发）
-func _check_and_spawn_notes(_current_beat: float) -> void:
-	# 此方法已被 _check_and_spawn_notes_by_time 替代
-	# 但保留用于兼容 beat_hit 信号的调用
-	pass
 
 
 ## 生成音符
