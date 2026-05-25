@@ -2,6 +2,7 @@ extends CanvasLayer
 
 const RhythmClock := preload("res://scripts/RhythmClock.gd")
 const HeatBeatFlashStyle := preload("res://scripts/HeatBeatFlashStyle.gd")
+const AttackBeatTrackLayout := preload("res://scripts/AttackBeatTrackLayout.gd")
 ## 游戏UI - 管理血条显示和攻击阶段UI
 
 # 轨道配置（游戏逻辑坐标，用于判定计算）
@@ -349,12 +350,20 @@ func _create_beat_track(bi: float, first_beat_time: float) -> void:
 	_track_first_beat_time = first_beat_time
 
 	var screen_width: float = get_viewport().get_visible_rect().size.x
-	_track_width = screen_width * BEAT_TRACK_WIDTH_RATIO
-	_track_segment_width = _track_width / float(_track_input_beats)
+	var layout: Dictionary = AttackBeatTrackLayout.build(
+		screen_width,
+		BEAT_TRACK_WIDTH_RATIO,
+		_track_input_beats,
+		bi,
+		GameConstants.ATTACK_PERFECT_WINDOW
+	)
+	if layout.is_empty():
+		return
+	_track_width = layout["track_width"]
+	_track_segment_width = layout["segment_width"]
 
-	var perfect_ratio: float = GameConstants.ATTACK_PERFECT_WINDOW / bi
-	var perfect_width: float = _track_segment_width * perfect_ratio
-	var miss_side_width: float = (_track_segment_width - perfect_width) / 2.0
+	var perfect_width: float = layout["perfect_width"]
+	var miss_side_width: float = layout["miss_side_width"]
 
 	beat_track_container = Control.new()
 	beat_track_container.name = "BeatTrackContainer"
@@ -434,14 +443,10 @@ func _update_beat_cursor() -> void:
 		return
 
 	var now: float = _get_beat_clock_time()
-	var cursor_x: float = (now - _track_first_beat_time + _track_bi * 0.5) / _track_bi * _track_segment_width
+	var cursor_x: float = AttackBeatTrackLayout.get_cursor_x(now, _track_first_beat_time, _track_bi, _track_segment_width)
 
 	beat_cursor.position.x = cursor_x - CURSOR_HALF_WIDTH
-
-	if cursor_x < -_track_segment_width or cursor_x > _track_width + _track_segment_width:
-		beat_cursor.visible = false
-	else:
-		beat_cursor.visible = true
+	beat_cursor.visible = AttackBeatTrackLayout.is_cursor_visible(cursor_x, _track_width, _track_segment_width)
 
 
 func _update_heat_shake() -> void:
