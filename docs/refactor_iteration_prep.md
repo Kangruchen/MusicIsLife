@@ -46,10 +46,26 @@ Inside the sandbox, `--import` can produce false errors such as `Cannot create f
 
 ## First Safe Iterations
 
-1. Keep the autoload duplicate fix and verify startup.
-2. Remove or isolate obvious debug-only code and scene flags.
-3. Extract rhythm-clock helpers without changing timing behavior.
-4. Split attack-phase input from defense judgment.
-5. Extract Boss subsystems one at a time.
-6. Extract Player hitbox/death-flow subsystems.
-7. Split TrackManager visual spawning, miss detection, and boss cue routing.
+1. Keep the autoload duplicate fix and verify startup. Done in `8e3bd81`.
+2. Remove or isolate obvious debug-only code and scene flags. Done in `7de8e22`.
+3. Extract rhythm-clock helpers without changing timing behavior. Done across `ca5247b`, `6f0deb9`, and `d075f0d`.
+4. Split attack-phase input from defense judgment. Done across `953e015`, `e545970`, `b279c5f`, and `a5e94ae`.
+5. Extract Boss subsystems one at a time. In progress: part health, missile side selection, and pre-charge target picking are extracted.
+6. Extract Player hitbox/death-flow subsystems. In progress: attack hitbox rules are extracted.
+7. Split TrackManager visual spawning, miss detection, and boss cue routing. Still pending.
+
+## Current Checkpoint
+
+The branch now has reusable helper scripts for:
+
+- Shared rhythm clock reads and music-clock event queues.
+- Attack heat, attack beat grid, defense judgment rules, and defense note search.
+- Boss part health, missile side selection, and pre-charge target picking.
+- Character attack hitbox timing, preset, and default geometry rules.
+
+Next high-value iterations:
+
+1. Continue reducing `Boss.gd` by extracting missile warning/recoil and charge bullet timing helpers.
+2. Split `TrackManager.gd` into note spawning, miss resolution, and boss cue routing.
+3. Move `Character.gd` death-flow and debug-hitbox drawing into smaller collaborators.
+4. Remove remaining old or ambiguous naming after confirming scene usage.
