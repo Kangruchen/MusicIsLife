@@ -129,19 +129,6 @@ func _get_beat_clock_time() -> float:
 	return RhythmClock.get_music_or_wall_time(music_player)
 
 
-func get_track_y(note_type: Note.NoteType) -> float:
-	var track_index := note_type as int
-	return TRACK_START_Y + track_index * (TRACK_HEIGHT + TRACK_SPACING) + TRACK_HEIGHT / 2.0
-
-
-func get_judgment_line_x() -> float:
-	return JUDGMENT_LINE_X
-
-
-func get_notes_container() -> Control:
-	return null
-
-
 func _on_player_health_updated(current: float, maximum: float) -> void:
 	if player_health_bar:
 		player_health_bar.max_value = maximum

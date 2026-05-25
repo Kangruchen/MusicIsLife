@@ -9,7 +9,6 @@ const SpriteAnimationDuration := preload("res://scripts/SpriteAnimationDuration.
 
 
 # 预制场景
-const NOTE_VISUAL_SCENE := preload("res://scenes/NoteVisual.tscn")
 const BLING_SCENE := preload("res://scenes/bling.tscn")
 const PREJUDGE_KEY_HINT_SCRIPT := preload("res://scripts/PrejudgeKeyHint.gd")
 const SETTINGS_FILE_PATH: String = "user://settings.cfg"
@@ -43,13 +42,7 @@ const SPAWN_ADVANCE := {
 const MISSILE_SIDE_LEFT: int = 0
 const MISSILE_SIDE_RIGHT: int = 1
 
-# 音符生成位置X坐标（动态计算，在 _ready 中初始化）
-var spawn_x: float = 900.0
-
 const MISS_THRESHOLD: float = GameConstants.MISS_THRESHOLD
-
-# 音符视觉生成开关（暂时停用）
-var note_visual_enabled: bool = false
 
 # 非可视音符追踪（用于判定和 MISS 检测）
 var tracked_notes: Array[Note] = []
@@ -112,7 +105,6 @@ var _boss_node: Node2D = null
 @onready var music_player: Node = get_node("../MusicPlayer")
 
 var current_chart: Chart = null
-var active_notes: Array[NoteVisual] = []
 var scheduled_notes: Array[Note] = []  # 待生成的音符
 var current_time: float = 0.0
 var is_paused: bool = false  # 是否暂停生成音符
@@ -159,9 +151,6 @@ func _ready() -> void:
 	_load_prejudge_hint_settings()
 	_reset_defense_hint_counts()
 
-	# 根据实际视口宽度动态计算音符生成X坐标（屏幕右侧外100px）
-	spawn_x = get_viewport().get_visible_rect().size.x + 100.0
-	
 	# 通过 EventBus 连接信号（替代 get_node 硬编码路径）
 	EventBus.chart_loaded.connect(set_chart)
 	EventBus.boss_energy_depleted.connect(_on_attack_phase_started)
@@ -294,38 +283,6 @@ func _process(_delta: float) -> void:
 		
 		# 检查是否需要生成音符（基于时间）
 		_check_and_spawn_notes_by_time(current_time)
-		
-		# 更新所有活跃音符
-		for note_visual in active_notes:
-			if note_visual and note_visual.is_active:
-				note_visual.update_position(current_time)
-
-				# 当攻击可视状态在运行中被中断（阶段切换/部位破坏）时，静默丢弃，避免无动画却触发 MISS。
-				if note_visual.note_data != null and _should_silently_drop_runtime_note(note_visual.note_data):
-					note_visual.is_active = false
-					note_visual.destroy()
-					_erase_note_runtime_state(note_visual.note_data)
-					continue
-				
-				# 检查是否到达判定线前两拍，播放音符音效
-				var time_before_target: float = note_visual.target_time - current_time
-				var two_beats_duration: float = 2.0 * EventBus.beat_interval
-				if not note_visual.spawn_sound_played and time_before_target <= two_beats_duration:
-					_play_spawn_sound(note_visual.note_data.type)
-					note_visual.spawn_sound_played = true
-				
-				# 检查是否超过判定窗口（自动 MISS）
-				var time_past_target: float = current_time - note_visual.target_time
-				if time_past_target >= MISS_THRESHOLD:
-					EventBus.miss_triggered.emit(note_visual.note_data.type)
-					note_visual.is_active = false
-					note_visual.destroy()
-			elif note_visual:
-				# 清理非活跃音符
-				note_visual.destroy()
-		
-		# 移除已销毁的音符
-		active_notes = active_notes.filter(func(n): return n != null and is_instance_valid(n))
 		
 		# 检查非可视追踪音符的 MISS
 		for i in range(tracked_notes.size() - 1, -1, -1):
@@ -537,32 +494,7 @@ func _spawn_note(note: Note) -> void:
 	if not skip_track_anim:
 		_spawn_track_animation(note)
 
-	if note_visual_enabled:
-		# 可视模式：创建 NoteVisual 实例
-		if not game_ui:
-			return
-		var notes_container: Control = game_ui.get_notes_container()
-		if not notes_container:
-			return
-
-		var note_visual := NOTE_VISUAL_SCENE.instantiate() as NoteVisual
-		var track_y: float = game_ui.get_track_y(note.type)
-		var judgment_x: float = game_ui.get_judgment_line_x()
-		var spawn_pos := Vector2(spawn_x, track_y)
-		var target_pos := Vector2(judgment_x, track_y)
-
-		var advance_beats: int = SPAWN_ADVANCE[note.type]
-		var spawn_time: float = note.beat_time - advance_beats * EventBus.beat_interval
-		var move_start_time: float = spawn_time + EventBus.beat_interval
-		var target_time: float = note.beat_time
-
-		note_visual.initialize(note, spawn_pos, target_pos, move_start_time, target_time)
-		notes_container.add_child(note_visual)
-		active_notes.append(note_visual)
-		print("生成音符: 节拍 #", note.beat_number, " ", note.get_type_string(), " 在时间 ", "%.3f" % spawn_time)
-	else:
-		# 非可视模式：仅追踪音符用于判定
-		tracked_notes.append(note)
+	tracked_notes.append(note)
 
 
 func _is_note_type_enabled_by_boss_parts(note_type: Note.NoteType) -> bool:
@@ -699,10 +631,6 @@ func clear_all_notes() -> void:
 	_invalidate_effect_callbacks()
 	_clear_active_key_hints()
 
-	for note_visual in active_notes:
-		if note_visual and is_instance_valid(note_visual):
-			note_visual.destroy()
-	active_notes.clear()
 	tracked_notes.clear()
 	_cue_requests.clear()
 	_music_clock_events.clear()
@@ -793,11 +721,6 @@ func resume_note_spawning() -> void:
 	for i in range(tracked_notes.size() - 1, -1, -1):
 		tracked_notes.remove_at(i)
 
-	for note_visual in active_notes:
-		if note_visual and is_instance_valid(note_visual):
-			note_visual.destroy()
-	active_notes.clear()
-	
 	# 最后才恢复生成（避免_process在清理前执行）
 	is_paused = false
 	pause_start_time = 0.0
@@ -1268,17 +1191,6 @@ func _on_guard_attack_sound_time(token: int, note_type: Note.NoteType) -> void:
 	if token != _effect_runtime_token or _attack_phase_blocked:
 		return
 	_play_boss_attack_sound_for_note_type(note_type, false)
-
-
-func _play_spawn_sound(note_type: Note.NoteType) -> void:
-	if GameConfigs.sound == null:
-		return
-	if GameConfigs.sound.boss_phase_key_sound_muted:
-		return
-	var pool: RandomSoundPool = GameConfigs.sound.get_key_sound(note_type)
-	if pool == null:
-		return
-	SFXManager.play_pool(pool, GameConfigs.sound.sfx_bus)
 
 
 func _play_boss_attack_sound_for_note_type(note_type: Note.NoteType, is_warn: bool = false) -> void:

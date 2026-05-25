@@ -161,31 +161,6 @@ func _handle_input(track_type: Note.NoteType) -> void:
 	# 获取当前时间
 	var current_time: float = _get_music_clock_time()
 	
-	var closest_note: NoteVisual = DefenseNoteSearch.find_visible_note(
-		track_manager.active_notes,
-		track_type,
-		current_time,
-		DefenseJudgmentRules.good_window()
-	)
-	
-	# 可视音符判定
-	if closest_note:
-		var min_time_diff: float = abs(current_time - closest_note.target_time)
-		var judgment: JudgmentType = _calculate_judgment(min_time_diff)
-		var timing_diff: float = current_time - closest_note.target_time
-		closest_note.is_active = false
-		closest_note.destroy()
-		var is_miss: bool = judgment == JudgmentType.MISS
-		if is_miss:
-			_apply_miss_audio_effect()
-			_play_key_sound(track_type)
-		else:
-			_spawn_defense_hit_effect(track_type)
-		_play_defense_sound(track_type, is_miss)
-		EventBus.judgment_made.emit(track_type, judgment, timing_diff)
-		print("判定: ", _get_judgment_text(judgment), " (", int(min_time_diff * 1000), "ms)")
-		return
-	
 	var closest_tracked: Note = DefenseNoteSearch.find_tracked_note(
 		track_manager.tracked_notes,
 		track_type,
@@ -228,7 +203,6 @@ func _handle_input(track_type: Note.NoteType) -> void:
 	# 真正的空按
 	if ignore_empty_press_without_nearby_notes:
 		if not DefenseNoteSearch.has_any_nearby_note(
-			track_manager.active_notes,
 			track_manager.tracked_notes,
 			current_time,
 			empty_press_note_check_window
