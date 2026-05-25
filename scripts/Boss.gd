@@ -4,6 +4,7 @@ const RhythmClock := preload("res://scripts/RhythmClock.gd")
 const MusicClockEventQueue := preload("res://scripts/MusicClockEventQueue.gd")
 const BossPartHealthModel := preload("res://scripts/BossPartHealthModel.gd")
 const BossMissileSideSelector := preload("res://scripts/BossMissileSideSelector.gd")
+const BossPreChargeTargetPicker := preload("res://scripts/BossPreChargeTargetPicker.gd")
 ## Boss 状态机控制器
 ## 提供可扩展状态流转，并支持初始测试：在指定范围内持续随机移动。
 
@@ -1720,44 +1721,23 @@ func _refresh_pre_charge_target() -> bool:
 	if _target_character == null:
 		return false
 
-	var selection: Dictionary = _pick_pre_charge_target(_target_character.global_position)
+	var selection: Dictionary = BossPreChargeTargetPicker.pick(
+		global_position,
+		_target_character.global_position,
+		_spawn_position,
+		max_move_left,
+		max_move_right,
+		max_move_up,
+		max_move_down,
+		pre_charge_distance_from_player,
+		pre_charge_pick_attempts
+	)
 	_pre_charge_target_on_ring = bool(selection.get("found_on_ring", false))
 	var target: Vector2 = selection.get("target", global_position)
 	_move_target = target
 	_has_move_target = global_position.distance_to(_move_target) > target_reach_distance
 	return true
 
-
-func _pick_pre_charge_target(player_pos: Vector2) -> Dictionary:
-	var radius: float = maxf(1.0, pre_charge_distance_from_player)
-	var sample_count: int = maxi(96, pre_charge_pick_attempts)
-	var best_ring_target: Vector2 = Vector2.ZERO
-	var best_ring_distance: float = INF
-	var found_ring_target: bool = false
-
-	for i in range(sample_count):
-		var angle: float = (TAU * float(i)) / float(sample_count)
-		var candidate: Vector2 = player_pos + Vector2.RIGHT.rotated(angle) * radius
-		if not _is_within_move_area(candidate):
-			continue
-
-		var travel_distance: float = global_position.distance_to(candidate)
-		if travel_distance < best_ring_distance:
-			best_ring_distance = travel_distance
-			best_ring_target = candidate
-			found_ring_target = true
-
-	if found_ring_target:
-		return {
-			"found_on_ring": true,
-			"target": best_ring_target
-		}
-
-	# 圆环无交点时，回退到可移动区域内最靠近玩家的位置。
-	return {
-		"found_on_ring": false,
-		"target": _clamp_to_move_area(player_pos)
-	}
 
 func _prepare_pre_missile_return_target() -> bool:
 	_move_target = _spawn_position
