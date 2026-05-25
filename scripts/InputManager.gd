@@ -551,39 +551,37 @@ func _on_attack_phase_end() -> void:
 	if current_phase != PhaseState.ATTACK:
 		return
 
-	current_phase = PhaseState.DEFENSE
-	attack_phase_end_time = 0.0
-	_beat_generation += 1
-	attack_beat_grid.clear()
-	_heavy_skip_next_beat = false
-	if attack_phase_timer != null:
-		attack_phase_timer.stop()
-	attack_beat_timer.stop()
+	_reset_attack_phase_runtime()
 	
 	var total_attack_beats: int = attack_countdown_beats + attack_input_beats + attack_exit_beats
 	print("[总拍", total_attack_beats, "/", total_attack_beats, "] 攻击阶段结束")
 	print("========== 攻击阶段结束 ==========\n")
 	
-	EventBus.attack_movement_enabled_changed.emit(false)
-	EventBus.hide_attack_ui_requested.emit()
-	EventBus.attack_phase_ended.emit()
+	_emit_attack_phase_ended()
 
 
 func force_end_attack_phase() -> void:
 	if current_phase != PhaseState.ATTACK:
 		return
 
+	_reset_attack_phase_runtime()
+
+	_emit_attack_phase_ended()
+
+
+func _reset_attack_phase_runtime() -> void:
 	current_phase = PhaseState.DEFENSE
 	attack_phase_end_time = 0.0
 	_beat_generation += 1
 	attack_beat_grid.clear()
 	_heavy_skip_next_beat = false
-
 	if attack_phase_timer != null:
 		attack_phase_timer.stop()
 	if attack_beat_timer != null:
 		attack_beat_timer.stop()
 
+
+func _emit_attack_phase_ended() -> void:
 	EventBus.attack_movement_enabled_changed.emit(false)
 	EventBus.hide_attack_ui_requested.emit()
 	EventBus.attack_phase_ended.emit()
