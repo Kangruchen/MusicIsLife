@@ -8,6 +8,7 @@ const BossPreChargeTargetPicker := preload("res://scripts/BossPreChargeTargetPic
 const BossMissileWarningLightStyle := preload("res://scripts/BossMissileWarningLightStyle.gd")
 const BossMissileLauncherRecoilState := preload("res://scripts/BossMissileLauncherRecoilState.gd")
 const BossChargeBulletTiming := preload("res://scripts/BossChargeBulletTiming.gd")
+const PlayerAfterimageFactory := preload("res://scripts/PlayerAfterimageFactory.gd")
 ## Boss 状态机控制器
 ## 提供可扩展状态流转，并支持初始测试：在指定范围内持续随机移动。
 
@@ -2441,29 +2442,14 @@ func _spawn_player_afterimage() -> void:
 		return
 
 	var player_sprite: AnimatedSprite2D = _player_node.get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
-	if player_sprite == null:
+	var ghost: Sprite2D = PlayerAfterimageFactory.create_from_sprite(
+		player_sprite,
+		PLAYER_DASH_AFTERIMAGE_GROUP,
+		player_dash_afterimage_color,
+		player_dash_afterimage_alpha
+	)
+	if ghost == null:
 		return
-	if player_sprite.sprite_frames == null:
-		return
-	if not player_sprite.sprite_frames.has_animation(player_sprite.animation):
-		return
-
-	var frame_texture: Texture2D = player_sprite.sprite_frames.get_frame_texture(player_sprite.animation, player_sprite.frame)
-	if frame_texture == null:
-		return
-
-	var ghost: Sprite2D = Sprite2D.new()
-	ghost.texture = frame_texture
-	ghost.centered = player_sprite.centered
-	ghost.offset = player_sprite.offset
-	ghost.flip_h = player_sprite.flip_h
-	ghost.flip_v = player_sprite.flip_v
-	ghost.global_transform = player_sprite.global_transform
-	ghost.add_to_group(PLAYER_DASH_AFTERIMAGE_GROUP)
-
-	var color: Color = player_dash_afterimage_color
-	color.a = player_dash_afterimage_alpha
-	ghost.modulate = color
 
 	var scene_root: Node = get_tree().current_scene
 	if scene_root == null:
