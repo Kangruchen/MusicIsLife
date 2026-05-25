@@ -9,6 +9,7 @@ const BossMissileWarningLightStyle := preload("res://scripts/BossMissileWarningL
 const BossMissileLauncherRecoilState := preload("res://scripts/BossMissileLauncherRecoilState.gd")
 const BossChargeBulletTiming := preload("res://scripts/BossChargeBulletTiming.gd")
 const PlayerAfterimageFactory := preload("res://scripts/PlayerAfterimageFactory.gd")
+const SpriteAnimationDuration := preload("res://scripts/SpriteAnimationDuration.gd")
 ## Boss 状态机控制器
 ## 提供可扩展状态流转，并支持初始测试：在指定范围内持续随机移动。
 
@@ -432,7 +433,7 @@ func _schedule_boss_attack_sound_from_sprite(attack_type: int, sprite: AnimatedS
 
 	var delay: float = 0.0
 	if trigger_frame > start_frame:
-		delay = _get_sprite_animation_partial_duration(sprite.sprite_frames, anim_name, start_frame, trigger_frame - 1)
+		delay = SpriteAnimationDuration.get_duration(sprite.sprite_frames, anim_name, start_frame, trigger_frame - 1)
 		delay /= maxf(0.01, sprite.speed_scale)
 
 	if delay <= 0.001:
@@ -876,13 +877,13 @@ func _play_single_charge_sprite(charge_sprite: AnimatedSprite2D, target_duration
 	# 对齐规则：提前三拍开播，从序列 2 起播；音符到判定线时对齐 attack_end_frame。
 	var base_duration: float = 0.0
 	if attack_end_frame > start_frame:
-		base_duration = _get_sprite_animation_partial_duration(sprite_frames, anim_name_text, start_frame, attack_end_frame - 1)
+		base_duration = SpriteAnimationDuration.get_duration(sprite_frames, anim_name_text, start_frame, attack_end_frame - 1)
 	if base_duration > 0.0:
 		charge_sprite.speed_scale = base_duration / target_duration
 	else:
 		charge_sprite.speed_scale = 1.0
 
-	var full_base_duration: float = _get_sprite_animation_partial_duration(sprite_frames, anim_name_text, start_frame, frame_count - 1)
+	var full_base_duration: float = SpriteAnimationDuration.get_duration(sprite_frames, anim_name_text, start_frame, frame_count - 1)
 	var played_duration: float = target_duration
 	if charge_sprite.speed_scale > 0.0 and full_base_duration > 0.0:
 		played_duration = full_base_duration / charge_sprite.speed_scale
@@ -2479,37 +2480,6 @@ func _stop_player_dash_afterimage() -> void:
 		var ghost_node: Node = node as Node
 		if ghost_node != null and is_instance_valid(ghost_node):
 			ghost_node.queue_free()
-
-
-func _get_sprite_animation_duration(sprite_frames: SpriteFrames, anim_name: String) -> float:
-	var frame_count: int = sprite_frames.get_frame_count(anim_name)
-	var base_fps: float = sprite_frames.get_animation_speed(anim_name)
-	if frame_count <= 0 or base_fps <= 0.0:
-		return 0.0
-
-	var total_units: float = 0.0
-	for i in range(frame_count):
-		total_units += sprite_frames.get_frame_duration(anim_name, i)
-
-	return total_units / base_fps
-
-
-func _get_sprite_animation_partial_duration(sprite_frames: SpriteFrames, anim_name: String, from_frame: int, to_frame: int) -> float:
-	var frame_count: int = sprite_frames.get_frame_count(anim_name)
-	var base_fps: float = sprite_frames.get_animation_speed(anim_name)
-	if frame_count <= 0 or base_fps <= 0.0:
-		return 0.0
-
-	var from_idx: int = maxi(0, from_frame)
-	var to_idx: int = mini(to_frame, frame_count - 1)
-	if to_idx < from_idx:
-		return 0.0
-
-	var total_units: float = 0.0
-	for i in range(from_idx, to_idx + 1):
-		total_units += sprite_frames.get_frame_duration(anim_name, i)
-
-	return total_units / base_fps
 
 
 func _get_charge_attack_end_frame(frame_count: int) -> int:

@@ -2,6 +2,7 @@ extends Node2D
 
 const CharacterAttackHitboxRules := preload("res://scripts/CharacterAttackHitboxRules.gd")
 const DebugShapeDrawer := preload("res://scripts/DebugShapeDrawer.gd")
+const SpriteAnimationDuration := preload("res://scripts/SpriteAnimationDuration.gd")
 ## 玩家控制器（阶段状态机 + 动作状态机 + 按动画帧控制判定框）
 
 enum PlayerState {
@@ -1116,23 +1117,10 @@ func _freeze_current_animation_last_frame() -> void:
 
 
 func _get_animation_duration_seconds(anim_name: String) -> float:
-	if animated_sprite == null or animated_sprite.sprite_frames == null:
-		return 0.0
-
-	var sprite_frames: SpriteFrames = animated_sprite.sprite_frames
-	if not sprite_frames.has_animation(anim_name):
-		return 0.0
-
-	var frame_count: int = sprite_frames.get_frame_count(anim_name)
-	var base_fps: float = sprite_frames.get_animation_speed(anim_name)
-	if frame_count <= 0 or base_fps <= 0.0:
-		return 0.0
-
-	var total_units: float = 0.0
-	for i in range(frame_count):
-		total_units += sprite_frames.get_frame_duration(anim_name, i)
-
-	return total_units / base_fps
+	var sprite_frames: SpriteFrames = null
+	if animated_sprite != null:
+		sprite_frames = animated_sprite.sprite_frames
+	return SpriteAnimationDuration.get_duration(sprite_frames, anim_name)
 
 
 func _start_death_music_fadeout() -> void:

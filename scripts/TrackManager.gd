@@ -4,6 +4,7 @@ const RhythmClock := preload("res://scripts/RhythmClock.gd")
 const MusicClockEventQueue := preload("res://scripts/MusicClockEventQueue.gd")
 const HitNoteSideAssignments := preload("res://scripts/HitNoteSideAssignments.gd")
 const TrackCueRequestRegistry := preload("res://scripts/TrackCueRequestRegistry.gd")
+const SpriteAnimationDuration := preload("res://scripts/SpriteAnimationDuration.gd")
 ## 轨道管理器 - 负责生成和管理音符的可视化
 
 
@@ -986,7 +987,7 @@ func _spawn_main_animation(note: Note, target_beats: int, counter: int) -> void:
 		
 		if attack_end_frame > 0 and attack_end_frame < frame_count:
 			# 计算帧 0 到 attack_end_frame-1 在原始速度下的播放时长，反推 speed_scale。
-			var partial_duration: float = _get_animation_duration(sprite_frames, resolved_anim_name, 0, attack_end_frame - 1)
+			var partial_duration: float = SpriteAnimationDuration.get_duration(sprite_frames, resolved_anim_name, 0, attack_end_frame - 1)
 			if partial_duration > 0.0 and target_duration > 0.0:
 				anim_speed_scale = clampf(partial_duration / target_duration, 0.05, 20.0)
 				attack_end_delay = partial_duration / anim_speed_scale
@@ -1136,11 +1137,11 @@ func _play_external_track_animation(note: Note, target_beats: int, configured_an
 	var speed_scale: float = 1.0
 	var base_duration: float = 0.0
 	if attack_end_frame > start_frame:
-		base_duration = _get_animation_duration(sprite_frames, anim_name, start_frame, attack_end_frame - 1)
+		base_duration = SpriteAnimationDuration.get_duration(sprite_frames, anim_name, start_frame, attack_end_frame - 1)
 	if base_duration > 0.0 and target_duration > 0.0:
 		speed_scale = base_duration / target_duration
 
-	var full_duration: float = _get_animation_duration(sprite_frames, anim_name, start_frame, frame_count - 1)
+	var full_duration: float = SpriteAnimationDuration.get_duration(sprite_frames, anim_name, start_frame, frame_count - 1)
 	var play_duration: float = target_duration
 	if speed_scale > 0.0 and full_duration > 0.0:
 		play_duration = full_duration / speed_scale
@@ -1233,20 +1234,6 @@ func _resolve_animation_name_for_sprite(note_type: Note.NoteType, requested_anim
 
 	push_warning("SpriteFrames 未包含任何动画")
 	return ""
-
-
-## 计算 SpriteFrames 中指定动画帧范围 [from_frame, to_frame] 的播放时长（秒）
-## to_frame 不传则计算全部帧
-func _get_animation_duration(sprite_frames: SpriteFrames, anim_name: String, from_frame: int = 0, to_frame: int = -1) -> float:
-	var frame_count: int = sprite_frames.get_frame_count(anim_name)
-	var base_fps: float = sprite_frames.get_animation_speed(anim_name)
-	if frame_count <= 0 or base_fps <= 0:
-		return 0.0
-	var end: int = to_frame if (to_frame >= 0 and to_frame < frame_count) else frame_count - 1
-	var total: float = 0.0
-	for i in range(from_frame, end + 1):
-		total += sprite_frames.get_frame_duration(anim_name, i)
-	return total / base_fps
 
 
 ## 获取 Bling 特效的X偏移量（找到第一个没有被占据的位置）
