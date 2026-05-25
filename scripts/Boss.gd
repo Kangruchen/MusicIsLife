@@ -3,6 +3,7 @@ extends Node2D
 const RhythmClock := preload("res://scripts/RhythmClock.gd")
 const MusicClockEventQueue := preload("res://scripts/MusicClockEventQueue.gd")
 const BossPartHealthModel := preload("res://scripts/BossPartHealthModel.gd")
+const BossMissileSideSelector := preload("res://scripts/BossMissileSideSelector.gd")
 ## Boss 状态机控制器
 ## 提供可扩展状态流转，并支持初始测试：在指定范围内持续随机移动。
 
@@ -182,8 +183,7 @@ var _is_preparing_missile: bool = false
 var _has_pending_missile_launch: bool = false
 var _pending_missile_launch_time: float = 0.0
 var _active_missiles: Array[Node2D] = []
-var _missile_launch_side_index: int = 0
-var _pending_missile_forced_sides: Array[int] = []
+var _missile_side_selector: RefCounted = BossMissileSideSelector.new()
 var _attack_phase_interrupted: bool = false
 var _missile_effect_token: int = 0
 var _missile_left_origin_position: Vector2 = Vector2.ZERO
@@ -1088,7 +1088,7 @@ func _on_boss_defeated() -> void:
 	_is_preparing_missile = false
 	_is_preparing_charge = false
 	_has_pending_missile_launch = false
-	_pending_missile_forced_sides.clear()
+	_missile_side_selector.clear_forced_sides()
 	_pending_charge_beats = 0.0
 	_has_pending_charge_fire = false
 	_pending_charge_fire_time = 0.0
@@ -1125,7 +1125,7 @@ func _interrupt_for_attack_phase(target_state: BossState = BossState.IDLE) -> vo
 	_is_preparing_missile = false
 	_is_preparing_charge = false
 	_has_pending_missile_launch = false
-	_pending_missile_forced_sides.clear()
+	_missile_side_selector.clear_forced_sides()
 	_pending_charge_beats = 0.0
 	_has_pending_charge_fire = false
 	_pending_charge_fire_time = 0.0
@@ -1153,7 +1153,7 @@ func _on_attack_phase_ended() -> void:
 	_is_preparing_missile = false
 	_is_preparing_charge = false
 	_has_pending_missile_launch = false
-	_pending_missile_forced_sides.clear()
+	_missile_side_selector.clear_forced_sides()
 	_pending_charge_beats = 0.0
 	_has_pending_charge_fire = false
 	_pending_charge_fire_time = 0.0
@@ -1183,7 +1183,7 @@ func _on_player_died() -> void:
 	_is_preparing_missile = false
 	_is_preparing_charge = false
 	_has_pending_missile_launch = false
-	_pending_missile_forced_sides.clear()
+	_missile_side_selector.clear_forced_sides()
 	_has_pending_charge_fire = false
 	_pending_charge_fire_time = 0.0
 	_pending_missile_beats = 0
@@ -1445,7 +1445,7 @@ func _cancel_missile_flow_after_parts_broken() -> void:
 	_pending_missile_launch_time = 0.0
 	_pending_missile_beats = 0
 	_missile_state_remaining_time = 0.0
-	_pending_missile_forced_sides.clear()
+	_missile_side_selector.clear_forced_sides()
 	_clear_active_missiles()
 
 
@@ -1460,7 +1460,7 @@ func _reset_part_health() -> void:
 		right_part_break_damage_threshold
 	)
 	_part_health.reset()
-	_pending_missile_forced_sides.clear()
+	_missile_side_selector.clear_forced_sides()
 	_set_part_hurtbox_active(BOSS_PART_MIDDLE, true)
 	_set_part_hurtbox_active(BOSS_PART_LEFT, true)
 	_set_part_hurtbox_active(BOSS_PART_RIGHT, true)
@@ -1535,7 +1535,7 @@ func are_missile_parts_all_destroyed() -> bool:
 
 
 func get_next_missile_turn_side() -> int:
-	return MISSILE_SIDE_LEFT if (_missile_launch_side_index % 2 == 0) else MISSILE_SIDE_RIGHT
+	return _missile_side_selector.get_next_turn_side()
 
 
 func is_missile_side_destroyed(side: int) -> bool:
@@ -1551,13 +1551,11 @@ func is_pre_missile_return_enabled() -> bool:
 
 
 func consume_missile_turn() -> void:
-	_missile_launch_side_index += 1
+	_missile_side_selector.consume_turn()
 
 
 func enqueue_missile_forced_side(side: int) -> void:
-	if side != MISSILE_SIDE_LEFT and side != MISSILE_SIDE_RIGHT:
-		return
-	_pending_missile_forced_sides.append(side)
+	_missile_side_selector.enqueue_forced_side(side)
 
 
 func is_track_attack_visual_active(note_type: int) -> bool:
@@ -2180,27 +2178,13 @@ func _clear_missile_warning_preview() -> void:
 
 
 func _pick_missile_launch_node() -> Node2D:
-	if not _pending_missile_forced_sides.is_empty():
-		var forced_side: int = int(_pending_missile_forced_sides.pop_front())
-		if forced_side == MISSILE_SIDE_LEFT:
-			if _missile_left_node != null and not _is_part_destroyed(BOSS_PART_LEFT):
-				return _missile_left_node
-			return null
-
-		if _missile_right_node != null and not _is_part_destroyed(BOSS_PART_RIGHT):
-			return _missile_right_node
-		return null
-
-	# 严格按轮次侧位发射：轮到坏侧则本次不发，不兜底切到另一侧。
-	var launch_side: int = _missile_launch_side_index % 2
-	_missile_launch_side_index += 1
-
+	var launch_side: int = _missile_side_selector.pick_launch_side(
+		_missile_left_node != null and not _is_part_destroyed(BOSS_PART_LEFT),
+		_missile_right_node != null and not _is_part_destroyed(BOSS_PART_RIGHT)
+	)
 	if launch_side == MISSILE_SIDE_LEFT:
-		if _missile_left_node != null and not _is_part_destroyed(BOSS_PART_LEFT):
-			return _missile_left_node
-		return null
-
-	if _missile_right_node != null and not _is_part_destroyed(BOSS_PART_RIGHT):
+		return _missile_left_node
+	if launch_side == MISSILE_SIDE_RIGHT:
 		return _missile_right_node
 	return null
 
