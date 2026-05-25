@@ -5,12 +5,6 @@ const HeatBeatFlashStyle := preload("res://scripts/HeatBeatFlashStyle.gd")
 const AttackBeatTrackLayout := preload("res://scripts/AttackBeatTrackLayout.gd")
 ## 游戏UI - 管理血条显示和攻击阶段UI
 
-# 轨道配置（游戏逻辑坐标，用于判定计算）
-const TRACK_HEIGHT: float = 80.0
-const TRACK_SPACING: float = 10.0
-const JUDGMENT_LINE_X: float = 100.0
-const TRACK_START_Y: float = 57.0
-
 # 节拍轨道视觉配置
 const BEAT_TRACK_HEIGHT: float = 24.0
 const BEAT_TRACK_TOP_OFFSET: float = 20.0
