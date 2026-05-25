@@ -5,6 +5,7 @@ const MusicClockEventQueue := preload("res://scripts/MusicClockEventQueue.gd")
 const BossPartHealthModel := preload("res://scripts/BossPartHealthModel.gd")
 const BossMissileSideSelector := preload("res://scripts/BossMissileSideSelector.gd")
 const BossPreChargeTargetPicker := preload("res://scripts/BossPreChargeTargetPicker.gd")
+const BossMissileWarningLightStyle := preload("res://scripts/BossMissileWarningLightStyle.gd")
 ## Boss 状态机控制器
 ## 提供可扩展状态流转，并支持初始测试：在指定范围内持续随机移动。
 
@@ -196,8 +197,7 @@ var _missile_right_recoil_tween: Tween = null
 var _missile_return_arrived_logged: bool = false
 var _last_missile_despawn_position: Vector2 = Vector2.ZERO
 var _has_last_missile_despawn_position: bool = false
-var _missile_warning_light_texture: Texture2D = null
-var _missile_warning_light_texture_signature: String = ""
+var _missile_warning_style: RefCounted = BossMissileWarningLightStyle.new()
 var _missile_warning_preview_light: Sprite2D = null
 var _missile_warning_preview_token: int = 0
 var _break_transition_tween: Tween = null
@@ -2020,90 +2020,32 @@ func _blink_missile_warning_once(missile: Node2D) -> void:
 func _blink_warning_light_once(warning_light: Sprite2D, owner_node: Node2D) -> void:
 	if warning_light == null or not is_instance_valid(warning_light):
 		return
-	_configure_warning_light_sprite(warning_light, owner_node)
 
 	var beat_seconds: float = EventBus.beat_interval
-	if beat_seconds <= 0.0:
-		beat_seconds = 0.5
-	var flash_ratio: float = clampf(missile_warning_flash_ratio, 0.05, 0.95)
-	var flash_duration: float = maxf(0.03, beat_seconds * flash_ratio)
-
-	var base_color: Color = missile_warning_light_color
-	var peak_alpha: float = clampf(missile_warning_peak_alpha, 0.0, 1.0)
-	var off_color: Color = Color(base_color.r, base_color.g, base_color.b, 0.0)
-	var on_color: Color = Color(base_color.r, base_color.g, base_color.b, peak_alpha)
-
-	warning_light.modulate = off_color
-	if warning_light.get_tree() == null:
-		return
-	var flash_tween: Tween = warning_light.create_tween()
-	flash_tween.tween_property(warning_light, "modulate", on_color, flash_duration * 0.35).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	flash_tween.tween_property(warning_light, "modulate", off_color, flash_duration * 0.65).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-
-
-func _get_missile_warning_light_texture() -> Texture2D:
-	var texture_size_px: int = clampi(int(round(missile_warning_radius_px * 4.0)), 48, 256)
-	var signature: String = "%d|%.3f" % [texture_size_px, missile_warning_falloff_power]
-	if _missile_warning_light_texture != null and _missile_warning_light_texture_signature == signature:
-		return _missile_warning_light_texture
-
-	_missile_warning_light_texture_signature = signature
-
-	var image: Image = Image.create(texture_size_px, texture_size_px, false, Image.FORMAT_RGBA8)
-	var center: Vector2 = Vector2(float(texture_size_px) * 0.5, float(texture_size_px) * 0.5)
-	var radius: float = maxf(1.0, float(texture_size_px) * 0.5)
-	var falloff_power: float = maxf(0.6, missile_warning_falloff_power)
-
-	for y in range(texture_size_px):
-		for x in range(texture_size_px):
-			var sample_pos: Vector2 = Vector2(float(x) + 0.5, float(y) + 0.5)
-			var d_norm: float = center.distance_to(sample_pos) / radius
-			if d_norm >= 1.0:
-				image.set_pixel(x, y, Color(1.0, 1.0, 1.0, 0.0))
-				continue
-
-			var t: float = 1.0 - d_norm
-			var alpha: float = pow(t, falloff_power)
-			alpha += smoothstep(0.62, 1.0, t) * 0.22
-			alpha = clampf(alpha, 0.0, 1.0)
-			image.set_pixel(x, y, Color(1.0, 1.0, 1.0, alpha))
-
-	_missile_warning_light_texture = ImageTexture.create_from_image(image)
-	return _missile_warning_light_texture
+	_missile_warning_style.blink_once(
+		warning_light,
+		owner_node,
+		beat_seconds,
+		missile_warning_flash_ratio,
+		missile_warning_light_color,
+		missile_warning_peak_alpha,
+		missile_warning_radius_px,
+		missile_warning_falloff_power,
+		missile_warning_light_scale,
+		missile_warning_additive_blend
+	)
 
 
 func _configure_warning_light_sprite(warning_light: Sprite2D, owner_node: Node2D) -> void:
-	if warning_light == null:
-		return
-
-	warning_light.texture = _get_missile_warning_light_texture()
-	warning_light.centered = true
-	warning_light.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-	warning_light.z_index = 10
-
-	var diameter_px: float = maxf(2.0, missile_warning_radius_px * 2.0 * maxf(0.1, missile_warning_light_scale))
-	var texture_width: float = maxf(1.0, warning_light.texture.get_size().x)
-	var local_scale: float = diameter_px / texture_width
-
-	var owner_scale_x: float = 1.0
-	var owner_scale_y: float = 1.0
-	if owner_node != null:
-		owner_scale_x = absf(owner_node.scale.x)
-		owner_scale_y = absf(owner_node.scale.y)
-	var owner_scale_avg: float = maxf(0.001, (owner_scale_x + owner_scale_y) * 0.5)
-
-	warning_light.scale = Vector2.ONE * (local_scale / owner_scale_avg)
-	var base_color: Color = missile_warning_light_color
-	warning_light.modulate = Color(base_color.r, base_color.g, base_color.b, 0.0)
-
-	if missile_warning_additive_blend:
-		var add_material: CanvasItemMaterial = warning_light.material as CanvasItemMaterial
-		if add_material == null:
-			add_material = CanvasItemMaterial.new()
-			warning_light.material = add_material
-		add_material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	else:
-		warning_light.material = null
+	_missile_warning_style.configure_sprite(
+		warning_light,
+		owner_node,
+		missile_warning_radius_px,
+		missile_warning_falloff_power,
+		missile_warning_light_scale,
+		missile_warning_light_color,
+		missile_warning_additive_blend
+	)
 
 
 func _update_missile_warning_preview() -> void:
