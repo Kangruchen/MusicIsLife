@@ -114,11 +114,6 @@ size_flags_horizontal = 4
 size_flags_vertical = 4
 script = ExtResource("6_6yjpi")
 player_node = NodePath("../../Player")
-dialog_title = "教学提示"
-dialog1_text = "Hello, World!!!"
-dialog2_text = "准备好开始试验了吗！"
-dialog3_text = "准备好迎接终极试验的挑战了么！"
-dialog4_text = "准备好迎接终极试验的挑战了么！"
 
 [node name="Background" type="Sprite2D" parent="."]
 visible = false

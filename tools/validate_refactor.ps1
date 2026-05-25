@@ -62,6 +62,7 @@ try {
     Invoke-GodotCheck "check-boss-part-health-model" @("--headless", "--check-only", "--script", "res://scripts/BossPartHealthModel.gd")
     Invoke-GodotCheck "check-boss-missile-side-selector" @("--headless", "--check-only", "--script", "res://scripts/BossMissileSideSelector.gd")
     Invoke-GodotCheck "check-boss-pre-charge-target-picker" @("--headless", "--check-only", "--script", "res://scripts/BossPreChargeTargetPicker.gd")
+    Invoke-GodotCheck "check-dialogue-ui" @("--headless", "--check-only", "--script", "res://scenes/dialogue_ui.tscn.gd")
     Invoke-GodotCheck "project-headless" @("--headless", "--quit-after", "10")
     Invoke-GodotCheck "main-scene-smoke" @("--headless", "--scene", "res://scenes/Main.tscn", "--quit-after", "30")
     Invoke-GodotCheck "tutorial-scene-smoke" @("--headless", "--scene", "res://scenes/tutorial.tscn", "--quit-after", "30")

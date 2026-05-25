@@ -1,7 +1,6 @@
 extends Area2D
 class_name DialogueTrigger
 
-@export var dialogue_id: int = 0
 @export var dialogue_lines: Array[DialogueLine]
 @export var dialogue_ui: DialogueUI
 @export var trigger_battle_id: int = 0
@@ -41,10 +40,7 @@ func _on_body_entered(body: Node2D) -> void:
 			prompt_node.show()
 		return
 
-	if _use_legacy_dialogue():
-		_trigger_legacy_dialogue()
-	else:
-		_try_trigger_dialogue()
+	_try_trigger_dialogue()
 
 
 func _on_body_exited(body: Node2D) -> void:
@@ -89,50 +85,6 @@ func _try_trigger_dialogue() -> void:
 			dialogue_ui.dialogue_closed.connect(_on_dialogue_closed_start_battle, CONNECT_ONE_SHOT)
 		return
 
-	queue_free()
-
-
-func _use_legacy_dialogue() -> bool:
-	return dialogue_id > 0
-
-
-func _trigger_legacy_dialogue() -> void:
-	if dialogue_ui == null or dialogue_ui.is_busy:
-		return
-
-	if trigger_battle_id > 0 and dialogue_ui:
-		if not dialogue_ui.dialogue_closed_with_id.is_connected(_on_legacy_dialogue_closed):
-			dialogue_ui.dialogue_closed_with_id.connect(_on_legacy_dialogue_closed)
-		var battle_manager: TutorialBattleManager = _get_battle_manager()
-		if battle_manager:
-			battle_manager.prepare_battle(trigger_battle_id)
-	else:
-		if dialogue_ui and dialogue_ui.dialogue_closed_with_id.is_connected(_on_legacy_dialogue_closed):
-			dialogue_ui.dialogue_closed_with_id.disconnect(_on_legacy_dialogue_closed)
-		queue_free()
-
-	match dialogue_id:
-		1:
-			dialogue_ui.show_dialog1()
-		2:
-			dialogue_ui.show_dialog2()
-		3:
-			dialogue_ui.show_dialog3()
-		4:
-			dialogue_ui.show_dialog4()
-		_:
-			push_warning("Unknown Dialogue ID")
-
-
-func _on_legacy_dialogue_closed(closed_id: int) -> void:
-	if closed_id != dialogue_id:
-		return
-	if dialogue_ui and dialogue_ui.dialogue_closed_with_id.is_connected(_on_legacy_dialogue_closed):
-		dialogue_ui.dialogue_closed_with_id.disconnect(_on_legacy_dialogue_closed)
-	if trigger_battle_id > 0:
-		var battle_manager: TutorialBattleManager = _get_battle_manager()
-		if battle_manager:
-			battle_manager.start_battle(trigger_battle_id)
 	queue_free()
 
 
