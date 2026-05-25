@@ -6,6 +6,7 @@ const HitNoteSideAssignments := preload("res://scripts/HitNoteSideAssignments.gd
 const TrackCueRequestRegistry := preload("res://scripts/TrackCueRequestRegistry.gd")
 const SpriteAnimationDuration := preload("res://scripts/SpriteAnimationDuration.gd")
 const PrejudgeKeyHintStyle := preload("res://scripts/PrejudgeKeyHintStyle.gd")
+const TrackedNoteRuntime := preload("res://scripts/TrackedNoteRuntime.gd")
 ## 轨道管理器 - 负责生成和管理音符的可视化
 
 
@@ -286,19 +287,7 @@ func _process(_delta: float) -> void:
 		_check_and_spawn_notes_by_time(current_time)
 		
 		# 检查非可视追踪音符的 MISS
-		for i in range(tracked_notes.size() - 1, -1, -1):
-			if i < 0 or i >= tracked_notes.size():
-				continue
-			var note: Note = tracked_notes[i]
-			if _should_silently_drop_runtime_note(note):
-				tracked_notes.remove_at(i)
-				_erase_note_runtime_state(note)
-				continue
-			var time_past: float = current_time - note.beat_time
-			if time_past >= MISS_THRESHOLD:
-				tracked_notes.remove_at(i)
-				_erase_note_runtime_state(note)
-				EventBus.miss_triggered.emit(note.type)
+		_process_tracked_note_runtime(current_time)
 
 
 ## 设置铺面数据
@@ -312,6 +301,24 @@ func set_chart(chart: Chart) -> void:
 
 func _assign_hit_note_sides() -> void:
 	_hit_note_sides.assign_notes(scheduled_notes)
+
+
+func _process_tracked_note_runtime(now_time: float) -> void:
+	var resolved: Dictionary = TrackedNoteRuntime.collect_resolved_notes(
+		tracked_notes,
+		now_time,
+		MISS_THRESHOLD,
+		Callable(self, "_should_silently_drop_runtime_note")
+	)
+
+	for note in resolved["dropped_notes"]:
+		tracked_notes.erase(note)
+		_erase_note_runtime_state(note)
+
+	for note in resolved["missed_notes"]:
+		tracked_notes.erase(note)
+		_erase_note_runtime_state(note)
+		EventBus.miss_triggered.emit(note.type)
 
 
 ## 检查并生成需要提前生成的音符（基于时间）
