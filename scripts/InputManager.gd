@@ -4,7 +4,7 @@ const RhythmClock := preload("res://scripts/RhythmClock.gd")
 const AttackHeatModel := preload("res://scripts/AttackHeatModel.gd")
 const AttackBeatGrid := preload("res://scripts/AttackBeatGrid.gd")
 const DefenseJudgmentRules := preload("res://scripts/DefenseJudgmentRules.gd")
-const DefenseNoteSearch := preload("res://scripts/DefenseNoteSearch.gd")
+const DefenseInputResolution := preload("res://scripts/DefenseInputResolution.gd")
 ## 输入管理器 - 处理玩家输入和判定逻辑
 
 
@@ -161,12 +161,18 @@ func _handle_input(track_type: Note.NoteType) -> void:
 	# 获取当前时间
 	var current_time: float = _get_music_clock_time()
 	
-	var closest_tracked: Note = DefenseNoteSearch.find_tracked_note(
+	var resolution: Dictionary = DefenseInputResolution.resolve(
 		track_manager.tracked_notes,
 		track_type,
 		current_time,
-		DefenseJudgmentRules.good_window()
+		DefenseJudgmentRules.good_window(),
+		ignore_empty_press_without_nearby_notes,
+		empty_press_note_check_window
 	)
+	var resolution_kind: int = int(resolution["kind"])
+	var closest_tracked: Note = null
+	if resolution_kind == DefenseInputResolution.KIND_TRACKED_NOTE:
+		closest_tracked = resolution["note"]
 	
 	if closest_tracked:
 		var min_tracked_diff: float = abs(current_time - closest_tracked.beat_time)
@@ -185,12 +191,9 @@ func _handle_input(track_type: Note.NoteType) -> void:
 		return
 	
 	# 没有同轨道音符在判定窗口内，检查是否按错了键（其他轨道有音符）
-	var wrong_note: Note = DefenseNoteSearch.find_wrong_tracked_note(
-		track_manager.tracked_notes,
-		track_type,
-		current_time,
-		DefenseJudgmentRules.good_window()
-	)
+	var wrong_note: Note = null
+	if resolution_kind == DefenseInputResolution.KIND_WRONG_NOTE:
+		wrong_note = resolution["note"]
 	
 	if wrong_note:
 		# 按错键：消耗该音符并判定为 MISS（避免之后自动超时再触发一次 MISS）
@@ -202,11 +205,7 @@ func _handle_input(track_type: Note.NoteType) -> void:
 
 	# 真正的空按
 	if ignore_empty_press_without_nearby_notes:
-		if not DefenseNoteSearch.has_any_nearby_note(
-			track_manager.tracked_notes,
-			current_time,
-			empty_press_note_check_window
-		):
+		if resolution_kind == DefenseInputResolution.KIND_EMPTY_IGNORED:
 			_play_key_sound(track_type)
 			print("判定: 忽略空按 (附近无音符)")
 			return

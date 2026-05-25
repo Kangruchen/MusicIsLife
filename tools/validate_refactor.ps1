@@ -66,6 +66,7 @@ try {
     Invoke-GodotCheck "check-attack-beat-track-layout" @("--headless", "--check-only", "--script", "res://scripts/AttackBeatTrackLayout.gd")
     Invoke-GodotCheck "check-defense-judgment-rules" @("--headless", "--check-only", "--script", "res://scripts/DefenseJudgmentRules.gd")
     Invoke-GodotCheck "check-defense-note-search" @("--headless", "--check-only", "--script", "res://scripts/DefenseNoteSearch.gd")
+    Invoke-GodotCheck "check-defense-input-resolution" @("--headless", "--check-only", "--script", "res://scripts/DefenseInputResolution.gd")
     Invoke-GodotCheck "check-music-clock-event-queue" @("--headless", "--check-only", "--script", "res://scripts/MusicClockEventQueue.gd")
     Invoke-GodotCheck "check-hit-note-side-assignments" @("--headless", "--check-only", "--script", "res://scripts/HitNoteSideAssignments.gd")
     Invoke-GodotCheck "check-track-cue-request-registry" @("--headless", "--check-only", "--script", "res://scripts/TrackCueRequestRegistry.gd")
