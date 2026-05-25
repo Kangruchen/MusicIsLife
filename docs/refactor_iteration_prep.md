@@ -61,11 +61,13 @@ The branch now has reusable helper scripts for:
 - Shared rhythm clock reads and music-clock event queues.
 - Attack heat, attack beat grid, defense judgment rules, and defense note search.
 - Boss part health, missile side selection, and pre-charge target picking.
+- Boss missile warning light style and missile launcher recoil state.
 - Character attack hitbox timing, preset, and default geometry rules.
+- Track HIT note missile side assignments and cue request de-duplication.
 
 Next high-value iterations:
 
-1. Continue reducing `Boss.gd` by extracting missile warning/recoil and charge bullet timing helpers.
+1. Continue reducing `Boss.gd` by extracting charge bullet timing helpers and player dash afterimage helpers.
 2. Split `TrackManager.gd` into note spawning, miss resolution, and boss cue routing.
 3. Move `Character.gd` death-flow and debug-hitbox drawing into smaller collaborators.
 4. Remove remaining old or ambiguous naming after confirming scene usage.
