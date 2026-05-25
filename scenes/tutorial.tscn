@@ -179,7 +179,6 @@ generate_test_chart = false
 script = ExtResource("12_track_mgr")
 boss_node_path = null
 boss_charge_prepare_lead_beats = null
-boss_return_prepare_max_beats = null
 debug_missile_timing = null
 debug_charge_timing = null
 track_animation_config = ExtResource("15_track_anim")

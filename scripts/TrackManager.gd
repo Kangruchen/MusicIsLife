@@ -55,13 +55,11 @@ var _missile_request_sent_notes: Array[Note] = []
 var _charge_request_sent_notes: Array[Note] = []
 var _hit_note_sides: RefCounted = HitNoteSideAssignments.new()
 var _boss_node: Node2D = null
-var _boss_origin_position: Vector2 = Vector2.ZERO
 
 # 音符生成音效配置
 @export_group("Boss 导弹联动")
 @export_node_path("Node2D") var boss_node_path: NodePath = NodePath("../Boss")
 @export_range(0.0, 4.0, 0.25) var boss_charge_prepare_lead_beats: float = 0.75
-@export_range(0.0, 8.0, 0.25) var boss_return_prepare_max_beats: float = 1.0
 @export var debug_missile_timing: bool = false
 @export var debug_charge_timing: bool = false
 @export_group("")
@@ -522,13 +520,8 @@ func _resolve_boss_node() -> void:
 	if _boss_node == null:
 		return
 
-	if _boss_node.has_method("get_spawn_position"):
-		_boss_origin_position = _boss_node.call("get_spawn_position")
-	else:
-		_boss_origin_position = _boss_node.global_position
-
 	if debug_missile_timing:
-		print("[MissileDebug][Track] boss resolved: ", _boss_node.get_path(), " origin=", _boss_origin_position)
+		print("[MissileDebug][Track] boss resolved: ", _boss_node.get_path())
 
 
 ## 生成音符
