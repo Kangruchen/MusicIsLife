@@ -7,6 +7,7 @@ const BossMissileSideSelector := preload("res://scripts/BossMissileSideSelector.
 const BossPreChargeTargetPicker := preload("res://scripts/BossPreChargeTargetPicker.gd")
 const BossMissileWarningLightStyle := preload("res://scripts/BossMissileWarningLightStyle.gd")
 const BossMissileLauncherRecoilState := preload("res://scripts/BossMissileLauncherRecoilState.gd")
+const BossChargeBulletTiming := preload("res://scripts/BossChargeBulletTiming.gd")
 ## Boss 状态机控制器
 ## 提供可扩展状态流转，并支持初始测试：在指定范围内持续随机移动。
 
@@ -907,11 +908,12 @@ func _try_fire_charge_bullet() -> void:
 		return
 	if charge_bullet_scene == null:
 		return
-	if charge_bullet_move_start_frame < charge_bullet_fire_frame:
-		return
-	if charge_bullet_hit_frame <= charge_bullet_move_start_frame:
-		return
-	if charge_bullet_despawn_frame <= charge_bullet_hit_frame:
+	if not BossChargeBulletTiming.are_frame_markers_valid(
+		charge_bullet_fire_frame,
+		charge_bullet_move_start_frame,
+		charge_bullet_hit_frame,
+		charge_bullet_despawn_frame
+	):
 		return
 
 	var timing_sprite: AnimatedSprite2D = _get_charge_timing_sprite()
@@ -920,20 +922,23 @@ func _try_fire_charge_bullet() -> void:
 	if timing_sprite.frame < charge_bullet_fire_frame:
 		return
 
-	var wait_duration: float = _get_charge_bullet_phase_duration(
+	var wait_duration: float = BossChargeBulletTiming.get_phase_duration(
 		timing_sprite,
+		charge_animation_name,
 		charge_bullet_fire_frame,
 		charge_bullet_move_start_frame,
 		0.0
 	)
-	var travel_duration: float = _get_charge_bullet_phase_duration(
+	var travel_duration: float = BossChargeBulletTiming.get_phase_duration(
 		timing_sprite,
+		charge_animation_name,
 		charge_bullet_move_start_frame,
 		charge_bullet_hit_frame,
 		0.12
 	)
-	var despawn_delay: float = _get_charge_bullet_phase_duration(
+	var despawn_delay: float = BossChargeBulletTiming.get_phase_duration(
 		timing_sprite,
+		charge_animation_name,
 		charge_bullet_hit_frame,
 		charge_bullet_despawn_frame,
 		0.05
@@ -951,44 +956,6 @@ func _get_charge_timing_sprite() -> AnimatedSprite2D:
 	if _charge_light_sprite != null:
 		return _charge_light_sprite
 	return null
-
-
-func _get_charge_bullet_phase_duration(
-		timing_sprite: AnimatedSprite2D,
-		from_frame: int,
-		to_frame_exclusive: int,
-		fallback_duration: float
-	) -> float:
-	if to_frame_exclusive <= from_frame:
-		return 0.0
-	if timing_sprite == null or timing_sprite.sprite_frames == null:
-		return fallback_duration
-
-	var anim_name: StringName = _resolve_charge_animation_name(timing_sprite.sprite_frames)
-	if anim_name.is_empty():
-		return fallback_duration
-
-	var anim_text: String = String(anim_name)
-	var frame_count: int = timing_sprite.sprite_frames.get_frame_count(anim_text)
-	if frame_count <= 0:
-		return fallback_duration
-
-	var clamped_from_frame: int = clampi(from_frame, 0, frame_count - 1)
-	var clamped_to_frame_exclusive: int = clampi(to_frame_exclusive, 0, frame_count)
-	if clamped_to_frame_exclusive <= clamped_from_frame:
-		return 0.0
-
-	var base_fps: float = timing_sprite.sprite_frames.get_animation_speed(anim_text)
-	if base_fps <= 0.0:
-		return fallback_duration
-
-	var units: float = 0.0
-	for i in range(clamped_from_frame, clamped_to_frame_exclusive):
-		units += timing_sprite.sprite_frames.get_frame_duration(anim_text, i)
-
-	var base_duration: float = units / base_fps
-	var speed_scale: float = maxf(0.01, timing_sprite.speed_scale)
-	return maxf(0.0, base_duration / speed_scale)
 
 
 func _spawn_charge_bullet(wait_duration: float, travel_duration: float, despawn_delay: float) -> void:
