@@ -1,6 +1,7 @@
 extends CanvasLayer
 
 const RhythmClock := preload("res://scripts/RhythmClock.gd")
+const HeatBeatFlashStyle := preload("res://scripts/HeatBeatFlashStyle.gd")
 ## 游戏UI - 管理血条显示和攻击阶段UI
 
 # 轨道配置（游戏逻辑坐标，用于判定计算）
@@ -648,43 +649,16 @@ func _apply_heat_beat_flash(heat_level: int, prev_level: int) -> void:
 		_shake_intensity = 0.0
 		return
 
-	var flash_color: Color
-	var flash_alpha: float
-	var pulse_low: float
-	var pulse_high: float
-	var pulse_period: float
+	var style: Dictionary = HeatBeatFlashStyle.get_style(heat_level, is_level_up)
+	if style.is_empty():
+		return
 
-	match heat_level:
-		1:
-			flash_color = Color(1.0, 0.65, 0.0)
-			flash_alpha = 0.35 if is_level_up else 0.15
-			pulse_low = 0.06
-			pulse_high = 0.18
-			pulse_period = 0.6
-			_shake_intensity = 0.4
-		2:
-			flash_color = Color(1.0, 0.4, 0.0)
-			flash_alpha = 0.45 if is_level_up else 0.20
-			pulse_low = 0.10
-			pulse_high = 0.28
-			pulse_period = 0.45
-			_shake_intensity = 0.9
-		3:
-			flash_color = Color(1.0, 0.2, 0.0)
-			flash_alpha = 0.55 if is_level_up else 0.25
-			pulse_low = 0.14
-			pulse_high = 0.38
-			pulse_period = 0.3
-			_shake_intensity = 1.4
-		4:
-			flash_color = Color(1.0, 0.0, 0.0)
-			flash_alpha = 0.65 if is_level_up else 0.30
-			pulse_low = 0.18
-			pulse_high = 0.48
-			pulse_period = 0.18
-			_shake_intensity = 2.0
-		_:
-			return
+	var flash_color: Color = style["flash_color"]
+	var flash_alpha: float = style["flash_alpha"]
+	var pulse_low: float = style["pulse_low"]
+	var pulse_high: float = style["pulse_high"]
+	var pulse_period: float = style["pulse_period"]
+	_shake_intensity = style["shake_intensity"]
 
 	if is_level_up and prev_level >= 0:
 		beat_flash_effect.color = Color(flash_color.r, flash_color.g, flash_color.b, flash_alpha)

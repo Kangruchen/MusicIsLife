@@ -62,6 +62,7 @@ try {
     Invoke-GodotCheck "check-player-afterimage-factory" @("--headless", "--check-only", "--script", "res://scripts/PlayerAfterimageFactory.gd")
     Invoke-GodotCheck "check-debug-shape-drawer" @("--headless", "--check-only", "--script", "res://scripts/DebugShapeDrawer.gd")
     Invoke-GodotCheck "check-sprite-animation-duration" @("--headless", "--check-only", "--script", "res://scripts/SpriteAnimationDuration.gd")
+    Invoke-GodotCheck "check-heat-beat-flash-style" @("--headless", "--check-only", "--script", "res://scripts/HeatBeatFlashStyle.gd")
     Invoke-GodotCheck "check-defense-judgment-rules" @("--headless", "--check-only", "--script", "res://scripts/DefenseJudgmentRules.gd")
     Invoke-GodotCheck "check-defense-note-search" @("--headless", "--check-only", "--script", "res://scripts/DefenseNoteSearch.gd")
     Invoke-GodotCheck "check-music-clock-event-queue" @("--headless", "--check-only", "--script", "res://scripts/MusicClockEventQueue.gd")
