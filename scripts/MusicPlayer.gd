@@ -323,8 +323,8 @@ func _begin_attack_mix_mode() -> void:
 	_fade_base_tracks_for_attack()
 
 	var token: int = _attack_schedule_token
-	if _is_legacy_attack_music_mode():
-		_start_legacy_attack_music(token)
+	if _is_single_attack_music_mode():
+		_start_single_attack_music(token)
 	else:
 		_start_split_attack_music(token)
 
@@ -374,7 +374,7 @@ func _load_attack_phase_streams() -> bool:
 	_attack_loop_stream = null
 	_attack_outro_stream = null
 
-	if _is_legacy_attack_music_mode():
+	if _is_single_attack_music_mode():
 		_attack_music_stream = _load_attack_stream_from_path(attack_music_path)
 		return _attack_music_stream != null
 
@@ -400,7 +400,7 @@ func _load_attack_stream_from_path(path: String) -> AudioStream:
 	return stream
 
 
-func _is_legacy_attack_music_mode() -> bool:
+func _is_single_attack_music_mode() -> bool:
 	return attack_intro_music_path.is_empty() and attack_loop_music_path.is_empty() and attack_outro_music_path.is_empty()
 
 
@@ -434,13 +434,13 @@ func _fade_base_tracks_for_attack() -> void:
 		_attack_mix_tween.tween_property(bass_player, "volume_db", bass_target_db, fade_duration)
 
 
-func _start_legacy_attack_music(token: int) -> void:
+func _start_single_attack_music(token: int) -> void:
 	if token != _attack_schedule_token or _attack_music_stream == null:
 		return
 
 	var sync_position: float = get_song_time()
 	_start_attack_player_from_offset(attack_player, _attack_music_stream, sync_position)
-	print("Attack phase legacy BGM started at: ", sync_position)
+	print("Attack phase single-track BGM started at: ", sync_position)
 
 
 func _start_split_attack_music(token: int) -> void:
