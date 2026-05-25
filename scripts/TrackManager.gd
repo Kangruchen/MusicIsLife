@@ -2,6 +2,7 @@ extends Node
 
 const RhythmClock := preload("res://scripts/RhythmClock.gd")
 const MusicClockEventQueue := preload("res://scripts/MusicClockEventQueue.gd")
+const HitNoteSideAssignments := preload("res://scripts/HitNoteSideAssignments.gd")
 ## 轨道管理器 - 负责生成和管理音符的可视化
 
 
@@ -52,7 +53,7 @@ var note_visual_enabled: bool = false
 var tracked_notes: Array[Note] = []
 var _missile_request_sent_notes: Array[Note] = []
 var _charge_request_sent_notes: Array[Note] = []
-var _hit_note_side_map: Dictionary = {}  # key=Note, value=MISSILE_SIDE_LEFT/RIGHT
+var _hit_note_sides: RefCounted = HitNoteSideAssignments.new()
 var _boss_node: Node2D = null
 var _boss_origin_position: Vector2 = Vector2.ZERO
 
@@ -355,28 +356,20 @@ func set_chart(chart: Chart) -> void:
 
 
 func _assign_hit_note_sides() -> void:
-	_hit_note_side_map.clear()
-	var next_side: int = MISSILE_SIDE_LEFT
-	for note in scheduled_notes:
-		if note == null:
-			continue
-		if note.type != Note.NoteType.HIT:
-			continue
-		_hit_note_side_map[note] = next_side
-		next_side = MISSILE_SIDE_RIGHT if next_side == MISSILE_SIDE_LEFT else MISSILE_SIDE_LEFT
+	_hit_note_sides.assign_notes(scheduled_notes)
 
 
 ## 检查并生成需要提前生成的音符（基于时间）
 func _check_and_spawn_notes_by_time(now_time: float) -> void:
 	for note in scheduled_notes.duplicate():
 		if note.type == Note.NoteType.HIT:
-			var marked_side: int = int(_hit_note_side_map.get(note, MISSILE_SIDE_LEFT))
+			var marked_side: int = _hit_note_sides.get_side(note)
 			if _is_missile_side_destroyed(marked_side):
 
 				scheduled_notes.erase(note)
 				_missile_request_sent_notes.erase(note)
 				_charge_request_sent_notes.erase(note)
-				_hit_note_side_map.erase(note)
+				_hit_note_sides.erase(note)
 
 				if debug_missile_timing:
 					var side_name: String = "LEFT" if marked_side == MISSILE_SIDE_LEFT else "RIGHT"
@@ -403,7 +396,7 @@ func _check_and_spawn_notes_by_time(now_time: float) -> void:
 			var request_time: float = spawn_time - prepare_seconds
 			if now_time >= request_time and not _missile_request_sent_notes.has(note):
 				var remaining_beats_to_hit: float = maxf(0.0, (note.beat_time - now_time) / beat_interval)
-				var marked_side: int = int(_hit_note_side_map.get(note, MISSILE_SIDE_LEFT))
+				var marked_side: int = _hit_note_sides.get_side(note)
 				if _boss_node != null and is_instance_valid(_boss_node) and _boss_node.has_method("enqueue_missile_forced_side"):
 					_boss_node.call("enqueue_missile_forced_side", marked_side)
 				EventBus.boss_missile_requested.emit(remaining_beats_to_hit)
@@ -610,7 +603,7 @@ func _should_silently_drop_runtime_note(note: Note) -> bool:
 		return true
 
 	if note.type == Note.NoteType.HIT:
-		var marked_side: int = int(_hit_note_side_map.get(note, MISSILE_SIDE_LEFT))
+		var marked_side: int = _hit_note_sides.get_side(note)
 		if _is_missile_side_destroyed(marked_side):
 			return true
 
@@ -623,7 +616,7 @@ func _erase_note_runtime_state(note: Note) -> void:
 	_missile_request_sent_notes.erase(note)
 	_charge_request_sent_notes.erase(note)
 	if note.type == Note.NoteType.HIT:
-		_hit_note_side_map.erase(note)
+		_hit_note_sides.erase(note)
 
 
 ## 在音符到判定线前 1 拍显示按键提示（玩家头顶）
@@ -747,12 +740,7 @@ func clear_all_notes() -> void:
 func append_scheduled_notes(notes: Array[Note]) -> void:
 	for note in notes:
 		scheduled_notes.append(note)
-		if note.type == Note.NoteType.HIT:
-			var next_side: int = MISSILE_SIDE_LEFT
-			if _hit_note_side_map.size() > 0:
-				var last_side: int = int(_hit_note_side_map.values()[-1])
-				next_side = MISSILE_SIDE_RIGHT if last_side == MISSILE_SIDE_LEFT else MISSILE_SIDE_LEFT
-			_hit_note_side_map[note] = next_side
+		_hit_note_sides.append_note(note)
 	scheduled_notes.sort_custom(func(a: Note, b: Note) -> bool: return a.beat_time < b.beat_time)
 
 
@@ -810,7 +798,7 @@ func resume_note_spawning() -> void:
 			scheduled_notes.erase(note)
 			_missile_request_sent_notes.erase(note)
 			_charge_request_sent_notes.erase(note)
-			_hit_note_side_map.erase(note)
+			_hit_note_sides.erase(note)
 			removed_count += 1
 	
 	if removed_count > 0:

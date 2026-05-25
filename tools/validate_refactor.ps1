@@ -61,6 +61,7 @@ try {
     Invoke-GodotCheck "check-defense-judgment-rules" @("--headless", "--check-only", "--script", "res://scripts/DefenseJudgmentRules.gd")
     Invoke-GodotCheck "check-defense-note-search" @("--headless", "--check-only", "--script", "res://scripts/DefenseNoteSearch.gd")
     Invoke-GodotCheck "check-music-clock-event-queue" @("--headless", "--check-only", "--script", "res://scripts/MusicClockEventQueue.gd")
+    Invoke-GodotCheck "check-hit-note-side-assignments" @("--headless", "--check-only", "--script", "res://scripts/HitNoteSideAssignments.gd")
     Invoke-GodotCheck "check-boss-part-health-model" @("--headless", "--check-only", "--script", "res://scripts/BossPartHealthModel.gd")
     Invoke-GodotCheck "check-boss-missile-side-selector" @("--headless", "--check-only", "--script", "res://scripts/BossMissileSideSelector.gd")
     Invoke-GodotCheck "check-boss-missile-launcher-recoil-state" @("--headless", "--check-only", "--script", "res://scripts/BossMissileLauncherRecoilState.gd")
