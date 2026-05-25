@@ -1,8 +1,10 @@
 extends Node
 
+const RhythmClock := preload("res://scripts/RhythmClock.gd")
+
 @export var bpm: float = 128.0
 @export var offset: float = 0.0
-@export var generate_test_chart: bool = true
+@export var generate_test_chart: bool = false
 @export_file("*.sm") var chart_sm_path: String = ""
 
 # Global player/device calibration in seconds.
@@ -47,7 +49,7 @@ func _process(_delta: float) -> void:
 	if beat_interval <= 0.0:
 		return
 
-	var current_time: float = music_player.get_song_time() if music_player.has_method("get_song_time") else music_player.get_playback_position()
+	var current_time: float = RhythmClock.get_music_time(music_player)
 	while current_time >= next_beat_time:
 		_on_beat()
 		next_beat_time += beat_interval

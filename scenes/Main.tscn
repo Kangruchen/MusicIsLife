@@ -112,7 +112,6 @@ game_ui = NodePath("../../GameUI")
 
 [node name="InputManager" type="Node" parent="GameManager"]
 script = ExtResource("5_input_mgr")
-debug_attack_drum_alignment = true
 ignore_empty_press_without_nearby_notes = true
 
 [node name="ScoreManager" type="Node" parent="GameManager"]

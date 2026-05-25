@@ -2,14 +2,8 @@ extends Control
 class_name DialogueUI
 
 signal dialogue_closed
-signal dialogue_closed_with_id(dialog_id: int)
 
 @export var player_node: Node2D = null
-@export var dialog_title: String = ""
-@export var dialog1_text: String = ""
-@export var dialog2_text: String = ""
-@export var dialog3_text: String = ""
-@export var dialog4_text: String = ""
 @export var typing_speed: int = 12
 
 @onready var dialog_panel: Control = $DialogPanel
@@ -24,8 +18,6 @@ var wait_for_input: bool = false
 
 var current_lines: Array[DialogueLine] = []
 var current_index: int = 0
-var _legacy_mode: bool = false
-var _legacy_dialog_id: int = 0
 
 func _ready() -> void:
 	visible = false
@@ -33,37 +25,7 @@ func _ready() -> void:
 
 # 接收来自 Trigger 的整个对话数组，开始播放
 func play_sequence(lines: Array[DialogueLine]) -> void:
-	_legacy_mode = false
-	_legacy_dialog_id = 0
 	_start_sequence(lines)
-
-
-func show_dialog1() -> void:
-	_open_legacy(dialog1_text, 1)
-
-
-func show_dialog2() -> void:
-	_open_legacy(dialog2_text, 2)
-
-
-func show_dialog3() -> void:
-	_open_legacy(dialog3_text, 3)
-
-
-func show_dialog4() -> void:
-	_open_legacy(dialog4_text, 4)
-
-
-func _open_legacy(content: String, dialog_id: int) -> void:
-	if content == "":
-		return
-	_legacy_mode = true
-	_legacy_dialog_id = dialog_id
-	var line := DialogueLine.new()
-	line.speaker_name = dialog_title
-	line.content = content
-	line.avatar = null
-	_start_sequence([line])
 
 
 func _start_sequence(lines: Array[DialogueLine]) -> void:
@@ -146,10 +108,6 @@ func _close_dialogue() -> void:
 	is_busy = false
 	wait_for_input = false
 	dialogue_closed.emit()
-	if _legacy_mode:
-		dialogue_closed_with_id.emit(_legacy_dialog_id)
-	_legacy_mode = false
-	_legacy_dialog_id = 0
 
 	if player_node:
 		var in_battle: bool = false

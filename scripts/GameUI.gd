@@ -1,11 +1,9 @@
 extends CanvasLayer
-## 游戏UI - 管理血条显示和攻击阶段UI
 
-# 轨道配置（游戏逻辑坐标，用于判定计算）
-const TRACK_HEIGHT: float = 80.0
-const TRACK_SPACING: float = 10.0
-const JUDGMENT_LINE_X: float = 100.0
-const TRACK_START_Y: float = 57.0
+const RhythmClock := preload("res://scripts/RhythmClock.gd")
+const HeatBeatFlashStyle := preload("res://scripts/HeatBeatFlashStyle.gd")
+const AttackBeatTrackLayout := preload("res://scripts/AttackBeatTrackLayout.gd")
+## 游戏UI - 管理血条显示和攻击阶段UI
 
 # 节拍轨道视觉配置
 const BEAT_TRACK_HEIGHT: float = 24.0
@@ -62,8 +60,6 @@ var _is_boss_defeated: bool = false
 
 
 func _ready() -> void:
-	EventBus.judgment_made.connect(_on_judgment_made)
-
 	EventBus.player_health_updated.connect(_on_player_health_updated)
 	EventBus.boss_health_updated.connect(_on_boss_health_updated)
 	EventBus.boss_energy_updated.connect(_on_boss_energy_updated)
@@ -124,28 +120,7 @@ func _process(_delta: float) -> void:
 
 
 func _get_beat_clock_time() -> float:
-	if music_player != null and music_player.has_method("get_playback_position"):
-		if music_player.has_method("get_song_time"):
-			return float(music_player.get_song_time())
-		return float(music_player.get_playback_position())
-	return Time.get_ticks_msec() / 1000.0
-
-
-func get_track_y(note_type: Note.NoteType) -> float:
-	var track_index := note_type as int
-	return TRACK_START_Y + track_index * (TRACK_HEIGHT + TRACK_SPACING) + TRACK_HEIGHT / 2.0
-
-
-func get_judgment_line_x() -> float:
-	return JUDGMENT_LINE_X
-
-
-func get_notes_container() -> Control:
-	return null
-
-
-func _on_judgment_made(_track: Note.NoteType, _judgment: int, _timing_diff: float) -> void:
-	pass
+	return RhythmClock.get_music_or_wall_time(music_player)
 
 
 func _on_player_health_updated(current: float, maximum: float) -> void:
@@ -356,12 +331,20 @@ func _create_beat_track(bi: float, first_beat_time: float) -> void:
 	_track_first_beat_time = first_beat_time
 
 	var screen_width: float = get_viewport().get_visible_rect().size.x
-	_track_width = screen_width * BEAT_TRACK_WIDTH_RATIO
-	_track_segment_width = _track_width / float(_track_input_beats)
+	var layout: Dictionary = AttackBeatTrackLayout.build(
+		screen_width,
+		BEAT_TRACK_WIDTH_RATIO,
+		_track_input_beats,
+		bi,
+		GameConstants.ATTACK_PERFECT_WINDOW
+	)
+	if layout.is_empty():
+		return
+	_track_width = layout["track_width"]
+	_track_segment_width = layout["segment_width"]
 
-	var perfect_ratio: float = GameConstants.ATTACK_PERFECT_WINDOW / bi
-	var perfect_width: float = _track_segment_width * perfect_ratio
-	var miss_side_width: float = (_track_segment_width - perfect_width) / 2.0
+	var perfect_width: float = layout["perfect_width"]
+	var miss_side_width: float = layout["miss_side_width"]
 
 	beat_track_container = Control.new()
 	beat_track_container.name = "BeatTrackContainer"
@@ -441,14 +424,10 @@ func _update_beat_cursor() -> void:
 		return
 
 	var now: float = _get_beat_clock_time()
-	var cursor_x: float = (now - _track_first_beat_time + _track_bi * 0.5) / _track_bi * _track_segment_width
+	var cursor_x: float = AttackBeatTrackLayout.get_cursor_x(now, _track_first_beat_time, _track_bi, _track_segment_width)
 
 	beat_cursor.position.x = cursor_x - CURSOR_HALF_WIDTH
-
-	if cursor_x < -_track_segment_width or cursor_x > _track_width + _track_segment_width:
-		beat_cursor.visible = false
-	else:
-		beat_cursor.visible = true
+	beat_cursor.visible = AttackBeatTrackLayout.is_cursor_visible(cursor_x, _track_width, _track_segment_width)
 
 
 func _update_heat_shake() -> void:
@@ -650,43 +629,16 @@ func _apply_heat_beat_flash(heat_level: int, prev_level: int) -> void:
 		_shake_intensity = 0.0
 		return
 
-	var flash_color: Color
-	var flash_alpha: float
-	var pulse_low: float
-	var pulse_high: float
-	var pulse_period: float
+	var style: Dictionary = HeatBeatFlashStyle.get_style(heat_level, is_level_up)
+	if style.is_empty():
+		return
 
-	match heat_level:
-		1:
-			flash_color = Color(1.0, 0.65, 0.0)
-			flash_alpha = 0.35 if is_level_up else 0.15
-			pulse_low = 0.06
-			pulse_high = 0.18
-			pulse_period = 0.6
-			_shake_intensity = 0.4
-		2:
-			flash_color = Color(1.0, 0.4, 0.0)
-			flash_alpha = 0.45 if is_level_up else 0.20
-			pulse_low = 0.10
-			pulse_high = 0.28
-			pulse_period = 0.45
-			_shake_intensity = 0.9
-		3:
-			flash_color = Color(1.0, 0.2, 0.0)
-			flash_alpha = 0.55 if is_level_up else 0.25
-			pulse_low = 0.14
-			pulse_high = 0.38
-			pulse_period = 0.3
-			_shake_intensity = 1.4
-		4:
-			flash_color = Color(1.0, 0.0, 0.0)
-			flash_alpha = 0.65 if is_level_up else 0.30
-			pulse_low = 0.18
-			pulse_high = 0.48
-			pulse_period = 0.18
-			_shake_intensity = 2.0
-		_:
-			return
+	var flash_color: Color = style["flash_color"]
+	var flash_alpha: float = style["flash_alpha"]
+	var pulse_low: float = style["pulse_low"]
+	var pulse_high: float = style["pulse_high"]
+	var pulse_period: float = style["pulse_period"]
+	_shake_intensity = style["shake_intensity"]
 
 	if is_level_up and prev_level >= 0:
 		beat_flash_effect.color = Color(flash_color.r, flash_color.g, flash_color.b, flash_alpha)

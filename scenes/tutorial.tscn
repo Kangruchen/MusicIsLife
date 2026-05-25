@@ -5,7 +5,7 @@
 [ext_resource type="PackedScene" uid="uid://c6yxi20pgmbbx" path="res://scenes/tutorial_scene.tscn" id="3_ckvwl"]
 [ext_resource type="Script" uid="uid://e8i1qf3cicia" path="res://scripts/TutorialPlatformPlayer.gd" id="3_tutorial_player"]
 [ext_resource type="Script" uid="uid://ca0r3f27db17c" path="res://scripts/dialog_trigger.gd" id="4_4kmhl"]
-[ext_resource type="PackedScene" uid="uid://bgai0ghblaof0" path="res://scenes/DialogueUI.tscn.tscn" id="5_cq4me"]
+[ext_resource type="PackedScene" path="res://scenes/DialogueUI.tscn" id="5_cq4me"]
 [ext_resource type="Script" uid="uid://nfo3c4c1ywks" path="res://scenes/dialogue_ui.tscn.gd" id="6_6yjpi"]
 [ext_resource type="Script" uid="uid://dc42mm2n7qheh" path="res://scripts/TutorialBattleConfig.gd" id="9_cmspm"]
 [ext_resource type="PackedScene" uid="uid://c8jx3vn5qwm4r" path="res://scenes/GameUI.tscn" id="9_game_ui"]
@@ -121,11 +121,6 @@ size_flags_horizontal = 4
 size_flags_vertical = 4
 script = ExtResource("6_6yjpi")
 player_node = NodePath("../../Player")
-dialog_title = "教学提示"
-dialog1_text = "Hello, World!!!"
-dialog2_text = "准备好开始试验了吗！"
-dialog3_text = "准备好迎接终极试验的挑战了么！"
-dialog4_text = "准备好迎接终极试验的挑战了么！"
 
 [node name="Background" type="Sprite2D" parent="."]
 visible = false
@@ -199,7 +194,6 @@ generate_test_chart = false
 script = ExtResource("12_track_mgr")
 boss_node_path = null
 boss_charge_prepare_lead_beats = null
-boss_return_prepare_max_beats = null
 debug_missile_timing = null
 debug_charge_timing = null
 track_animation_config = ExtResource("15_track_anim")

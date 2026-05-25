@@ -1,4 +1,8 @@
 extends Node2D
+
+const CharacterAttackHitboxRules := preload("res://scripts/CharacterAttackHitboxRules.gd")
+const DebugShapeDrawer := preload("res://scripts/DebugShapeDrawer.gd")
+const SpriteAnimationDuration := preload("res://scripts/SpriteAnimationDuration.gd")
 ## 玩家控制器（阶段状态机 + 动作状态机 + 按动画帧控制判定框）
 
 enum PlayerState {
@@ -228,29 +232,7 @@ func _draw_enemy_hurtboxes_debug() -> void:
 
 
 func _draw_shape_debug(global_xform: Transform2D, shape: Shape2D, color: Color, fill_alpha: float, line_width: float) -> void:
-	var local_xform: Transform2D = global_transform.affine_inverse() * global_xform
-
-	if shape is RectangleShape2D:
-		var rect_shape: RectangleShape2D = shape as RectangleShape2D
-		var half: Vector2 = rect_shape.size * 0.5
-		var points: PackedVector2Array = PackedVector2Array([
-			local_xform * Vector2(-half.x, -half.y),
-			local_xform * Vector2(half.x, -half.y),
-			local_xform * Vector2(half.x, half.y),
-			local_xform * Vector2(-half.x, half.y)
-		])
-		draw_colored_polygon(points, Color(color.r, color.g, color.b, fill_alpha))
-		var outline: PackedVector2Array = PackedVector2Array([points[0], points[1], points[2], points[3], points[0]])
-		draw_polyline(outline, color, line_width, true)
-		return
-
-	if shape is CircleShape2D:
-		var circle_shape: CircleShape2D = shape as CircleShape2D
-		var radius_scale: float = maxf(local_xform.x.length(), local_xform.y.length())
-		var center: Vector2 = local_xform.origin
-		var radius: float = circle_shape.radius * radius_scale
-		draw_circle(center, radius, Color(color.r, color.g, color.b, fill_alpha))
-		draw_arc(center, radius, 0.0, TAU, 48, color, line_width, true)
+	DebugShapeDrawer.draw_shape(self, global_transform, global_xform, shape, color, fill_alpha, line_width)
 
 
 func _on_defense_action(track: Note.NoteType) -> void:
@@ -521,8 +503,22 @@ func _get_character_half_extents() -> Vector2:
 func _start_attack_action(attack_type: int, is_charged: bool) -> void:
 	_current_attack_type = attack_type
 	_current_attack_charged = is_charged
-	_current_hitbox_open_frame = _get_attack_open_frame(attack_type, is_charged)
-	_current_hitbox_close_frame = _get_attack_close_frame(attack_type, is_charged)
+	_current_hitbox_open_frame = CharacterAttackHitboxRules.get_open_frame(
+		attack_type,
+		is_charged,
+		light_hitbox_open_frame,
+		heavy_hitbox_open_frame,
+		charged_light_hitbox_open_frame,
+		charged_heavy_hitbox_open_frame
+	)
+	_current_hitbox_close_frame = CharacterAttackHitboxRules.get_close_frame(
+		attack_type,
+		is_charged,
+		light_hitbox_close_frame,
+		heavy_hitbox_close_frame,
+		charged_light_hitbox_close_frame,
+		charged_heavy_hitbox_close_frame
+	)
 
 	_is_attack_anim_playing = true
 	_action_state = ActionState.ATTACK
@@ -562,9 +558,16 @@ func _interrupt_attack_animation() -> void:
 
 
 func _apply_hitbox_preset_for_current_attack() -> void:
-	var preset_name: StringName = _get_hitbox_preset_name(_current_attack_type, _current_attack_charged)
-	var default_offset: Vector2 = _get_default_hitbox_offset_for_current_attack()
-	var default_size: Vector2 = _get_default_hitbox_size_for_current_attack()
+	var preset_name: StringName = CharacterAttackHitboxRules.get_preset_name(
+		_current_attack_type,
+		_current_attack_charged,
+		light_hitbox_preset_name,
+		heavy_hitbox_preset_name,
+		charged_light_hitbox_preset_name,
+		charged_heavy_hitbox_preset_name
+	)
+	var default_offset: Vector2 = CharacterAttackHitboxRules.get_default_offset(_current_attack_type)
+	var default_size: Vector2 = CharacterAttackHitboxRules.get_default_size(_current_attack_type)
 
 	if hitbox_presets_root == null:
 		_current_hitbox_offset = default_offset
@@ -724,46 +727,6 @@ func _process_single_attack_overlap(area: Area2D) -> void:
 	# 传递真实受击 Area，避免中间层级变化导致部位识别丢失。
 	var target: Node = area
 	EventBus.attack_hit_confirmed.emit(_attack_hitbox_attack_type, target)
-
-
-func _get_attack_open_frame(attack_type: int, is_charged: bool) -> int:
-	if attack_type == ATTACK_TYPE_LIGHT:
-		return charged_light_hitbox_open_frame if is_charged else light_hitbox_open_frame
-	if attack_type == ATTACK_TYPE_HEAVY:
-		return charged_heavy_hitbox_open_frame if is_charged else heavy_hitbox_open_frame
-	return 999
-
-
-func _get_attack_close_frame(attack_type: int, is_charged: bool) -> int:
-	if attack_type == ATTACK_TYPE_LIGHT:
-		return charged_light_hitbox_close_frame if is_charged else light_hitbox_close_frame
-	if attack_type == ATTACK_TYPE_HEAVY:
-		return charged_heavy_hitbox_close_frame if is_charged else heavy_hitbox_close_frame
-	return 1000
-
-
-func _get_hitbox_preset_name(attack_type: int, is_charged: bool) -> StringName:
-	if attack_type == ATTACK_TYPE_LIGHT:
-		if is_charged and not charged_light_hitbox_preset_name.is_empty():
-			return charged_light_hitbox_preset_name
-		return light_hitbox_preset_name
-	if attack_type == ATTACK_TYPE_HEAVY:
-		if is_charged and not charged_heavy_hitbox_preset_name.is_empty():
-			return charged_heavy_hitbox_preset_name
-		return heavy_hitbox_preset_name
-	return light_hitbox_preset_name
-
-
-func _get_default_hitbox_offset_for_current_attack() -> Vector2:
-	if _current_attack_type == ATTACK_TYPE_HEAVY:
-		return Vector2(105.0, 0.0)
-	return Vector2(90.0, 0.0)
-
-
-func _get_default_hitbox_size_for_current_attack() -> Vector2:
-	if _current_attack_type == ATTACK_TYPE_HEAVY:
-		return Vector2(180.0, 120.0)
-	return Vector2(120.0, 90.0)
 
 
 func _get_attack_forward_sign() -> float:
@@ -1154,23 +1117,10 @@ func _freeze_current_animation_last_frame() -> void:
 
 
 func _get_animation_duration_seconds(anim_name: String) -> float:
-	if animated_sprite == null or animated_sprite.sprite_frames == null:
-		return 0.0
-
-	var sprite_frames: SpriteFrames = animated_sprite.sprite_frames
-	if not sprite_frames.has_animation(anim_name):
-		return 0.0
-
-	var frame_count: int = sprite_frames.get_frame_count(anim_name)
-	var base_fps: float = sprite_frames.get_animation_speed(anim_name)
-	if frame_count <= 0 or base_fps <= 0.0:
-		return 0.0
-
-	var total_units: float = 0.0
-	for i in range(frame_count):
-		total_units += sprite_frames.get_frame_duration(anim_name, i)
-
-	return total_units / base_fps
+	var sprite_frames: SpriteFrames = null
+	if animated_sprite != null:
+		sprite_frames = animated_sprite.sprite_frames
+	return SpriteAnimationDuration.get_duration(sprite_frames, anim_name)
 
 
 func _start_death_music_fadeout() -> void:

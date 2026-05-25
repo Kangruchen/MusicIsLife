@@ -1,4 +1,10 @@
 extends Node
+
+const RhythmClock := preload("res://scripts/RhythmClock.gd")
+const AttackHeatModel := preload("res://scripts/AttackHeatModel.gd")
+const AttackBeatGrid := preload("res://scripts/AttackBeatGrid.gd")
+const DefenseJudgmentRules := preload("res://scripts/DefenseJudgmentRules.gd")
+const DefenseInputResolution := preload("res://scripts/DefenseInputResolution.gd")
 ## 输入管理器 - 处理玩家输入和判定逻辑
 
 
@@ -22,13 +28,6 @@ enum PhaseState {
 	DEFENSE,  # 防御阶段（正常游戏）
 	ATTACK,   # 攻击阶段（含输入和退出）
 	PAUSED    # 暂停（准备阶段等）
-}
-
-# 判定时间窗口（秒）— 值与 GameConstants 同步
-const JUDGMENT_WINDOWS := {
-	JudgmentType.PERFECT: GameConstants.PERFECT_WINDOW,
-	JudgmentType.GREAT: GameConstants.GREAT_WINDOW,
-	JudgmentType.GOOD: GameConstants.GOOD_WINDOW,
 }
 
 # 动作映射到音符类型
@@ -68,18 +67,14 @@ var attack_phase_end_time: float = 0.0
 var current_beat_has_input: bool = false  # 当前拍是否已有输入
 var _heavy_skip_next_beat: bool = false    # 重击占用下一拍标志
 var _beat_generation: int = 0            # 每拍递增，用于使过期回调失效
-var _attack_beat_abs_times: PackedFloat64Array = PackedFloat64Array()  # 预计算的每拍绝对时间
-var _next_beat_idx: int = 0  # 下一个待处理的拍子索引
-var _attack_beat_input_states: Dictionary = {}  # key=判定拍编号(1-based), value=该拍是否已有输入/占用
+var attack_beat_grid: RefCounted = AttackBeatGrid.new()
 var attack_countdown_beats: int = GameConstants.COUNTDOWN_BEATS
 var attack_input_beats: int = GameConstants.INPUT_BEATS
 var attack_exit_beats: int = GameConstants.EXIT_BEATS
 var _defense_hit_effect_anchor: Node2D = null
 var _defense_hit_effect_boss: Node2D = null
 
-# 热度系统
-var heat_counter: int = 0  # 当前档位内 Perfect 计数 (0~PERFECTS_PER_LEVEL-1)
-var heat_level: int = 0    # 当前热度档位 (0~MAX_HEAT_LEVEL)
+var heat_model: RefCounted = AttackHeatModel.new()
 
 
 func _ready() -> void:
@@ -166,54 +161,21 @@ func _handle_input(track_type: Note.NoteType) -> void:
 	# 获取当前时间
 	var current_time: float = _get_music_clock_time()
 	
-	# 查找该轨道上最近的可视音符
-	var closest_note: NoteVisual = null
-	var min_time_diff: float = INF
-	
-	for note_visual in track_manager.active_notes:
-		if not note_visual or not is_instance_valid(note_visual):
-			continue
-		if note_visual.note_data.type != track_type:
-			continue
-		if not note_visual.is_active:
-			continue
-		var time_diff: float = abs(current_time - note_visual.target_time)
-		if time_diff <= JUDGMENT_WINDOWS[JudgmentType.GOOD]:
-			if time_diff < min_time_diff:
-				min_time_diff = time_diff
-				closest_note = note_visual
-	
-	# 可视音符判定
-	if closest_note:
-		var judgment: JudgmentType = _calculate_judgment(min_time_diff)
-		var timing_diff: float = current_time - closest_note.target_time
-		closest_note.is_active = false
-		closest_note.destroy()
-		var is_miss: bool = judgment == JudgmentType.MISS
-		if is_miss:
-			_apply_miss_audio_effect()
-			_play_key_sound(track_type)
-		else:
-			_spawn_defense_hit_effect(track_type)
-		_play_defense_sound(track_type, is_miss)
-		EventBus.judgment_made.emit(track_type, judgment, timing_diff)
-		print("判定: ", _get_judgment_text(judgment), " (", int(min_time_diff * 1000), "ms)")
-		return
-	
-	# 查找非可视追踪音符
+	var resolution: Dictionary = DefenseInputResolution.resolve(
+		track_manager.tracked_notes,
+		track_type,
+		current_time,
+		DefenseJudgmentRules.good_window(),
+		ignore_empty_press_without_nearby_notes,
+		empty_press_note_check_window
+	)
+	var resolution_kind: int = int(resolution["kind"])
 	var closest_tracked: Note = null
-	var min_tracked_diff: float = INF
-	
-	for note in track_manager.tracked_notes:
-		if note.type != track_type:
-			continue
-		var time_diff: float = abs(current_time - note.beat_time)
-		if time_diff <= JUDGMENT_WINDOWS[JudgmentType.GOOD]:
-			if time_diff < min_tracked_diff:
-				min_tracked_diff = time_diff
-				closest_tracked = note
+	if resolution_kind == DefenseInputResolution.KIND_TRACKED_NOTE:
+		closest_tracked = resolution["note"]
 	
 	if closest_tracked:
+		var min_tracked_diff: float = abs(current_time - closest_tracked.beat_time)
 		var judgment: JudgmentType = _calculate_judgment(min_tracked_diff)
 		var timing_diff: float = current_time - closest_tracked.beat_time
 		track_manager.tracked_notes.erase(closest_tracked)
@@ -230,14 +192,8 @@ func _handle_input(track_type: Note.NoteType) -> void:
 	
 	# 没有同轨道音符在判定窗口内，检查是否按错了键（其他轨道有音符）
 	var wrong_note: Note = null
-	var wrong_diff: float = INF
-	for note in track_manager.tracked_notes:
-		if note.type == track_type:
-			continue  # 跳过同轨道（前面已搜索过）
-		var time_diff: float = abs(current_time - note.beat_time)
-		if time_diff <= JUDGMENT_WINDOWS[JudgmentType.GOOD] and time_diff < wrong_diff:
-			wrong_diff = time_diff
-			wrong_note = note
+	if resolution_kind == DefenseInputResolution.KIND_WRONG_NOTE:
+		wrong_note = resolution["note"]
 	
 	if wrong_note:
 		# 按错键：消耗该音符并判定为 MISS（避免之后自动超时再触发一次 MISS）
@@ -249,29 +205,13 @@ func _handle_input(track_type: Note.NoteType) -> void:
 
 	# 真正的空按
 	if ignore_empty_press_without_nearby_notes:
-		if not _has_any_nearby_note(current_time, empty_press_note_check_window):
+		if resolution_kind == DefenseInputResolution.KIND_EMPTY_IGNORED:
 			_play_key_sound(track_type)
 			print("判定: 忽略空按 (附近无音符)")
 			return
 	_apply_miss_audio_effect()
 	EventBus.judgment_made.emit(track_type, JudgmentType.MISS, 0.0)
 	print("判定: MISS (空按)")
-
-
-func _has_any_nearby_note(current_time: float, window: float) -> bool:
-	for note_visual in track_manager.active_notes:
-		if not note_visual or not is_instance_valid(note_visual):
-			continue
-		if not note_visual.is_active:
-			continue
-		if abs(current_time - note_visual.target_time) <= window:
-			return true
-
-	for note in track_manager.tracked_notes:
-		if abs(current_time - note.beat_time) <= window:
-			return true
-
-	return false
 
 
 func _spawn_defense_hit_effect(note_type: Note.NoteType) -> void:
@@ -410,14 +350,7 @@ func _free_node_by_instance_id(node_instance_id: int) -> void:
 
 ## 计算判定等级
 func _calculate_judgment(time_diff: float) -> JudgmentType:
-	if time_diff < JUDGMENT_WINDOWS[JudgmentType.PERFECT]:
-		return JudgmentType.PERFECT
-	elif time_diff < JUDGMENT_WINDOWS[JudgmentType.GREAT]:
-		return JudgmentType.GREAT
-	elif time_diff < JUDGMENT_WINDOWS[JudgmentType.GOOD]:
-		return JudgmentType.GOOD
-	else:
-		return JudgmentType.MISS
+	return DefenseJudgmentRules.calculate(time_diff)
 
 
 ## 应用 Miss 音效
@@ -428,32 +361,12 @@ func _apply_miss_audio_effect() -> void:
 
 ## 获取判定文本
 func _get_judgment_text(judgment: JudgmentType) -> String:
-	match judgment:
-		JudgmentType.PERFECT:
-			return "PERFECT"
-		JudgmentType.GREAT:
-			return "GREAT"
-		JudgmentType.GOOD:
-			return "GOOD"
-		JudgmentType.MISS:
-			return "MISS"
-		_:
-			return "UNKNOWN"
+	return DefenseJudgmentRules.get_text(judgment)
 
 
 ## 获取判定颜色
 func get_judgment_color(judgment: JudgmentType) -> Color:
-	match judgment:
-		JudgmentType.PERFECT:
-			return Color(1.0, 0.84, 0.0)  # 金色
-		JudgmentType.GREAT:
-			return Color(0.0, 1.0, 0.5)   # 青绿色
-		JudgmentType.GOOD:
-			return Color(0.5, 0.5, 1.0)   # 淡蓝色
-		JudgmentType.MISS:
-			return Color(0.7, 0.7, 0.7)   # 灰色
-		_:
-			return Color.WHITE
+	return DefenseJudgmentRules.get_color(judgment)
 
 
 ## 由 TrackManager 通过 EventBus.miss_triggered 触发
@@ -469,9 +382,7 @@ func _on_miss_triggered(track_type: int) -> void:
 func pause_input() -> void:
 	current_phase = PhaseState.PAUSED
 	attack_phase_end_time = 0.0
-	_attack_beat_abs_times.clear()
-	_attack_beat_input_states.clear()
-	_next_beat_idx = 0
+	attack_beat_grid.clear()
 	if attack_phase_timer != null:
 		attack_phase_timer.stop()
 	if attack_beat_timer != null:
@@ -507,17 +418,11 @@ func start_attack_phase(
 	current_beat_has_input = false
 	_heavy_skip_next_beat = false
 	_beat_generation += 1
-	_attack_beat_input_states.clear()
 	
-	heat_counter = 0
-	heat_level = 0
+	heat_model.reset()
 	EventBus.heat_changed.emit(0, 0)
 	
-	_attack_beat_abs_times.clear()
-	_attack_beat_abs_times.resize(attack_input_beats + attack_exit_beats)
-	for i in range(attack_input_beats + attack_exit_beats):
-		_attack_beat_abs_times[i] = first_beat_abs_time + i * attack_beat_interval
-	_next_beat_idx = 0
+	attack_beat_grid.configure(first_beat_abs_time, attack_beat_interval, attack_input_beats, attack_exit_beats)
 	
 	EventBus.show_attack_ui_requested.emit()
 	EventBus.attack_track_setup.emit(bi, first_beat_abs_time, attack_countdown_beats, attack_input_beats, attack_exit_beats)
@@ -558,45 +463,35 @@ func _handle_attack_phase_input(event: InputEvent) -> void:
 				Note.NoteType.DODGE:
 					attack_type = AttackType.HEAL
 
-			var beat_used: bool = bool(_attack_beat_input_states.get(judge_beat, false))
+			var beat_used: bool = attack_beat_grid.is_beat_used(judge_beat)
 			if beat_used:
 				print("当前拍已被占用，等待下一次未占用拍")
 				return
 
-			var beat_start_time: float = _attack_beat_abs_times[judge_beat - 1]
+			var beat_start_time: float = attack_beat_grid.get_beat_time(judge_beat)
 			var time_since_beat: float = current_time - beat_start_time
 
-			_attack_beat_input_states[judge_beat] = true
+			attack_beat_grid.set_beat_used(judge_beat, true)
 			if judge_beat == current_beat_in_attack:
 				current_beat_has_input = true
 
 			match attack_type:
 				AttackType.LIGHT:
 					var is_perfect: bool = absf(time_since_beat) < GameConstants.ATTACK_PERFECT_WINDOW
-					if is_perfect:
-						heat_counter += 1
-						if heat_counter >= GameConstants.PERFECTS_PER_LEVEL:
-							heat_counter = 0
-							heat_level = mini(heat_level + 1, GameConstants.MAX_HEAT_LEVEL)
-					else:
-						heat_counter = 0
-						if heat_level > 0:
-							heat_level -= 1
+					heat_model.record_light_result(is_perfect)
 					EventBus.attack_performed.emit(AttackType.LIGHT, 0)
-					EventBus.attack_result_display.emit(AttackType.LIGHT, is_perfect, heat_level)
-					EventBus.heat_changed.emit(heat_level, heat_counter)
+					EventBus.attack_result_display.emit(AttackType.LIGHT, is_perfect, heat_model.heat_level)
+					EventBus.heat_changed.emit(heat_model.heat_level, heat_model.heat_counter)
 					_log_attack_drum_alignment("light_" + ("perfect" if is_perfect else "miss"))
-					print("轻攻击 - ", "PERFECT" if is_perfect else "MISS", " 热度:", heat_level, "(", heat_counter, "/", GameConstants.PERFECTS_PER_LEVEL, ")")
+					print("轻攻击 - ", "PERFECT" if is_perfect else "MISS", " 热度:", heat_model.heat_level, "(", heat_model.heat_counter, "/", GameConstants.PERFECTS_PER_LEVEL, ")")
 
 				AttackType.HEAVY:
-					var current_heat: int = heat_level
-					heat_level = 0
-					heat_counter = 0
+					var current_heat: int = heat_model.consume_heavy_heat()
 					EventBus.attack_performed.emit(AttackType.HEAVY, current_heat)
 					EventBus.attack_result_display.emit(AttackType.HEAVY, true, current_heat)
 					EventBus.heat_changed.emit(0, 0)
 					if judge_beat + 1 <= attack_input_beats + attack_exit_beats:
-						_attack_beat_input_states[judge_beat + 1] = true
+						attack_beat_grid.set_beat_used(judge_beat + 1, true)
 						_heavy_skip_next_beat = true
 					_log_attack_drum_alignment("heavy")
 					print("重攻击 - 消耗热度:", current_heat, " 伤害倍率:", 1 + current_heat * GameConstants.HEAT_DAMAGE_MULTIPLIER_PER_LEVEL)
@@ -611,46 +506,28 @@ func _handle_attack_phase_input(event: InputEvent) -> void:
 
 
 func _get_input_judge_beat_for_time(now: float) -> int:
-	if attack_beat_interval <= 0.0:
-		return -1
-	if _attack_beat_abs_times.size() < attack_input_beats:
-		return -1
-
-	var best_beat: int = -1
-	var best_dist: float = INF
-	for i in range(attack_input_beats):
-		var dist: float = absf(now - _attack_beat_abs_times[i])
-		if dist < best_dist:
-			best_dist = dist
-			best_beat = i + 1
-
-	if best_beat > 0 and best_dist < attack_beat_interval * 0.5:
-		return best_beat
-
-	return -1
+	return attack_beat_grid.get_input_judge_beat(now)
 
 
 func _advance_attack_beats_to_time(now: float) -> void:
 	if current_phase != PhaseState.ATTACK:
 		return
-	while _next_beat_idx < _attack_beat_abs_times.size() and now >= _attack_beat_abs_times[_next_beat_idx]:
-		_on_attack_beat_timed(_next_beat_idx)
-		_next_beat_idx += 1
+	attack_beat_grid.advance_due_beats(now, Callable(self, "_on_attack_beat_timed"))
 
 
 ## 攻击节拍触发（基于绝对时间，由 _process 调用）
-## beat_idx: 半拍子在 _attack_beat_abs_times 数组中的索引
+## beat_idx: beat index inside the attack beat grid.
 func _on_attack_beat_timed(beat_idx: int) -> void:
 	current_beat_in_attack += 1
-	current_beat_start_time = _attack_beat_abs_times[beat_idx]
+	current_beat_start_time = attack_beat_grid.get_beat_time_by_index(beat_idx)
 
 	if _heavy_skip_next_beat:
 		current_beat_has_input = true
-		_attack_beat_input_states[current_beat_in_attack] = true
+		attack_beat_grid.set_beat_used(current_beat_in_attack, true)
 		_heavy_skip_next_beat = false
 	else:
 		current_beat_has_input = false
-		_attack_beat_input_states[current_beat_in_attack] = false
+		attack_beat_grid.set_beat_used(current_beat_in_attack, false)
 
 	var total_attack_beats: int = attack_countdown_beats + attack_input_beats + attack_exit_beats
 	if current_beat_in_attack <= attack_input_beats:
@@ -674,41 +551,37 @@ func _on_attack_phase_end() -> void:
 	if current_phase != PhaseState.ATTACK:
 		return
 
-	current_phase = PhaseState.DEFENSE
-	attack_phase_end_time = 0.0
-	_beat_generation += 1
-	_attack_beat_abs_times.clear()
-	_attack_beat_input_states.clear()
-	_heavy_skip_next_beat = false
-	if attack_phase_timer != null:
-		attack_phase_timer.stop()
-	attack_beat_timer.stop()
+	_reset_attack_phase_runtime()
 	
 	var total_attack_beats: int = attack_countdown_beats + attack_input_beats + attack_exit_beats
 	print("[总拍", total_attack_beats, "/", total_attack_beats, "] 攻击阶段结束")
 	print("========== 攻击阶段结束 ==========\n")
 	
-	EventBus.attack_movement_enabled_changed.emit(false)
-	EventBus.hide_attack_ui_requested.emit()
-	EventBus.attack_phase_ended.emit()
+	_emit_attack_phase_ended()
 
 
 func force_end_attack_phase() -> void:
 	if current_phase != PhaseState.ATTACK:
 		return
 
+	_reset_attack_phase_runtime()
+
+	_emit_attack_phase_ended()
+
+
+func _reset_attack_phase_runtime() -> void:
 	current_phase = PhaseState.DEFENSE
 	attack_phase_end_time = 0.0
 	_beat_generation += 1
-	_attack_beat_abs_times.clear()
-	_attack_beat_input_states.clear()
+	attack_beat_grid.clear()
 	_heavy_skip_next_beat = false
-
 	if attack_phase_timer != null:
 		attack_phase_timer.stop()
 	if attack_beat_timer != null:
 		attack_beat_timer.stop()
 
+
+func _emit_attack_phase_ended() -> void:
 	EventBus.attack_movement_enabled_changed.emit(false)
 	EventBus.hide_attack_ui_requested.emit()
 	EventBus.attack_phase_ended.emit()
@@ -751,8 +624,4 @@ func _log_attack_drum_alignment(tag: String) -> void:
 
 
 func _get_music_clock_time() -> float:
-	if music_player == null:
-		return 0.0
-	if music_player.has_method("get_song_time"):
-		return float(music_player.get_song_time())
-	return float(music_player.get_playback_position())
+	return RhythmClock.get_music_time(music_player)
