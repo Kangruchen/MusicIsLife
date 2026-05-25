@@ -60,6 +60,7 @@ try {
     Invoke-GodotCheck "check-boss-charge-bullet-timing" @("--headless", "--check-only", "--script", "res://scripts/BossChargeBulletTiming.gd")
     Invoke-GodotCheck "check-character-attack-hitbox-rules" @("--headless", "--check-only", "--script", "res://scripts/CharacterAttackHitboxRules.gd")
     Invoke-GodotCheck "check-player-afterimage-factory" @("--headless", "--check-only", "--script", "res://scripts/PlayerAfterimageFactory.gd")
+    Invoke-GodotCheck "check-debug-shape-drawer" @("--headless", "--check-only", "--script", "res://scripts/DebugShapeDrawer.gd")
     Invoke-GodotCheck "check-defense-judgment-rules" @("--headless", "--check-only", "--script", "res://scripts/DefenseJudgmentRules.gd")
     Invoke-GodotCheck "check-defense-note-search" @("--headless", "--check-only", "--script", "res://scripts/DefenseNoteSearch.gd")
     Invoke-GodotCheck "check-music-clock-event-queue" @("--headless", "--check-only", "--script", "res://scripts/MusicClockEventQueue.gd")

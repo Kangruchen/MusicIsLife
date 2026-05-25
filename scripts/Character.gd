@@ -1,6 +1,7 @@
 extends Node2D
 
 const CharacterAttackHitboxRules := preload("res://scripts/CharacterAttackHitboxRules.gd")
+const DebugShapeDrawer := preload("res://scripts/DebugShapeDrawer.gd")
 ## 玩家控制器（阶段状态机 + 动作状态机 + 按动画帧控制判定框）
 
 enum PlayerState {
@@ -230,29 +231,7 @@ func _draw_enemy_hurtboxes_debug() -> void:
 
 
 func _draw_shape_debug(global_xform: Transform2D, shape: Shape2D, color: Color, fill_alpha: float, line_width: float) -> void:
-	var local_xform: Transform2D = global_transform.affine_inverse() * global_xform
-
-	if shape is RectangleShape2D:
-		var rect_shape: RectangleShape2D = shape as RectangleShape2D
-		var half: Vector2 = rect_shape.size * 0.5
-		var points: PackedVector2Array = PackedVector2Array([
-			local_xform * Vector2(-half.x, -half.y),
-			local_xform * Vector2(half.x, -half.y),
-			local_xform * Vector2(half.x, half.y),
-			local_xform * Vector2(-half.x, half.y)
-		])
-		draw_colored_polygon(points, Color(color.r, color.g, color.b, fill_alpha))
-		var outline: PackedVector2Array = PackedVector2Array([points[0], points[1], points[2], points[3], points[0]])
-		draw_polyline(outline, color, line_width, true)
-		return
-
-	if shape is CircleShape2D:
-		var circle_shape: CircleShape2D = shape as CircleShape2D
-		var radius_scale: float = maxf(local_xform.x.length(), local_xform.y.length())
-		var center: Vector2 = local_xform.origin
-		var radius: float = circle_shape.radius * radius_scale
-		draw_circle(center, radius, Color(color.r, color.g, color.b, fill_alpha))
-		draw_arc(center, radius, 0.0, TAU, 48, color, line_width, true)
+	DebugShapeDrawer.draw_shape(self, global_transform, global_xform, shape, color, fill_alpha, line_width)
 
 
 func _on_defense_action(track: Note.NoteType) -> void:
