@@ -1,4 +1,6 @@
 extends Node2D
+
+const CharacterAttackHitboxRules := preload("res://scripts/CharacterAttackHitboxRules.gd")
 ## 玩家控制器（阶段状态机 + 动作状态机 + 按动画帧控制判定框）
 
 enum PlayerState {
@@ -521,8 +523,22 @@ func _get_character_half_extents() -> Vector2:
 func _start_attack_action(attack_type: int, is_charged: bool) -> void:
 	_current_attack_type = attack_type
 	_current_attack_charged = is_charged
-	_current_hitbox_open_frame = _get_attack_open_frame(attack_type, is_charged)
-	_current_hitbox_close_frame = _get_attack_close_frame(attack_type, is_charged)
+	_current_hitbox_open_frame = CharacterAttackHitboxRules.get_open_frame(
+		attack_type,
+		is_charged,
+		light_hitbox_open_frame,
+		heavy_hitbox_open_frame,
+		charged_light_hitbox_open_frame,
+		charged_heavy_hitbox_open_frame
+	)
+	_current_hitbox_close_frame = CharacterAttackHitboxRules.get_close_frame(
+		attack_type,
+		is_charged,
+		light_hitbox_close_frame,
+		heavy_hitbox_close_frame,
+		charged_light_hitbox_close_frame,
+		charged_heavy_hitbox_close_frame
+	)
 
 	_is_attack_anim_playing = true
 	_action_state = ActionState.ATTACK
@@ -562,9 +578,16 @@ func _interrupt_attack_animation() -> void:
 
 
 func _apply_hitbox_preset_for_current_attack() -> void:
-	var preset_name: StringName = _get_hitbox_preset_name(_current_attack_type, _current_attack_charged)
-	var default_offset: Vector2 = _get_default_hitbox_offset_for_current_attack()
-	var default_size: Vector2 = _get_default_hitbox_size_for_current_attack()
+	var preset_name: StringName = CharacterAttackHitboxRules.get_preset_name(
+		_current_attack_type,
+		_current_attack_charged,
+		light_hitbox_preset_name,
+		heavy_hitbox_preset_name,
+		charged_light_hitbox_preset_name,
+		charged_heavy_hitbox_preset_name
+	)
+	var default_offset: Vector2 = CharacterAttackHitboxRules.get_default_offset(_current_attack_type)
+	var default_size: Vector2 = CharacterAttackHitboxRules.get_default_size(_current_attack_type)
 
 	if hitbox_presets_root == null:
 		_current_hitbox_offset = default_offset
@@ -724,46 +747,6 @@ func _process_single_attack_overlap(area: Area2D) -> void:
 	# 传递真实受击 Area，避免中间层级变化导致部位识别丢失。
 	var target: Node = area
 	EventBus.attack_hit_confirmed.emit(_attack_hitbox_attack_type, target)
-
-
-func _get_attack_open_frame(attack_type: int, is_charged: bool) -> int:
-	if attack_type == ATTACK_TYPE_LIGHT:
-		return charged_light_hitbox_open_frame if is_charged else light_hitbox_open_frame
-	if attack_type == ATTACK_TYPE_HEAVY:
-		return charged_heavy_hitbox_open_frame if is_charged else heavy_hitbox_open_frame
-	return 999
-
-
-func _get_attack_close_frame(attack_type: int, is_charged: bool) -> int:
-	if attack_type == ATTACK_TYPE_LIGHT:
-		return charged_light_hitbox_close_frame if is_charged else light_hitbox_close_frame
-	if attack_type == ATTACK_TYPE_HEAVY:
-		return charged_heavy_hitbox_close_frame if is_charged else heavy_hitbox_close_frame
-	return 1000
-
-
-func _get_hitbox_preset_name(attack_type: int, is_charged: bool) -> StringName:
-	if attack_type == ATTACK_TYPE_LIGHT:
-		if is_charged and not charged_light_hitbox_preset_name.is_empty():
-			return charged_light_hitbox_preset_name
-		return light_hitbox_preset_name
-	if attack_type == ATTACK_TYPE_HEAVY:
-		if is_charged and not charged_heavy_hitbox_preset_name.is_empty():
-			return charged_heavy_hitbox_preset_name
-		return heavy_hitbox_preset_name
-	return light_hitbox_preset_name
-
-
-func _get_default_hitbox_offset_for_current_attack() -> Vector2:
-	if _current_attack_type == ATTACK_TYPE_HEAVY:
-		return Vector2(105.0, 0.0)
-	return Vector2(90.0, 0.0)
-
-
-func _get_default_hitbox_size_for_current_attack() -> Vector2:
-	if _current_attack_type == ATTACK_TYPE_HEAVY:
-		return Vector2(180.0, 120.0)
-	return Vector2(120.0, 90.0)
 
 
 func _get_attack_forward_sign() -> float:
