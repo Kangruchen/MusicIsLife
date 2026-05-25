@@ -167,8 +167,6 @@ func _ready() -> void:
 	EventBus.boss_energy_depleted.connect(_on_attack_phase_started)
 	EventBus.attack_phase_started.connect(_on_attack_phase_started)
 	EventBus.attack_phase_ended.connect(_on_attack_phase_ended)
-	EventBus.judgment_made.connect(_on_judgment_made)
-	
 	if not game_ui:
 		push_warning("[TrackManager] game_ui 未设置，请在编辑器中拖拽 GameUI 节点到 @export")
 	_resolve_boss_node()
@@ -819,10 +817,6 @@ func _on_attack_phase_ended() -> void:
 	_attack_phase_blocked = false
 	# 由 ScoreManager 的 _on_pause_timeout 统一恢复生成，
 	# 避免 attack_phase_ended（提前半拍）导致过早恢复。
-
-
-func _on_judgment_made(_track: int, _judgment: int, _timing_diff: float) -> void:
-	pass
 
 
 func _can_show_prejudge_hint(note_type: Note.NoteType) -> bool:

@@ -65,8 +65,6 @@ var _is_boss_defeated: bool = false
 
 
 func _ready() -> void:
-	EventBus.judgment_made.connect(_on_judgment_made)
-
 	EventBus.player_health_updated.connect(_on_player_health_updated)
 	EventBus.boss_health_updated.connect(_on_boss_health_updated)
 	EventBus.boss_energy_updated.connect(_on_boss_energy_updated)
@@ -141,10 +139,6 @@ func get_judgment_line_x() -> float:
 
 func get_notes_container() -> Control:
 	return null
-
-
-func _on_judgment_made(_track: Note.NoteType, _judgment: int, _timing_diff: float) -> void:
-	pass
 
 
 func _on_player_health_updated(current: float, maximum: float) -> void:
