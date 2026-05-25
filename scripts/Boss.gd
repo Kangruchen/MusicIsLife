@@ -6,6 +6,7 @@ const BossPartHealthModel := preload("res://scripts/BossPartHealthModel.gd")
 const BossMissileSideSelector := preload("res://scripts/BossMissileSideSelector.gd")
 const BossPreChargeTargetPicker := preload("res://scripts/BossPreChargeTargetPicker.gd")
 const BossMissileWarningLightStyle := preload("res://scripts/BossMissileWarningLightStyle.gd")
+const BossMissileLauncherRecoilState := preload("res://scripts/BossMissileLauncherRecoilState.gd")
 ## Boss 状态机控制器
 ## 提供可扩展状态流转，并支持初始测试：在指定范围内持续随机移动。
 
@@ -188,12 +189,7 @@ var _active_missiles: Array[Node2D] = []
 var _missile_side_selector: RefCounted = BossMissileSideSelector.new()
 var _attack_phase_interrupted: bool = false
 var _missile_effect_token: int = 0
-var _missile_left_origin_position: Vector2 = Vector2.ZERO
-var _missile_right_origin_position: Vector2 = Vector2.ZERO
-var _missile_left_origin_node: Node2D = null
-var _missile_right_origin_node: Node2D = null
-var _missile_left_recoil_tween: Tween = null
-var _missile_right_recoil_tween: Tween = null
+var _missile_recoil_state: RefCounted = BossMissileLauncherRecoilState.new()
 var _missile_return_arrived_logged: bool = false
 var _last_missile_despawn_position: Vector2 = Vector2.ZERO
 var _has_last_missile_despawn_position: bool = false
@@ -2369,35 +2365,27 @@ func _cache_missile_launcher_origin(launch_node: Node2D) -> void:
 	var recoil_node: Node2D = _get_missile_recoil_node_by_launch_node(launch_node)
 	if recoil_node == null:
 		return
-	if launch_node == _missile_left_node:
-		if _missile_left_origin_node != recoil_node:
-			_missile_left_origin_node = recoil_node
-			_missile_left_origin_position = recoil_node.position
-		return
-	if launch_node == _missile_right_node:
-		if _missile_right_origin_node != recoil_node:
-			_missile_right_origin_node = recoil_node
-			_missile_right_origin_position = recoil_node.position
+	_missile_recoil_state.cache_origin(_get_missile_side_for_launch_node(launch_node), recoil_node)
 
 
 func _get_missile_launcher_origin(launch_node: Node2D) -> Vector2:
+	if launch_node == null:
+		return Vector2.ZERO
+	return _missile_recoil_state.get_origin(_get_missile_side_for_launch_node(launch_node), launch_node.position)
+
+
+func _get_missile_side_for_launch_node(launch_node: Node2D) -> int:
 	if launch_node == _missile_left_node:
-		return _missile_left_origin_position
+		return MISSILE_SIDE_LEFT
 	if launch_node == _missile_right_node:
-		return _missile_right_origin_position
-	return launch_node.position
+		return MISSILE_SIDE_RIGHT
+	return -1
 
 
 func _kill_missile_launcher_recoil_tween(launch_node: Node2D) -> void:
-	if launch_node == _missile_left_node:
-		if _missile_left_recoil_tween != null:
-			_missile_left_recoil_tween.kill()
-			_missile_left_recoil_tween = null
+	if launch_node == null:
 		return
-	if launch_node == _missile_right_node:
-		if _missile_right_recoil_tween != null:
-			_missile_right_recoil_tween.kill()
-			_missile_right_recoil_tween = null
+	_missile_recoil_state.kill_tween(_get_missile_side_for_launch_node(launch_node))
 
 
 func _play_missile_launcher_recoil(launch_node: Node2D, outward_dir: Vector2) -> void:
@@ -2411,8 +2399,9 @@ func _play_missile_launcher_recoil(launch_node: Node2D, outward_dir: Vector2) ->
 	if missile_launcher_recoil_distance <= 0.0:
 		return
 
+	var launch_side: int = _get_missile_side_for_launch_node(launch_node)
 	_cache_missile_launcher_origin(launch_node)
-	_kill_missile_launcher_recoil_tween(launch_node)
+	_missile_recoil_state.kill_tween(launch_side)
 
 	var origin_local: Vector2 = _get_missile_launcher_origin(launch_node)
 	recoil_node.position = origin_local
@@ -2425,37 +2414,20 @@ func _play_missile_launcher_recoil(launch_node: Node2D, outward_dir: Vector2) ->
 		recoil_local_target = parent_2d.to_local(recoil_global_target)
 
 	var recoil_tween: Tween = create_tween()
-	if launch_node == _missile_left_node:
-		_missile_left_recoil_tween = recoil_tween
-	elif launch_node == _missile_right_node:
-		_missile_right_recoil_tween = recoil_tween
+	_missile_recoil_state.set_tween(launch_side, recoil_tween)
 
 	recoil_tween.tween_property(recoil_node, "position", recoil_local_target, maxf(0.01, missile_launcher_recoil_out_duration)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	recoil_tween.tween_property(recoil_node, "position", origin_local, maxf(0.01, missile_launcher_recoil_return_duration)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	var launch_side: int = -1
-	if launch_node == _missile_left_node:
-		launch_side = MISSILE_SIDE_LEFT
-	elif launch_node == _missile_right_node:
-		launch_side = MISSILE_SIDE_RIGHT
 	recoil_tween.tween_callback(_on_missile_launcher_recoil_finished.bind(launch_side))
 
 
 func _on_missile_launcher_recoil_finished(launch_side: int) -> void:
-	if launch_side == MISSILE_SIDE_LEFT:
-		_missile_left_recoil_tween = null
-	elif launch_side == MISSILE_SIDE_RIGHT:
-		_missile_right_recoil_tween = null
+	_missile_recoil_state.clear_tween(launch_side)
 
 
 func _reset_missile_launcher_recoil() -> void:
-	if _missile_left_node != null:
-		_kill_missile_launcher_recoil_tween(_missile_left_node)
-	if _missile_right_node != null:
-		_kill_missile_launcher_recoil_tween(_missile_right_node)
-	if _missile_left_origin_node != null and is_instance_valid(_missile_left_origin_node):
-		_missile_left_origin_node.position = _missile_left_origin_position
-	if _missile_right_origin_node != null and is_instance_valid(_missile_right_origin_node):
-		_missile_right_origin_node.position = _missile_right_origin_position
+	_missile_recoil_state.reset_side(MISSILE_SIDE_LEFT)
+	_missile_recoil_state.reset_side(MISSILE_SIDE_RIGHT)
 
 
 func _get_missile_recoil_node_by_launch_node(launch_node: Node2D) -> Node2D:

@@ -63,6 +63,7 @@ try {
     Invoke-GodotCheck "check-music-clock-event-queue" @("--headless", "--check-only", "--script", "res://scripts/MusicClockEventQueue.gd")
     Invoke-GodotCheck "check-boss-part-health-model" @("--headless", "--check-only", "--script", "res://scripts/BossPartHealthModel.gd")
     Invoke-GodotCheck "check-boss-missile-side-selector" @("--headless", "--check-only", "--script", "res://scripts/BossMissileSideSelector.gd")
+    Invoke-GodotCheck "check-boss-missile-launcher-recoil-state" @("--headless", "--check-only", "--script", "res://scripts/BossMissileLauncherRecoilState.gd")
     Invoke-GodotCheck "check-boss-missile-warning-light-style" @("--headless", "--check-only", "--script", "res://scripts/BossMissileWarningLightStyle.gd")
     Invoke-GodotCheck "check-boss-pre-charge-target-picker" @("--headless", "--check-only", "--script", "res://scripts/BossPreChargeTargetPicker.gd")
     Invoke-GodotCheck "check-dialogue-ui" @("--headless", "--check-only", "--script", "res://scenes/dialogue_ui.tscn.gd")
