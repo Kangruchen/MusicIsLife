@@ -5,6 +5,7 @@ const MusicClockEventQueue := preload("res://scripts/MusicClockEventQueue.gd")
 const HitNoteSideAssignments := preload("res://scripts/HitNoteSideAssignments.gd")
 const TrackCueRequestRegistry := preload("res://scripts/TrackCueRequestRegistry.gd")
 const SpriteAnimationDuration := preload("res://scripts/SpriteAnimationDuration.gd")
+const PrejudgeKeyHintStyle := preload("res://scripts/PrejudgeKeyHintStyle.gd")
 ## 轨道管理器 - 负责生成和管理音符的可视化
 
 
@@ -584,18 +585,9 @@ func _spawn_prejudge_key_hint(note_type: Note.NoteType) -> void:
 	if hint == null:
 		return
 
-	var key_text: String = GameConstants.get_note_action_label(int(note_type), "J")
-	var core_color: Color = Color(0.22, 0.56, 0.98, 0.9)
-	match note_type:
-		Note.NoteType.GUARD:
-			key_text = GameConstants.get_note_action_label(int(note_type), "J")
-			core_color = Color(0.22, 0.56, 0.98, 0.9)
-		Note.NoteType.HIT:
-			key_text = GameConstants.get_note_action_label(int(note_type), "I")
-			core_color = Color(0.95, 0.24, 0.24, 0.9)
-		Note.NoteType.DODGE:
-			key_text = GameConstants.get_note_action_label(int(note_type), "L")
-			core_color = Color(0.20, 0.78, 0.38, 0.9)
+	var hint_style: Dictionary = PrejudgeKeyHintStyle.get_style(note_type)
+	var key_text: String = hint_style["key_text"]
+	var core_color: Color = hint_style["core_color"]
 
 	hint.setup(key_text, EventBus.beat_interval, core_color, Color(1.0, 1.0, 1.0, 0.95), Color(1.0, 1.0, 1.0, 1.0))
 	game_ui.add_child(hint)
