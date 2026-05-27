@@ -293,12 +293,19 @@ func _begin_battle() -> void:
 		if _player.has_method("enter_battle"):
 			_player.enter_battle()
 
-	if _current_config.attack_type == TutorialBattleConfig.AttackType.CHARGE and _cannon:
+	if _should_play_cannon_trans_intro() and _cannon:
 		_battle_active = false
 		_play_cannon_trans()
 		return
 
 	_start_battle_internal()
+
+
+func _should_play_cannon_trans_intro() -> bool:
+	if _current_config == null:
+		return false
+	return _current_config.attack_type == TutorialBattleConfig.AttackType.CHARGE \
+		or _current_config.attack_type == TutorialBattleConfig.AttackType.ALTERNATING_MISSILE_CHARGE
 
 
 func _play_cannon_trans() -> void:
