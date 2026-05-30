@@ -1,6 +1,7 @@
 extends Node
 
 const RhythmClock := preload("res://scripts/RhythmClock.gd")
+const AttackHitQueue := preload("res://scripts/AttackHitQueue.gd")
 ## 分数管理器 - 管理玩家分数、血量、Boss体力
 
 signal player_died()
@@ -10,7 +11,6 @@ var current_player_health: float = 0.0
 var current_boss_health: float = 0.0
 var current_boss_energy: float = 0.0
 var temporary_energy_reduce: float = 0.0
-var pending_attack_hits: Array[Dictionary] = []
 var is_game_over: bool = false
 @export var enabled: bool = true
 @export_group("Attack Phase Beats")
@@ -41,6 +41,7 @@ var _first_break_dialogue_active: bool = false
 var _first_break_dialogue_previous_tree_paused: bool = false
 var _first_break_dialogue_ui_previous_process_mode: int = Node.PROCESS_MODE_INHERIT
 var _first_break_dialogue_layer_previous_process_mode: int = Node.PROCESS_MODE_INHERIT
+var _attack_hit_queue: RefCounted = AttackHitQueue.new(PENDING_ATTACK_TIMEOUT)
 
 
 func _ready() -> void:
@@ -335,7 +336,7 @@ func _start_attack_phase(
 	print("攻击阶段开始！")
 	
 	temporary_energy_reduce = 0.0
-	pending_attack_hits.clear()
+	_attack_hit_queue.clear()
 	
 	# 启用攻击输入监听（传入 first_beat_abs_time 统一时间基准）
 	if input_manager and input_manager.has_method("start_attack_phase"):
@@ -354,7 +355,7 @@ func _on_attack_performed(attack_type: int, heat_level: int = 0) -> void:
 		print("警告：未配置攻击数据 (GameConfigs.sound)")
 		return
 
-	_cleanup_pending_attack_hits()
+	_attack_hit_queue.cleanup(_get_music_clock_time())
 
 	var player_cost: float = 0.0
 	var boss_damage: float = 0.0
@@ -371,11 +372,7 @@ func _on_attack_performed(attack_type: int, heat_level: int = 0) -> void:
 
 			current_player_health -= player_cost
 			temporary_energy_reduce += energy_max_reduce
-			pending_attack_hits.append({
-				"type": attack_type,
-				"damage": boss_damage,
-				"time": _get_music_clock_time()
-			})
+			_queue_attack_hit(attack_type, boss_damage)
 
 		1:  # HEAVY - 消耗热度
 			_play_attack_action_sfx(attack_type, false)
@@ -387,11 +384,7 @@ func _on_attack_performed(attack_type: int, heat_level: int = 0) -> void:
 
 			current_player_health -= player_cost
 			temporary_energy_reduce += energy_max_reduce
-			pending_attack_hits.append({
-				"type": attack_type,
-				"damage": boss_damage,
-				"time": _get_music_clock_time()
-			})
+			_queue_attack_hit(attack_type, boss_damage)
 
 		2:  # HEAL - 回复
 			_play_attack_action_sfx(attack_type, false)
@@ -420,20 +413,7 @@ func _on_attack_hit_confirmed(attack_type: int, _target: Variant) -> void:
 	if is_game_over or not enabled:
 		return
 
-	_cleanup_pending_attack_hits()
-
-	var hit_index: int = -1
-	for i in range(pending_attack_hits.size()):
-		var pending: Dictionary = pending_attack_hits[i]
-		if pending.get("type", -1) == attack_type:
-			hit_index = i
-			break
-
-	if hit_index < 0:
-		return
-
-	var damage: float = float(pending_attack_hits[hit_index].get("damage", 0.0))
-	pending_attack_hits.remove_at(hit_index)
+	var damage: float = _attack_hit_queue.take_damage_for_type(attack_type, _get_music_clock_time())
 
 	var damage_multiplier: float = 1.0
 	var resolved_boss: Node = _resolve_boss_node()
@@ -482,12 +462,8 @@ func _resolve_boss_node() -> Node:
 	return null
 
 
-func _cleanup_pending_attack_hits() -> void:
-	var now_time: float = _get_music_clock_time()
-	for i in range(pending_attack_hits.size() - 1, -1, -1):
-		var pending_time: float = float(pending_attack_hits[i].get("time", 0.0))
-		if now_time - pending_time > PENDING_ATTACK_TIMEOUT:
-			pending_attack_hits.remove_at(i)
+func _queue_attack_hit(attack_type: int, damage: float) -> void:
+	_attack_hit_queue.queue_hit(attack_type, damage, _get_music_clock_time())
 
 
 func _play_attack_action_sfx(attack_type: int, is_charged: bool) -> void:
@@ -506,7 +482,7 @@ func _trigger_player_game_over() -> void:
 	is_game_over = true
 	is_paused_for_attack = false
 	pause_end_music_time = 0.0
-	pending_attack_hits.clear()
+	_attack_hit_queue.clear()
 
 	if pause_timer != null:
 		pause_timer.stop()
@@ -533,7 +509,7 @@ func _on_boss_defeated() -> void:
 
 	is_game_over = true
 	pause_end_music_time = 0.0
-	pending_attack_hits.clear()
+	_attack_hit_queue.clear()
 
 	if pause_timer != null:
 		pause_timer.stop()
