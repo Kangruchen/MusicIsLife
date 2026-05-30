@@ -3,6 +3,7 @@ extends Node
 const RhythmClock := preload("res://scripts/RhythmClock.gd")
 const AttackHitQueue := preload("res://scripts/AttackHitQueue.gd")
 const DialoguePauseState := preload("res://scripts/DialoguePauseState.gd")
+const AttackPhaseTiming := preload("res://scripts/AttackPhaseTiming.gd")
 ## 分数管理器 - 管理玩家分数、血量、Boss体力
 
 signal player_died()
@@ -149,15 +150,18 @@ func _on_boss_energy_depleted() -> void:
 	is_paused_for_attack = true
 	
 	# 使用 @onready 兄弟节点引用 + EventBus 常量
-	var bi: float = beat_manager.beat_interval
-	var countdown_beats: int = maxi(1, attack_countdown_beats)
-	var input_beats: int = maxi(1, attack_input_beats)
-	var exit_beats: int = maxi(1, attack_exit_beats)
-	var total_attack_beats: int = countdown_beats + input_beats + exit_beats
-	var countdown_duration: float = bi * float(countdown_beats)
-	var attack_duration: float = bi * float(input_beats)
-	var return_countdown_duration: float = bi * float(exit_beats)
-	var pause_duration: float = bi * float(total_attack_beats)
+	var timing: Dictionary = AttackPhaseTiming.build(
+		beat_manager.beat_interval,
+		attack_countdown_beats,
+		attack_input_beats,
+		attack_exit_beats
+	)
+	var bi: float = float(timing["beat_interval"])
+	var countdown_beats: int = int(timing["countdown_beats"])
+	var input_beats: int = int(timing["input_beats"])
+	var exit_beats: int = int(timing["exit_beats"])
+	var total_attack_beats: int = int(timing["total_beats"])
+	var pause_duration: float = float(timing["total_duration"])
 	
 	print("\n========== 攻击阶段开始（共", total_attack_beats, "拍） ==========")
 	
@@ -184,7 +188,7 @@ func _on_boss_energy_depleted() -> void:
 	# 后四个小节：节拍闪光效果
 	EventBus.play_beat_flash_requested.emit(bi, input_beats, first_beat_abs_time)
 	# 在准备阶段开始时，直接启动攻击阶段；真正可输入时机由 beat 事件与 movement enabled 控制
-	_start_attack_phase(countdown_duration + attack_duration + return_countdown_duration, bi, first_beat_abs_time, countdown_beats, input_beats, exit_beats)
+	_start_attack_phase(pause_duration, bi, first_beat_abs_time, countdown_beats, input_beats, exit_beats)
 
 	# 保留 Timer 作为兜底清理；真正的阶段边界由音乐时钟驱动。
 	if pause_timer != null:
