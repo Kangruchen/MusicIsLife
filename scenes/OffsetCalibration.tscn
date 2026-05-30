@@ -20,20 +20,16 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.08, 0.085, 0.10, 1)
 
-[node name="JudgmentLine" type="ColorRect" parent="."]
+[node name="TrackGuide" type="ColorRect" parent="."]
 layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -5.0
-offset_top = -200.0
-offset_right = 5.0
-offset_bottom = 200.0
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 54.0
+offset_top = 183.0
+offset_right = -54.0
+offset_bottom = 185.0
 grow_horizontal = 2
-grow_vertical = 2
-color = Color(1, 1, 1, 0.82)
+color = Color(0.22, 0.36, 0.4, 0.72)
 
 [node name="NotesContainer" type="Control" parent="."]
 layout_mode = 1
@@ -43,15 +39,30 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
+[node name="JudgmentLine" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -5.0
+offset_top = -64.0
+offset_right = 5.0
+offset_bottom = 64.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(1, 1, 1, 0.82)
+
 [node name="Title" type="Label" parent="."]
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
-offset_top = 22.0
-offset_bottom = 62.0
+offset_top = 18.0
+offset_bottom = 44.0
 grow_horizontal = 2
 theme_override_colors/font_color = Color(0.92, 0.98, 0.95, 1)
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 20
 text = "Audio Latency Calibration"
 horizontal_alignment = 1
 vertical_alignment = 1
@@ -60,11 +71,11 @@ vertical_alignment = 1
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
-offset_top = 72.0
-offset_bottom = 108.0
+offset_top = 50.0
+offset_bottom = 76.0
 grow_horizontal = 2
 theme_override_colors/font_color = Color(0.34, 0.94, 0.76, 1)
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 18
 text = "Current offset: 0 ms"
 horizontal_alignment = 1
 vertical_alignment = 1
@@ -73,31 +84,31 @@ vertical_alignment = 1
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
-offset_top = 112.0
-offset_bottom = 162.0
+offset_left = 52.0
+offset_top = 84.0
+offset_right = -52.0
+offset_bottom = 126.0
 grow_horizontal = 2
 theme_override_colors/font_color = Color(0.78, 0.82, 0.86, 1)
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 11
 text = "Adjust until the note crosses the line with the beat."
 horizontal_alignment = 1
 vertical_alignment = 1
+autowrap_mode = 3
 
 [node name="MetronomeLabel" type="Label" parent="."]
 layout_mode = 1
-anchors_preset = 7
+anchors_preset = 10
 anchor_left = 0.5
-anchor_top = 1.0
 anchor_right = 0.5
-anchor_bottom = 1.0
-offset_left = -50.0
-offset_top = -96.0
-offset_right = 50.0
-offset_bottom = -52.0
+offset_left = -42.0
+offset_top = 132.0
+offset_right = 42.0
+offset_bottom = 156.0
 grow_horizontal = 2
-grow_vertical = 0
 theme_override_colors/font_color = Color(0.94, 0.86, 0.36, 1)
-theme_override_font_sizes/font_size = 30
-text = "*"
+theme_override_font_sizes/font_size = 14
+text = "BEAT"
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -108,14 +119,14 @@ anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -230.0
-offset_top = -190.0
-offset_right = -110.0
-offset_bottom = -112.0
+offset_left = -140.0
+offset_top = -72.0
+offset_right = -24.0
+offset_bottom = -34.0
 grow_horizontal = 2
 grow_vertical = 0
-theme_override_font_sizes/font_size = 38
-text = "<"
+theme_override_font_sizes/font_size = 16
+text = "-10 ms"
 
 [node name="IncreaseButton" type="Button" parent="."]
 layout_mode = 1
@@ -124,13 +135,13 @@ anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = 110.0
-offset_top = -190.0
-offset_right = 230.0
-offset_bottom = -112.0
+offset_left = 24.0
+offset_top = -72.0
+offset_right = 140.0
+offset_bottom = -34.0
 grow_horizontal = 2
 grow_vertical = 0
-theme_override_font_sizes/font_size = 38
-text = ">"
+theme_override_font_sizes/font_size = 16
+text = "+10 ms"
 
 [node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="."]

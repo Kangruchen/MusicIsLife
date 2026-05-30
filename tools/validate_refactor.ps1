@@ -83,9 +83,11 @@ try {
     Invoke-GodotCheck "check-boss-pre-charge-target-picker" @("--headless", "--check-only", "--script", "res://scripts/BossPreChargeTargetPicker.gd")
     Invoke-GodotCheck "check-dialogue-pause-state" @("--headless", "--check-only", "--script", "res://scripts/DialoguePauseState.gd")
     Invoke-GodotCheck "check-dialogue-ui" @("--headless", "--check-only", "--script", "res://scenes/dialogue_ui.tscn.gd")
+    Invoke-GodotCheck "check-offset-calibration" @("--headless", "--check-only", "--script", "res://scripts/OffsetCalibration.gd")
     Invoke-GodotCheck "project-headless" @("--headless", "--quit-after", "10")
     Invoke-GodotCheck "main-scene-smoke" @("--headless", "--scene", "res://scenes/Main.tscn", "--quit-after", "30")
     Invoke-GodotCheck "tutorial-scene-smoke" @("--headless", "--scene", "res://scenes/tutorial.tscn", "--quit-after", "30")
+    Invoke-GodotCheck "offset-calibration-scene-smoke" @("--headless", "--scene", "res://scenes/OffsetCalibration.tscn", "--quit-after", "10")
 
     if ($RunImport) {
         Invoke-GodotCheck "editor-import" @("--import")

@@ -2,13 +2,17 @@ extends Control
 
 const BPM: float = 120.0
 const BEAT_INTERVAL: float = 60.0 / BPM
-const NOTE_SPEED: float = 300.0
-const DEFAULT_JUDGMENT_LINE_X: float = 576.0
-const NOTE_SPAWN_X: float = 1200.0
+const NOTE_SPEED: float = 120.0
+const NOTE_TRAVEL_BEATS: float = 4.0
+const NOTE_TRAVEL_TIME: float = NOTE_TRAVEL_BEATS * BEAT_INTERVAL
+const DEFAULT_JUDGMENT_LINE_X: float = 320.0
+const TRACK_Y: float = 184.0
+const NOTE_SIZE: Vector2 = Vector2(18.0, 52.0)
 const OFFSET_STEP: float = 10.0
 const RETURN_SCENE_META: StringName = &"offset_return_scene_path"
 
-var block_sound: AudioStream
+@export var metronome_stream: AudioStream = preload("res://assets/SFX/hitdrum.wav")
+
 var current_offset: float = 0.0
 var current_judgment_x: float = DEFAULT_JUDGMENT_LINE_X
 var beat_timer: float = 0.0
@@ -32,8 +36,7 @@ func _ready() -> void:
 		if not return_path.is_empty():
 			_return_scene_path = return_path
 
-	block_sound = load("res://assets/SFX/block.wav")
-	audio_player.stream = block_sound
+	audio_player.stream = metronome_stream
 
 	load_offset_config()
 	update_offset_display()
@@ -46,12 +49,13 @@ func _ready() -> void:
 			_update_hint_text()
 		)
 
-	beat_timer = 0.0
+	resized.connect(_on_resized)
+	beat_timer = BEAT_INTERVAL
 
 
 func _process(delta: float) -> void:
 	beat_timer += delta
-	if beat_timer >= BEAT_INTERVAL:
+	while beat_timer >= BEAT_INTERVAL:
 		beat_timer -= BEAT_INTERVAL
 		_spawn_note()
 		_play_metronome()
@@ -100,14 +104,17 @@ func _make_focus_style() -> StyleBoxFlat:
 
 func _spawn_note() -> void:
 	var note_visual := ColorRect.new()
-	note_visual.size = Vector2(20, 80)
+	note_visual.size = NOTE_SIZE
 	note_visual.color = Color(1.0, 1.0, 0.0, 0.8)
-	note_visual.position = Vector2(NOTE_SPAWN_X, 284)
+	note_visual.position = Vector2(_get_note_spawn_x(), TRACK_Y - NOTE_SIZE.y * 0.5)
+	note_visual.set_meta(&"has_crossed_line", false)
 	notes_container.add_child(note_visual)
 
 
 func _play_metronome() -> void:
-	audio_player.play()
+	if audio_player.stream != null:
+		audio_player.stop()
+		audio_player.play()
 	_flash_metronome()
 
 
@@ -120,11 +127,16 @@ func _flash_metronome() -> void:
 func _update_notes(delta: float) -> void:
 	for note in notes_container.get_children():
 		if note is ColorRect:
-			note.position.x -= NOTE_SPEED * delta
-			if note.position.x + note.size.x >= current_judgment_x and note.position.x <= current_judgment_x:
+			var note_rect := note as ColorRect
+			var previous_center_x: float = note_rect.position.x + note_rect.size.x * 0.5
+			note_rect.position.x -= NOTE_SPEED * delta
+			var current_center_x: float = note_rect.position.x + note_rect.size.x * 0.5
+			var has_crossed_line: bool = bool(note_rect.get_meta(&"has_crossed_line", false))
+			if not has_crossed_line and previous_center_x >= current_judgment_x and current_center_x <= current_judgment_x:
+				note_rect.set_meta(&"has_crossed_line", true)
 				_flash_judgment_line()
-			if note.position.x < -100:
-				note.queue_free()
+			if note_rect.position.x < -100:
+				note_rect.queue_free()
 
 
 func _flash_judgment_line() -> void:
@@ -167,7 +179,18 @@ func _update_hint_text() -> void:
 func update_judgment_line_position() -> void:
 	var offset_pixels: float = (current_offset / 1000.0) * NOTE_SPEED
 	current_judgment_x = DEFAULT_JUDGMENT_LINE_X + offset_pixels
-	judgment_line.position.x = current_judgment_x - judgment_line.size.x / 2.0
+	judgment_line.position = Vector2(
+		current_judgment_x - judgment_line.size.x * 0.5,
+		TRACK_Y - judgment_line.size.y * 0.5
+	)
+
+
+func _get_note_spawn_x() -> float:
+	return DEFAULT_JUDGMENT_LINE_X + NOTE_TRAVEL_TIME * NOTE_SPEED - NOTE_SIZE.x * 0.5
+
+
+func _on_resized() -> void:
+	update_judgment_line_position()
 
 
 func load_offset_config() -> void:
