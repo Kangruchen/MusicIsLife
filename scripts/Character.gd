@@ -186,6 +186,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if event.is_action_pressed("restart"):
 		get_viewport().set_input_as_handled()
+		if _is_boss_intro_active():
+			return
 		_quick_restart_current_scene()
 		return
 
@@ -1084,11 +1086,22 @@ func _hide_death_restart_hints() -> void:
 
 
 func _quick_restart_current_scene() -> void:
+	if _death_blackout_active or _death_restart_input_enabled:
+		get_tree().set_meta("skip_boss_intro_once", true)
 	_death_restart_input_enabled = false
 	_hide_death_restart_hints()
 	var err: int = get_tree().reload_current_scene()
 	if err != OK:
 		push_warning("[Character] 重开场景失败: %d" % err)
+
+
+func _is_boss_intro_active() -> bool:
+	if EventBus.boss_intro_completed:
+		return false
+	var scene_root: Node = get_tree().current_scene
+	if scene_root == null:
+		return false
+	return scene_root.find_child("BossIntroPlayer", true, false) != null
 
 
 func _return_to_main_menu() -> void:

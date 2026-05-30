@@ -10,7 +10,7 @@ class_name MainMenu
 @export_file("*.tscn") var game_scene_path: String = "res://scenes/Main.tscn"
 @export_file("*.tscn") var tutorial_scene_path: String = "res://scenes/tutorial.tscn"
 @export_file("*.tscn") var guide_scene_path: String = "res://scenes/guide.tscn"
-@export_file("*.tscn") var settings_scene_path: String = "res://scenes/OffsetCalibration.tscn"
+@export_file("*.tscn") var settings_scene_path: String = "res://scenes/settings.tscn"
 
 var _menu_buttons: Array[Button] = []
 
@@ -77,24 +77,35 @@ func _on_button_focus_exited(button: Button) -> void:
 
 
 func _on_new_game_pressed() -> void:
+	_rumble_ui(&"ui_confirm")
 	if not game_scene_path.is_empty():
 		get_tree().change_scene_to_file(game_scene_path)
 
 
 func _on_tutorial_pressed() -> void:
+	_rumble_ui(&"ui_confirm")
 	if not tutorial_scene_path.is_empty():
 		get_tree().change_scene_to_file(tutorial_scene_path)
 
 
 func _on_guide_pressed() -> void:
+	_rumble_ui(&"ui_confirm")
 	if not guide_scene_path.is_empty():
 		get_tree().change_scene_to_file(guide_scene_path)
 
 
 func _on_settings_pressed() -> void:
+	_rumble_ui(&"ui_confirm")
 	if not settings_scene_path.is_empty():
 		get_tree().change_scene_to_file(settings_scene_path)
 
 
 func _on_quit_pressed() -> void:
+	_rumble_ui(&"ui_back")
 	get_tree().quit()
+
+
+func _rumble_ui(preset: StringName) -> void:
+	var gamepad_manager: Node = get_node_or_null("/root/GamepadManager")
+	if gamepad_manager != null and gamepad_manager.has_method("rumble"):
+		gamepad_manager.call("rumble", preset)

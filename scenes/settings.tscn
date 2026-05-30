@@ -1,0 +1,111 @@
+[gd_scene load_steps=4 format=3 uid="uid://b11xe5vyu8q4c"]
+
+[ext_resource type="Script" path="res://scripts/SettingsMenu.gd" id="1_settings"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.035, 0.045, 0.055, 0.94)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.35, 0.9, 0.78, 0.32)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+content_margin_left = 22.0
+content_margin_top = 18.0
+content_margin_right = 22.0
+content_margin_bottom = 20.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button"]
+bg_color = Color(0.10, 0.13, 0.15, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.55, 0.68, 0.70, 0.55)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[node name="SettingsMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_settings")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.08, 0.085, 0.095, 1)
+
+[node name="Panel" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -170.0
+offset_top = -126.0
+offset_right = 170.0
+offset_bottom = 126.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="Margin" type="MarginContainer" parent="Panel"]
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.98, 0.95, 1)
+theme_override_font_sizes/font_size = 24
+text = "Settings"
+horizontal_alignment = 1
+
+[node name="RumbleCheck" type="CheckBox" parent="Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Vibration"
+
+[node name="StrengthLabel" type="Label" parent="Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.82, 1)
+theme_override_font_sizes/font_size = 14
+text = "Vibration Strength: 100%"
+
+[node name="StrengthSlider" type="HSlider" parent="Panel/Margin/VBox"]
+custom_minimum_size = Vector2(0, 26)
+layout_mode = 2
+min_value = 0.0
+max_value = 1.0
+step = 0.05
+value = 1.0
+
+[node name="LatencyButton" type="Button" parent="Panel/Margin/VBox"]
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+theme_override_styles/normal = SubResource("StyleBoxFlat_button")
+text = "Audio Latency Calibration"
+
+[node name="BackButton" type="Button" parent="Panel/Margin/VBox"]
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+theme_override_styles/normal = SubResource("StyleBoxFlat_button")
+text = "Back"

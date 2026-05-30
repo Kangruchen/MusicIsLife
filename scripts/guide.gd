@@ -68,4 +68,11 @@ func _make_focus_style() -> StyleBoxFlat:
 
 
 func _on_back_pressed() -> void:
+	_rumble_ui(&"ui_back")
 	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+
+
+func _rumble_ui(preset: StringName) -> void:
+	var gamepad_manager: Node = get_node_or_null("/root/GamepadManager")
+	if gamepad_manager != null and gamepad_manager.has_method("rumble"):
+		gamepad_manager.call("rumble", preset)

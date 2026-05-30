@@ -49,6 +49,7 @@ const ACTION_MAPPING := {
 @export_node_path("Node2D") var defense_hit_effect_boss_path: NodePath = NodePath("../Boss")
 @export var defense_hit_effect_offset: Vector2 = Vector2(-24.0, 0.0)
 @export var defense_hit_effect_scale_multiplier: Vector2 = Vector2(1.0, 1.0)
+@export var defense_hit_effect_follow_anchor_scale: bool = false
 
 @onready var track_manager: Node = get_node("../TrackManager")
 @onready var music_player: Node = get_node("../MusicPlayer")
@@ -232,8 +233,7 @@ func _spawn_defense_hit_effect(note_type: Note.NoteType) -> void:
 
 	scene_root.add_child(effect_instance)
 	effect_instance.global_position = _get_defense_hit_effect_position(note_type)
-	if defense_hit_effect_scale_multiplier != Vector2(1.0, 1.0):
-		effect_instance.scale *= defense_hit_effect_scale_multiplier
+	_configure_defense_hit_effect_visual(effect_instance)
 	_play_defense_hit_effect_and_auto_free(effect_instance)
 
 
@@ -257,8 +257,63 @@ func _get_defense_hit_effect_position(note_type: Note.NoteType) -> Vector2:
 
 	var anchor: Node2D = _resolve_defense_hit_effect_anchor()
 	if anchor != null:
-		return anchor.global_position + defense_hit_effect_offset
+		var visual_anchor: Node2D = _get_defense_hit_effect_visual_anchor(anchor)
+		var base_position: Vector2 = visual_anchor.global_position if visual_anchor != null else anchor.global_position
+		return base_position + _get_scaled_facing_effect_offset(visual_anchor if visual_anchor != null else anchor)
 	return defense_hit_effect_offset
+
+
+func _configure_defense_hit_effect_visual(effect_instance: Node2D) -> void:
+	if effect_instance == null:
+		return
+
+	var anchor: Node2D = _resolve_defense_hit_effect_anchor()
+	var visual_anchor: Node2D = _get_defense_hit_effect_visual_anchor(anchor) if anchor != null else null
+	var scale_source: Node2D = visual_anchor if visual_anchor != null else anchor
+	var source_scale: Vector2 = _get_abs_global_scale(scale_source) if defense_hit_effect_follow_anchor_scale else Vector2.ONE
+	effect_instance.scale *= source_scale * defense_hit_effect_scale_multiplier
+
+	effect_instance.z_as_relative = false
+	var source_z: int = 0
+	if visual_anchor != null:
+		source_z = visual_anchor.z_index
+	elif anchor != null:
+		source_z = anchor.z_index
+	effect_instance.z_index = max(effect_instance.z_index, source_z + 10, 50)
+
+
+func _get_scaled_facing_effect_offset(source: Node2D) -> Vector2:
+	var scale_abs: Vector2 = _get_abs_global_scale(source) if defense_hit_effect_follow_anchor_scale else Vector2.ONE
+	var forward_sign: float = _get_visual_forward_sign(source)
+	return Vector2(absf(defense_hit_effect_offset.x) * forward_sign * scale_abs.x, defense_hit_effect_offset.y * scale_abs.y)
+
+
+func _get_defense_hit_effect_visual_anchor(anchor: Node2D) -> Node2D:
+	if anchor == null:
+		return null
+	if anchor is AnimatedSprite2D:
+		return anchor
+
+	var preferred: Node2D = anchor.get_node_or_null("CharacterVisual/AnimatedSprite2D") as Node2D
+	if preferred != null:
+		return preferred
+
+	return anchor.find_child("AnimatedSprite2D", true, false) as Node2D
+
+
+func _get_visual_forward_sign(source: Node2D) -> float:
+	var sprite: AnimatedSprite2D = source as AnimatedSprite2D
+	if sprite != null:
+		return 1.0 if sprite.flip_h else -1.0
+	if source != null and source.global_scale.x < 0.0:
+		return 1.0
+	return -1.0
+
+
+func _get_abs_global_scale(source: Node2D) -> Vector2:
+	if source == null:
+		return Vector2.ONE
+	return Vector2(maxf(0.01, absf(source.global_scale.x)), maxf(0.01, absf(source.global_scale.y)))
 
 
 func _get_missile_hit_effect_position_from_boss() -> Variant:

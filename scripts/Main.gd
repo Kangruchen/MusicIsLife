@@ -20,6 +20,7 @@ var _camera_default_zoom: Vector2 = Vector2.ONE
 var _camera_tween: Tween = null
 var _attack_camera_active: bool = false
 var _attack_zoom_target: Vector2 = Vector2.ONE
+var _player_has_died: bool = false
 const CAMERA_POSITION_DEADZONE: float = 0.35
 
 
@@ -82,6 +83,7 @@ func _on_attack_phase_ended() -> void:
 
 
 func _on_player_died() -> void:
+	_player_has_died = true
 	# 死亡演出期间关闭攻击镜头跟随，避免覆盖 Character 的死亡镜头控制。
 	_attack_camera_active = false
 	if _camera_tween != null:
@@ -168,6 +170,21 @@ func _input(event: InputEvent) -> void:
 	if not event.is_pressed() or event.is_echo():
 		return
 	if event.is_action_pressed("offset"):
+		get_tree().set_meta("offset_return_scene_path", "res://scenes/Main.tscn")
 		get_tree().change_scene_to_file("res://scenes/OffsetCalibration.tscn")
 	elif event.is_action_pressed("restart"):
+		if _is_boss_intro_active():
+			get_viewport().set_input_as_handled()
+			return
+		if _player_has_died:
+			get_tree().set_meta("skip_boss_intro_once", true)
 		get_tree().reload_current_scene()
+
+
+func _is_boss_intro_active() -> bool:
+	if EventBus.boss_intro_completed:
+		return false
+	var scene_root: Node = get_tree().current_scene
+	if scene_root == null:
+		return false
+	return scene_root.find_child("BossIntroPlayer", true, false) != null

@@ -65,7 +65,7 @@ const BUTTON_LABELS_NINTENDO := {
 }
 
 @export var rumble_enabled: bool = true
-@export_range(0.0, 1.0, 0.05) var rumble_strength: float = 0.7
+@export_range(0.0, 1.0, 0.05) var rumble_strength: float = 1.0
 
 var current_scheme: StringName = SCHEME_KEYBOARD_MOUSE
 var last_gamepad_device: int = -1
@@ -74,6 +74,7 @@ var _last_heat_level: int = 0
 
 
 func _ready() -> void:
+	_ensure_controller_ui_actions()
 	_load_settings()
 	Input.joy_connection_changed.connect(_on_joy_connection_changed)
 
@@ -183,46 +184,54 @@ func rumble(preset: StringName) -> void:
 
 	match preset:
 		&"defense_perfect":
-			weak = 0.18
-			strong = 0.28
-			duration = 0.04
+			weak = 0.35
+			strong = 0.58
+			duration = 0.075
 		&"defense_ok":
-			weak = 0.10
-			strong = 0.15
-			duration = 0.035
+			weak = 0.22
+			strong = 0.36
+			duration = 0.06
 		&"miss":
-			weak = 0.55
-			strong = 0.85
-			duration = 0.10
+			weak = 0.75
+			strong = 1.00
+			duration = 0.15
 		&"heavy":
-			weak = 0.38
-			strong = 0.62
-			duration = 0.08
+			weak = 0.55
+			strong = 0.88
+			duration = 0.12
 		&"heat_up":
-			weak = 0.30
-			strong = 0.48
-			duration = 0.055
+			weak = 0.45
+			strong = 0.72
+			duration = 0.08
 			_start_vibration(device, weak, strong, duration)
-			get_tree().create_timer(0.09).timeout.connect(func() -> void:
-				_start_vibration(_get_active_gamepad_device(), 0.22, 0.36, 0.045)
+			get_tree().create_timer(0.11).timeout.connect(func() -> void:
+				_start_vibration(_get_active_gamepad_device(), 0.35, 0.55, 0.065)
 			)
 			return
 		&"shield_break":
+			weak = 0.65
+			strong = 1.00
+			duration = 0.18
+		&"victory":
 			weak = 0.45
 			strong = 0.70
-			duration = 0.12
-		&"victory":
-			weak = 0.30
-			strong = 0.45
-			duration = 0.16
-		&"death":
-			weak = 0.60
-			strong = 0.95
 			duration = 0.20
-		_:
-			weak = 0.20
-			strong = 0.30
+		&"death":
+			weak = 0.80
+			strong = 0.95
+			duration = 0.28
+		&"ui_confirm":
+			weak = 0.18
+			strong = 0.34
 			duration = 0.05
+		&"ui_back":
+			weak = 0.24
+			strong = 0.44
+			duration = 0.065
+		_:
+			weak = 0.30
+			strong = 0.48
+			duration = 0.07
 
 	_start_vibration(device, weak, strong, duration)
 
@@ -235,6 +244,65 @@ func set_rumble_enabled(value: bool) -> void:
 func set_rumble_strength(value: float) -> void:
 	rumble_strength = clampf(value, 0.0, 1.0)
 	_save_settings()
+
+
+func _ensure_controller_ui_actions() -> void:
+	_ensure_key_action(&"ui_accept", KEY_ENTER)
+	_ensure_key_action(&"ui_accept", KEY_SPACE)
+	_ensure_button_action(&"ui_accept", JOY_BUTTON_A)
+
+	_ensure_key_action(&"ui_cancel", KEY_ESCAPE)
+	_ensure_button_action(&"ui_cancel", JOY_BUTTON_B)
+
+	_ensure_key_action(&"ui_up", KEY_UP)
+	_ensure_key_action(&"ui_up", KEY_W)
+	_ensure_button_action(&"ui_up", JOY_BUTTON_DPAD_UP)
+	_ensure_motion_action(&"ui_up", JOY_AXIS_LEFT_Y, -1.0)
+
+	_ensure_key_action(&"ui_down", KEY_DOWN)
+	_ensure_key_action(&"ui_down", KEY_S)
+	_ensure_button_action(&"ui_down", JOY_BUTTON_DPAD_DOWN)
+	_ensure_motion_action(&"ui_down", JOY_AXIS_LEFT_Y, 1.0)
+
+	_ensure_key_action(&"ui_left", KEY_LEFT)
+	_ensure_key_action(&"ui_left", KEY_A)
+	_ensure_button_action(&"ui_left", JOY_BUTTON_DPAD_LEFT)
+	_ensure_motion_action(&"ui_left", JOY_AXIS_LEFT_X, -1.0)
+
+	_ensure_key_action(&"ui_right", KEY_RIGHT)
+	_ensure_key_action(&"ui_right", KEY_D)
+	_ensure_button_action(&"ui_right", JOY_BUTTON_DPAD_RIGHT)
+	_ensure_motion_action(&"ui_right", JOY_AXIS_LEFT_X, 1.0)
+
+
+func _ensure_key_action(action: StringName, physical_keycode: Key) -> void:
+	_ensure_action(action)
+	var event: InputEventKey = InputEventKey.new()
+	event.physical_keycode = physical_keycode
+	if not InputMap.action_has_event(action, event):
+		InputMap.action_add_event(action, event)
+
+
+func _ensure_button_action(action: StringName, button_index: JoyButton) -> void:
+	_ensure_action(action)
+	var event: InputEventJoypadButton = InputEventJoypadButton.new()
+	event.button_index = button_index
+	if not InputMap.action_has_event(action, event):
+		InputMap.action_add_event(action, event)
+
+
+func _ensure_motion_action(action: StringName, axis: JoyAxis, axis_value: float) -> void:
+	_ensure_action(action)
+	var event: InputEventJoypadMotion = InputEventJoypadMotion.new()
+	event.axis = axis
+	event.axis_value = axis_value
+	if not InputMap.action_has_event(action, event):
+		InputMap.action_add_event(action, event)
+
+
+func _ensure_action(action: StringName) -> void:
+	if not InputMap.has_action(action):
+		InputMap.add_action(action)
 
 
 func _find_event_prompt(events: Array, want_gamepad: bool) -> String:

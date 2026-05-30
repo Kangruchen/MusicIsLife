@@ -60,6 +60,7 @@ var _attack_loop_stream: AudioStream = null
 var _attack_outro_stream: AudioStream = null
 var _attack_music_active: bool = false
 var _waiting_for_boss_intro: bool = false
+var _attack_base_return_started: bool = false
 var _attack_schedule_token: int = 0
 var _attack_track_setup_valid: bool = false
 var _attack_beat_interval: float = 0.0
@@ -268,7 +269,18 @@ func pause_music() -> void:
 
 
 func resume_music() -> void:
-	end_attack_mix_mode()
+	main_player.stream_paused = false
+	drum_player.stream_paused = false
+	bass_player.stream_paused = false
+	if attack_player != null:
+		attack_player.stream_paused = false
+	if attack_loop_player_a != null:
+		attack_loop_player_a.stream_paused = false
+	if attack_loop_player_b != null:
+		attack_loop_player_b.stream_paused = false
+	if attack_outro_player != null:
+		attack_outro_player.stream_paused = false
+	print("Music resumed")
 
 
 func begin_attack_mix_mode() -> void:
@@ -327,6 +339,7 @@ func _begin_attack_mix_mode() -> void:
 	_attack_clock_callbacks.clear()
 	_attack_music_active = true
 	_attack_mix_active = true
+	_attack_base_return_started = false
 	_fade_base_tracks_for_attack()
 
 	var token: int = _attack_schedule_token
@@ -341,7 +354,7 @@ func _end_attack_mix_mode() -> void:
 	_attack_clock_callbacks.clear()
 	_attack_track_setup_valid = false
 	_attack_music_active = false
-	var return_fade_duration: float = _get_attack_return_crossfade_seconds()
+	var return_fade_duration: float = attack_music_fade_seconds if _attack_base_return_started else _get_attack_return_fade_seconds()
 	_fade_out_attack_players(return_fade_duration)
 
 	if not _attack_mix_active:
@@ -350,14 +363,15 @@ func _end_attack_mix_mode() -> void:
 	if _attack_mix_tween != null:
 		_attack_mix_tween.kill()
 
+	if _attack_base_return_started:
+		_set_base_track_volumes(_cached_main_volume_db, _cached_drum_volume_db, _cached_bass_volume_db)
+		_attack_mix_active = false
+		_attack_base_return_started = false
+		return
+
 	var fade_duration: float = return_fade_duration
 	if fade_duration <= 0.0:
-		if main_player != null and main_player.stream:
-			main_player.volume_db = _cached_main_volume_db
-		if drum_player != null and drum_player.stream:
-			drum_player.volume_db = _cached_drum_volume_db
-		if bass_player != null and bass_player.stream:
-			bass_player.volume_db = _cached_bass_volume_db
+		_set_base_track_volumes(_cached_main_volume_db, _cached_drum_volume_db, _cached_bass_volume_db)
 		_attack_mix_active = false
 		return
 
@@ -442,6 +456,42 @@ func _fade_base_tracks_for_attack() -> void:
 		_attack_mix_tween.tween_property(bass_player, "volume_db", bass_target_db, fade_duration)
 
 
+func _restore_base_tracks_for_attack(duration: float) -> void:
+	if not _attack_mix_active:
+		return
+
+	_attack_base_return_started = true
+	if _attack_mix_tween != null:
+		_attack_mix_tween.kill()
+		_attack_mix_tween = null
+
+	var fade_duration: float = maxf(0.0, duration)
+	if fade_duration <= 0.0:
+		_set_base_track_volumes(_cached_main_volume_db, _cached_drum_volume_db, _cached_bass_volume_db)
+		return
+
+	_attack_mix_tween = create_tween()
+	_attack_mix_tween.set_parallel(true)
+	_attack_mix_tween.set_ease(Tween.EASE_IN)
+	_attack_mix_tween.set_trans(Tween.TRANS_CUBIC)
+
+	if main_player != null and main_player.stream:
+		_attack_mix_tween.tween_property(main_player, "volume_db", _cached_main_volume_db, fade_duration)
+	if drum_player != null and drum_player.stream:
+		_attack_mix_tween.tween_property(drum_player, "volume_db", _cached_drum_volume_db, fade_duration)
+	if bass_player != null and bass_player.stream:
+		_attack_mix_tween.tween_property(bass_player, "volume_db", _cached_bass_volume_db, fade_duration)
+
+
+func _set_base_track_volumes(main_db: float, drum_db: float, bass_db: float) -> void:
+	if main_player != null and main_player.stream:
+		main_player.volume_db = main_db
+	if drum_player != null and drum_player.stream:
+		drum_player.volume_db = drum_db
+	if bass_player != null and bass_player.stream:
+		bass_player.volume_db = bass_db
+
+
 func _start_single_attack_music(token: int) -> void:
 	if token != _attack_schedule_token or _attack_music_stream == null:
 		return
@@ -490,6 +540,11 @@ func _start_split_attack_music(token: int) -> void:
 			_schedule_attack_clock_callback(outro_stream_start_time, Callable(self, "_start_attack_outro"), token)
 		elif now < _attack_phase_end_time:
 			_start_attack_outro(token)
+	else:
+		if now < _attack_outro_start_time:
+			_schedule_attack_clock_callback(_attack_outro_start_time, Callable(self, "_start_attack_return"), token)
+		elif now < _attack_phase_end_time:
+			_start_attack_return(token)
 
 	print("Attack phase split BGM scheduled. bi=", bi,
 		" input=", _attack_loop_start_time,
@@ -543,7 +598,7 @@ func _start_attack_loop(token: int, phrase_index: int = -1) -> void:
 	_fade_out_attack_player(attack_outro_player, crossfade_duration, true)
 
 	_active_attack_loop_player = attack_loop_player_a
-	_play_attack_loop_player(_active_attack_loop_player, phrase_index)
+	_play_attack_loop_player(_active_attack_loop_player, phrase_index, 0.0)
 	_schedule_next_attack_loop_restart(token, phrase_index)
 
 
@@ -563,11 +618,11 @@ func _restart_attack_loop(token: int, phrase_index: int = -1) -> void:
 	if old_player == attack_loop_player_b:
 		next_player = attack_loop_player_a
 
-	_play_attack_loop_player(next_player, phrase_index)
+	_play_attack_loop_player(next_player, phrase_index, 0.0)
 	_active_attack_loop_player = next_player
 
 	if old_player != null and old_player != next_player:
-		_fade_out_attack_player(old_player, _get_attack_segment_crossfade_seconds(), true)
+		_fade_out_attack_player(old_player, 0.0, true)
 
 	_schedule_next_attack_loop_restart(token, phrase_index)
 
@@ -579,10 +634,7 @@ func _start_attack_outro(token: int) -> void:
 		return
 
 	var crossfade_duration: float = _get_attack_segment_crossfade_seconds()
-	_fade_out_attack_player(attack_player, crossfade_duration, true)
-	_fade_out_attack_player(attack_loop_player_a, crossfade_duration, true)
-	_fade_out_attack_player(attack_loop_player_b, crossfade_duration, true)
-	_active_attack_loop_player = null
+	_begin_attack_return_transition(crossfade_duration)
 
 	_play_attack_stream_at_clock(
 		attack_outro_player,
@@ -594,7 +646,22 @@ func _start_attack_outro(token: int) -> void:
 	)
 
 
-func _play_attack_loop_player(player: AudioStreamPlayer, phrase_index: int) -> bool:
+func _start_attack_return(token: int) -> void:
+	if token != _attack_schedule_token or not _attack_music_active:
+		return
+
+	_begin_attack_return_transition(_get_attack_segment_crossfade_seconds())
+
+
+func _begin_attack_return_transition(crossfade_duration: float) -> void:
+	_fade_out_attack_player(attack_player, crossfade_duration, true)
+	_fade_out_attack_player(attack_loop_player_a, crossfade_duration, true)
+	_fade_out_attack_player(attack_loop_player_b, crossfade_duration, true)
+	_active_attack_loop_player = null
+	_restore_base_tracks_for_attack(_get_remaining_attack_outro_time())
+
+
+func _play_attack_loop_player(player: AudioStreamPlayer, phrase_index: int, fade_in_seconds: float = 0.0) -> bool:
 	var bi: float = _resolve_attack_beat_interval()
 	var phrase_grid_start: float = _get_loop_phrase_grid_start(phrase_index, bi)
 	return _play_attack_stream_at_clock(
@@ -603,7 +670,7 @@ func _play_attack_loop_player(player: AudioStreamPlayer, phrase_index: int) -> b
 		phrase_grid_start,
 		true,
 		attack_loop_offset_seconds,
-		_get_attack_segment_crossfade_seconds()
+		fade_in_seconds
 	)
 
 
@@ -828,6 +895,10 @@ func _get_attack_return_crossfade_seconds() -> float:
 	var bi: float = maxf(0.0, _resolve_attack_beat_interval())
 	var beat_fade: float = maxf(0.0, attack_return_crossfade_beats) * bi
 	return maxf(_get_attack_return_fade_seconds(), beat_fade)
+
+
+func _get_remaining_attack_outro_time() -> float:
+	return maxf(0.0, _attack_phase_end_time - _get_music_clock_time())
 
 
 func get_playback_position() -> float:

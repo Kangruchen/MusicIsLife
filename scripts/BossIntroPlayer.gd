@@ -19,9 +19,15 @@ extends CanvasLayer
 @export_range(0.1, 3.0, 0.1) var fade_in_duration: float = 0.5
 @export_range(0.1, 3.0, 0.1) var fade_out_duration: float = 1.0
 @export_range(0.1, 3.0, 0.1) var reveal_duration: float = 0.8
+@export_group("Skip")
+@export var skip_action: StringName = &"restart"
+@export_range(0.2, 3.0, 0.1) var skip_hold_seconds: float = 1.0
 
 var _video_player: VideoStreamPlayer = null
 var _fade_rect: ColorRect = null
+var _skip_hint: Label = null
+var _skip_progress: ProgressBar = null
+var _skip_hold_time: float = 0.0
 var _transition_started: bool = false
 var _signal_emitted: bool = false
 var _character: CanvasItem = null
@@ -30,6 +36,12 @@ var _character: CanvasItem = null
 func _ready() -> void:
 	layer = 1  # 视频在中间图层
 	EventBus.boss_intro_completed = false
+
+	if get_tree().get_meta("skip_boss_intro_once", false):
+		get_tree().set_meta("skip_boss_intro_once", false)
+		_emit_intro_finished()
+		queue_free()
+		return
 
 	if not enable_intro:
 		push_warning("[BossIntroPlayer] 开场动画已禁用")
@@ -76,6 +88,40 @@ func _build_ui(stream: VideoStream) -> void:
 	_fade_rect.z_index = 100
 	_fade_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(_fade_rect)
+
+	_build_skip_hint()
+
+
+func _build_skip_hint() -> void:
+	var skip_box: VBoxContainer = VBoxContainer.new()
+	skip_box.name = "SkipHint"
+	skip_box.z_index = 130
+	skip_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	skip_box.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	skip_box.offset_left = -280.0
+	skip_box.offset_top = -76.0
+	skip_box.offset_right = -24.0
+	skip_box.offset_bottom = -24.0
+	add_child(skip_box)
+
+	_skip_hint = Label.new()
+	_skip_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_skip_hint.text = "长按 %s 跳过" % GameConstants.get_action_key_label(String(skip_action), "R")
+	_skip_hint.add_theme_font_size_override("font_size", 16)
+	_skip_hint.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.88))
+	_skip_hint.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.75))
+	_skip_hint.add_theme_constant_override("shadow_offset_x", 1)
+	_skip_hint.add_theme_constant_override("shadow_offset_y", 1)
+	skip_box.add_child(_skip_hint)
+
+	_skip_progress = ProgressBar.new()
+	_skip_progress.custom_minimum_size = Vector2(240.0, 6.0)
+	_skip_progress.min_value = 0.0
+	_skip_progress.max_value = 1.0
+	_skip_progress.value = 0.0
+	_skip_progress.show_percentage = false
+	_skip_progress.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	skip_box.add_child(_skip_progress)
 
 
 func _build_character_overlay() -> void:
@@ -176,9 +222,16 @@ func _start_playback() -> void:
 	set_process(true)
 
 
-func _process(_delta: float) -> void:
+func _input(event: InputEvent) -> void:
+	if event.is_action(skip_action):
+		get_viewport().set_input_as_handled()
+
+
+func _process(delta: float) -> void:
 	if _transition_started:
 		return
+
+	_update_skip_hold(delta)
 
 	if _video_player == null or not _video_player.is_playing():
 		_begin_transition()
@@ -192,6 +245,23 @@ func _process(_delta: float) -> void:
 	var time_remaining: float = stream_length - current_pos
 
 	if time_remaining <= fade_out_duration:
+		_begin_transition()
+
+
+func _update_skip_hold(delta: float) -> void:
+	if not InputMap.has_action(skip_action):
+		return
+
+	if Input.is_action_pressed(skip_action):
+		_skip_hold_time = minf(skip_hold_seconds, _skip_hold_time + delta)
+	else:
+		_skip_hold_time = 0.0
+
+	if _skip_progress != null:
+		var safe_hold_seconds: float = maxf(0.01, skip_hold_seconds)
+		_skip_progress.value = clampf(_skip_hold_time / safe_hold_seconds, 0.0, 1.0)
+
+	if _skip_hold_time >= skip_hold_seconds:
 		_begin_transition()
 
 

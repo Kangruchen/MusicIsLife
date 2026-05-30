@@ -17,6 +17,10 @@ var is_game_over: bool = false
 @export_range(1, 32, 1) var attack_countdown_beats: int = GameConstants.COUNTDOWN_BEATS
 @export_range(1, 64, 1) var attack_input_beats: int = GameConstants.INPUT_BEATS
 @export_range(1, 32, 1) var attack_exit_beats: int = GameConstants.EXIT_BEATS
+@export_group("First Break Dialogue")
+@export var enable_first_break_dialogue: bool = false
+@export var first_break_dialogue_ui: DialogueUI = null
+@export var first_break_dialogue_lines: Array[DialogueLine] = []
 
 const PENDING_ATTACK_TIMEOUT: float = 0.6
 
@@ -32,6 +36,11 @@ var is_paused_for_attack: bool = false
 var pause_timer: Timer = null
 var pause_end_music_time: float = 0.0
 var pending_attack_anchor_music_time: float = -1.0
+var _first_break_dialogue_played: bool = false
+var _first_break_dialogue_active: bool = false
+var _first_break_dialogue_previous_tree_paused: bool = false
+var _first_break_dialogue_ui_previous_process_mode: int = Node.PROCESS_MODE_INHERIT
+var _first_break_dialogue_layer_previous_process_mode: int = Node.PROCESS_MODE_INHERIT
 
 
 func _ready() -> void:
@@ -94,8 +103,8 @@ func _on_judgment_made(track: int, judgment: int, _timing_diff: float) -> void:
 	# 检测精力条是否被打空
 	if old_energy > 0.0 and current_boss_energy <= 0.0:
 		pending_attack_anchor_music_time = judgment_target_music_time
-		EventBus.boss_energy_depleted.emit()
-		_on_boss_energy_depleted()
+		if not _try_start_first_break_dialogue():
+			_trigger_boss_energy_depleted()
 		print("Boss 精力耗尽！")
 	
 	# 改变玩家血量
@@ -126,6 +135,8 @@ func reset_game() -> void:
 	current_boss_health = GameConfigs.judgment.max_boss_health
 	current_boss_energy = GameConfigs.judgment.max_boss_energy
 	temporary_energy_reduce = 0.0
+	_first_break_dialogue_played = false
+	_first_break_dialogue_active = false
 	_update_health_bars()
 
 
@@ -179,6 +190,83 @@ func _on_boss_energy_depleted() -> void:
 	if pause_timer != null:
 		pause_timer.start(pause_duration + 0.5)
 	print("游戏已进入攻击阶段 ", pause_duration, " 秒（", total_attack_beats, " 拍），音乐进度持续前进")
+
+
+func _trigger_boss_energy_depleted() -> void:
+	EventBus.boss_energy_depleted.emit()
+	_on_boss_energy_depleted()
+
+
+func _try_start_first_break_dialogue() -> bool:
+	if not enable_first_break_dialogue:
+		return false
+	if _first_break_dialogue_played or _first_break_dialogue_active:
+		return false
+	if first_break_dialogue_ui == null or first_break_dialogue_lines.is_empty():
+		return false
+	if first_break_dialogue_ui.is_busy:
+		return false
+
+	_first_break_dialogue_played = true
+	_first_break_dialogue_active = true
+	_pause_for_first_break_dialogue()
+
+	if not first_break_dialogue_ui.dialogue_closed.is_connected(_on_first_break_dialogue_closed):
+		first_break_dialogue_ui.dialogue_closed.connect(_on_first_break_dialogue_closed, CONNECT_ONE_SHOT)
+	first_break_dialogue_ui.play_sequence(first_break_dialogue_lines)
+	print("First boss shield break dialogue started.")
+	return true
+
+
+func _pause_for_first_break_dialogue() -> void:
+	_first_break_dialogue_previous_tree_paused = get_tree().paused
+
+	_first_break_dialogue_ui_previous_process_mode = first_break_dialogue_ui.process_mode
+	first_break_dialogue_ui.process_mode = Node.PROCESS_MODE_ALWAYS
+	var dialogue_layer: Node = first_break_dialogue_ui.get_parent()
+	if dialogue_layer != null:
+		_first_break_dialogue_layer_previous_process_mode = dialogue_layer.process_mode
+		dialogue_layer.process_mode = Node.PROCESS_MODE_ALWAYS
+
+	if music_player and music_player.has_method("pause_music"):
+		music_player.pause_music()
+
+	if beat_manager and beat_manager.has_method("pause_beat_detection"):
+		beat_manager.pause_beat_detection()
+
+	if track_manager:
+		if track_manager.has_method("pause_note_spawning"):
+			track_manager.pause_note_spawning()
+		if track_manager.has_method("clear_all_notes"):
+			track_manager.clear_all_notes()
+
+	if input_manager and input_manager.has_method("pause_input"):
+		input_manager.pause_input()
+
+	get_tree().paused = true
+
+
+func _on_first_break_dialogue_closed() -> void:
+	if not _first_break_dialogue_active:
+		return
+
+	_first_break_dialogue_active = false
+	get_tree().paused = _first_break_dialogue_previous_tree_paused
+
+	if first_break_dialogue_ui != null and is_instance_valid(first_break_dialogue_ui):
+		first_break_dialogue_ui.process_mode = _first_break_dialogue_ui_previous_process_mode
+		var dialogue_layer: Node = first_break_dialogue_ui.get_parent()
+		if dialogue_layer != null:
+			dialogue_layer.process_mode = _first_break_dialogue_layer_previous_process_mode
+
+	if is_game_over:
+		return
+
+	if music_player and music_player.has_method("resume_music"):
+		music_player.resume_music()
+
+	_trigger_boss_energy_depleted()
+	print("First boss shield break dialogue finished; attack phase resumed.")
 
 
 ## 暂停结束的回调

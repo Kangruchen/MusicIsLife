@@ -31,6 +31,10 @@ enum BattleState {
 @export_node_path("Node2D") var missile_launch_path: NodePath = NodePath("")
 @export var missile_attack_sound: AudioStream = preload("res://assets/SFX/missile/missile_attack_1.wav")
 @export var missile_hit_distance_from_player: float = 0.0
+@export_range(0.1, 3.0, 0.05) var missile_dash_beats: float = 1.0
+@export_range(0.0, 0.8, 0.01) var missile_lock_approach_ratio: float = 0.35
+@export_range(0.5, 1.0, 0.01) var missile_lock_scale_factor: float = 0.86
+@export_range(1.0, 1.8, 0.01) var missile_dash_scale_factor: float = 1.12
 @export var missile_warning_enabled: bool = true
 @export var missile_warning_light_color: Color = Color(1.0, 0.12, 0.12, 1.0)
 @export_range(0.05, 1.0, 0.01) var missile_warning_peak_alpha: float = 0.9
@@ -739,7 +743,9 @@ func _spawn_missile(target_time: float) -> void:
 	var beat_seconds: float = EventBus.beat_interval
 	if beat_seconds <= 0.0:
 		beat_seconds = 0.5
-	var travel_duration: float = 3.0 * beat_seconds
+	var travel_duration: float = target_time - _get_music_clock_time()
+	if travel_duration <= 0.0:
+		travel_duration = 3.0 * beat_seconds
 
 	_clear_active_missile()
 
@@ -756,6 +762,7 @@ func _spawn_missile(target_time: float) -> void:
 	scene_root.add_child(missile)
 	missile.scale *= 4.0
 	_active_missile = missile
+	var base_scale: Vector2 = missile.scale
 
 	var spawn_pos: Vector2 = _get_missile_spawn_position()
 	missile.global_position = spawn_pos
@@ -775,10 +782,52 @@ func _spawn_missile(target_time: float) -> void:
 	if move_dir.length_squared() > 0.0001:
 		missile.global_rotation = Vector2.UP.angle_to(move_dir)
 
-	var fly_tween: Tween = missile.create_tween()
-	fly_tween.tween_property(missile, "global_position", hit_pos, maxf(0.01, travel_duration)).set_trans(Tween.TRANS_LINEAR).set_ease(Tween.EASE_IN_OUT)
 	var missile_instance_id: int = missile.get_instance_id()
+	var dash_duration: float = _get_missile_dash_duration(travel_duration)
+	var lock_duration: float = maxf(0.0, travel_duration - dash_duration)
+	if lock_duration > 0.03:
+		var lock_target: Vector2 = _get_missile_lock_target(spawn_pos, hit_pos)
+		var lock_tween: Tween = missile.create_tween()
+		lock_tween.tween_property(missile, "global_position", lock_target, lock_duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		lock_tween.parallel().tween_property(missile, "scale", base_scale * missile_lock_scale_factor, lock_duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		lock_tween.tween_callback(_start_missile_dash.bind(missile_instance_id, hit_pos, dash_duration, base_scale))
+	else:
+		_start_missile_dash(missile_instance_id, hit_pos, dash_duration, base_scale)
+
+
+func _start_missile_dash(missile_instance_id: int, fallback_target: Vector2, dash_duration: float, base_scale: Vector2) -> void:
+	var missile_obj: Object = instance_from_id(missile_instance_id)
+	var missile_node: Node2D = missile_obj as Node2D
+	if missile_node == null or not is_instance_valid(missile_node):
+		return
+
+	var hit_pos: Vector2 = fallback_target
+	if _player != null and is_instance_valid(_player):
+		var to_target: Vector2 = _player.global_position - missile_node.global_position
+		var move_dir: Vector2 = Vector2.DOWN
+		if to_target.length_squared() > 0.0001:
+			move_dir = to_target.normalized()
+		hit_pos = _player.global_position - move_dir * maxf(0.0, missile_hit_distance_from_player)
+		missile_node.global_rotation = Vector2.UP.angle_to(move_dir)
+
+	var safe_dash_duration: float = maxf(0.01, dash_duration)
+	var fly_tween: Tween = missile_node.create_tween()
+	fly_tween.tween_property(missile_node, "global_position", hit_pos, safe_dash_duration).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_IN)
+	fly_tween.parallel().tween_property(missile_node, "scale", base_scale * missile_dash_scale_factor, minf(0.12, maxf(0.01, safe_dash_duration * 0.35))).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	fly_tween.tween_callback(_on_missile_finished.bind(missile_instance_id))
+
+
+func _get_missile_dash_duration(total_duration: float) -> float:
+	var beat_seconds: float = EventBus.beat_interval
+	if beat_seconds <= 0.0:
+		beat_seconds = 0.5
+	var requested: float = maxf(0.1, missile_dash_beats) * beat_seconds
+	return clampf(requested, 0.01, maxf(0.01, total_duration))
+
+
+func _get_missile_lock_target(start_pos: Vector2, target_pos: Vector2) -> Vector2:
+	var approach: float = clampf(missile_lock_approach_ratio, 0.0, 0.8)
+	return start_pos.lerp(target_pos, approach)
 
 
 func _get_missile_spawn_position() -> Vector2:

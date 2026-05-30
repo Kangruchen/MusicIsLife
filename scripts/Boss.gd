@@ -90,6 +90,10 @@ enum BossState {
 @export var missile_total_beats: int = 3
 @export var missile_phase1_beats: int = 1
 @export var missile_phase2_beats: int = 2
+@export_range(0.1, 3.0, 0.05) var missile_dash_beats: float = 1.0
+@export_range(0.0, 0.8, 0.01) var missile_lock_approach_ratio: float = 0.18
+@export_range(0.5, 1.0, 0.01) var missile_lock_scale_factor: float = 0.86
+@export_range(1.0, 1.8, 0.01) var missile_dash_scale_factor: float = 1.12
 @export var enable_pre_missile_return: bool = false
 @export var missile_outward_distance: float = 1200.0
 @export_range(0.0, 200.0, 1.0) var missile_launcher_recoil_distance: float = 24.0
@@ -1824,7 +1828,7 @@ func _spawn_missile_instance(phase1_duration: float, phase2_duration: float) -> 
 	_orient_missile_to_direction(missile, outward_dir)
 
 	var phase1_tween: Tween = missile.create_tween()
-	phase1_tween.tween_property(missile, "global_position", outward_target, phase1_duration).set_trans(Tween.TRANS_LINEAR).set_ease(Tween.EASE_IN_OUT)
+	phase1_tween.tween_property(missile, "global_position", outward_target, phase1_duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	var missile_instance_id: int = missile.get_instance_id()
 	phase1_tween.tween_callback(_on_missile_phase1_finished.bind(token, missile_instance_id, outward_target, teleport_target, phase2_duration))
 
@@ -1851,9 +1855,42 @@ func _on_missile_phase1_finished(token: int, missile_instance_id: int, outward_t
 	_refresh_missile_warning_light(missile_node)
 	var player_target: Vector2 = _get_current_target_position(outward_target)
 	_orient_missile_to_direction(missile_node, player_target - missile_node.global_position)
-	var phase2_tween: Tween = missile_node.create_tween()
-	phase2_tween.tween_property(missile_node, "global_position", player_target, phase2_duration).set_trans(Tween.TRANS_LINEAR).set_ease(Tween.EASE_IN_OUT)
-	phase2_tween.tween_callback(_on_missile_phase2_finished.bind(token, missile_instance_id))
+	var total_phase2_duration: float = maxf(0.01, phase2_duration)
+	var dash_duration: float = _get_missile_dash_duration(total_phase2_duration)
+	var lock_duration: float = maxf(0.0, total_phase2_duration - dash_duration)
+	var base_scale: Vector2 = missile_node.scale
+	if lock_duration > 0.03:
+		var lock_target: Vector2 = _get_missile_lock_target(missile_node.global_position, player_target)
+		var lock_tween: Tween = missile_node.create_tween()
+		lock_tween.tween_property(missile_node, "global_position", lock_target, lock_duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		lock_tween.parallel().tween_property(missile_node, "scale", base_scale * missile_lock_scale_factor, lock_duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		lock_tween.tween_callback(_start_missile_dash.bind(token, missile_instance_id, player_target, dash_duration, base_scale))
+	else:
+		_start_missile_dash(token, missile_instance_id, player_target, dash_duration, base_scale)
+
+
+func _start_missile_dash(token: int, missile_instance_id: int, fallback_target: Vector2, dash_duration: float, base_scale: Vector2) -> void:
+	var missile_obj: Object = instance_from_id(missile_instance_id)
+	var missile_node: Node2D = missile_obj as Node2D
+
+	if token != _missile_effect_token:
+		if missile_node != null and is_instance_valid(missile_node):
+			_record_missile_despawn_position(missile_node)
+			missile_node.queue_free()
+		_remove_active_missile_by_id(missile_instance_id)
+		return
+
+	if missile_node == null or not is_instance_valid(missile_node):
+		_remove_active_missile_by_id(missile_instance_id)
+		return
+
+	var player_target: Vector2 = _get_current_target_position(fallback_target)
+	_orient_missile_to_direction(missile_node, player_target - missile_node.global_position)
+	var safe_dash_duration: float = maxf(0.01, dash_duration)
+	var dash_tween: Tween = missile_node.create_tween()
+	dash_tween.tween_property(missile_node, "global_position", player_target, safe_dash_duration).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_IN)
+	dash_tween.parallel().tween_property(missile_node, "scale", base_scale * missile_dash_scale_factor, minf(0.12, maxf(0.01, safe_dash_duration * 0.35))).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	dash_tween.tween_callback(_on_missile_phase2_finished.bind(token, missile_instance_id))
 
 
 func _on_missile_phase2_finished(token: int, missile_instance_id: int) -> void:
@@ -1888,6 +1925,19 @@ func _record_missile_despawn_position(missile: Node2D) -> void:
 		return
 	_last_missile_despawn_position = missile.global_position
 	_has_last_missile_despawn_position = true
+
+
+func _get_missile_dash_duration(total_duration: float) -> float:
+	var beat_seconds: float = EventBus.beat_interval
+	if beat_seconds <= 0.0:
+		beat_seconds = 0.5
+	var requested: float = maxf(0.1, missile_dash_beats) * beat_seconds
+	return clampf(requested, 0.01, maxf(0.01, total_duration))
+
+
+func _get_missile_lock_target(start_pos: Vector2, target_pos: Vector2) -> Vector2:
+	var approach: float = clampf(missile_lock_approach_ratio, 0.0, 0.8)
+	return start_pos.lerp(target_pos, approach)
 
 
 func get_missile_hit_effect_position() -> Vector2:

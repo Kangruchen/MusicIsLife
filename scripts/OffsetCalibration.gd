@@ -6,14 +6,14 @@ const NOTE_SPEED: float = 300.0
 const DEFAULT_JUDGMENT_LINE_X: float = 576.0
 const NOTE_SPAWN_X: float = 1200.0
 const OFFSET_STEP: float = 10.0
+const RETURN_SCENE_META: StringName = &"offset_return_scene_path"
 
 var block_sound: AudioStream
 var current_offset: float = 0.0
 var current_judgment_x: float = DEFAULT_JUDGMENT_LINE_X
 var beat_timer: float = 0.0
+var _return_scene_path: String = "res://scenes/main_menu.tscn"
 var _gamepad_manager: Node = null
-var _rumble_strength_label: Label = null
-var _rumble_slider: HSlider = null
 
 @onready var judgment_line: ColorRect = $JudgmentLine
 @onready var notes_container: Control = $NotesContainer
@@ -26,6 +26,12 @@ var _rumble_slider: HSlider = null
 
 
 func _ready() -> void:
+	_gamepad_manager = get_node_or_null("/root/GamepadManager")
+	if get_tree().has_meta(RETURN_SCENE_META):
+		var return_path: String = String(get_tree().get_meta(RETURN_SCENE_META))
+		if not return_path.is_empty():
+			_return_scene_path = return_path
+
 	block_sound = load("res://assets/SFX/block.wav")
 	audio_player.stream = block_sound
 
@@ -33,7 +39,6 @@ func _ready() -> void:
 	update_offset_display()
 	update_judgment_line_position()
 	_setup_buttons()
-	_setup_gamepad_settings()
 	_update_hint_text()
 
 	if _gamepad_manager != null and _gamepad_manager.has_signal("input_scheme_changed"):
@@ -58,13 +63,9 @@ func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("offset") or event.is_action_pressed("ui_cancel") or event.is_action_pressed("menu"):
 		_return_to_main()
 	elif event.is_action_pressed("ui_left"):
-		if get_viewport().gui_get_focus_owner() == _rumble_slider:
-			return
 		_on_decrease_pressed()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_right"):
-		if get_viewport().gui_get_focus_owner() == _rumble_slider:
-			return
 		_on_increase_pressed()
 		get_viewport().set_input_as_handled()
 
@@ -95,79 +96,6 @@ func _make_focus_style() -> StyleBoxFlat:
 	style.border_color = Color(1.0, 0.85, 0.25, 1.0)
 	style.set_expand_margin_all(5)
 	return style
-
-
-func _setup_gamepad_settings() -> void:
-	_gamepad_manager = get_node_or_null("/root/GamepadManager")
-	if _gamepad_manager == null:
-		return
-
-	var panel: PanelContainer = PanelContainer.new()
-	panel.name = "GamepadSettingsPanel"
-	panel.anchor_left = 1.0
-	panel.anchor_right = 1.0
-	panel.offset_left = -230.0
-	panel.offset_top = 18.0
-	panel.offset_right = -18.0
-	panel.offset_bottom = 130.0
-	add_child(panel)
-
-	var panel_style: StyleBoxFlat = StyleBoxFlat.new()
-	panel_style.bg_color = Color(0.0, 0.0, 0.0, 0.35)
-	panel_style.set_border_width_all(1)
-	panel_style.border_color = Color(1.0, 1.0, 1.0, 0.20)
-	panel_style.set_content_margin_all(8)
-	panel.add_theme_stylebox_override("panel", panel_style)
-
-	var vbox: VBoxContainer = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 4)
-	panel.add_child(vbox)
-
-	var title: Label = Label.new()
-	title.text = "Gamepad"
-	title.add_theme_font_size_override("font_size", 14)
-	title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.25, 1.0))
-	vbox.add_child(title)
-
-	var rumble_check: CheckBox = CheckBox.new()
-	rumble_check.text = "Rumble"
-	rumble_check.focus_mode = Control.FOCUS_ALL
-	rumble_check.button_pressed = bool(_gamepad_manager.get("rumble_enabled"))
-	rumble_check.toggled.connect(func(pressed: bool) -> void:
-		if _gamepad_manager != null and _gamepad_manager.has_method("set_rumble_enabled"):
-			_gamepad_manager.call("set_rumble_enabled", pressed)
-	)
-	vbox.add_child(rumble_check)
-
-	_rumble_strength_label = Label.new()
-	_rumble_strength_label.add_theme_font_size_override("font_size", 12)
-	vbox.add_child(_rumble_strength_label)
-
-	_rumble_slider = HSlider.new()
-	_rumble_slider.min_value = 0.0
-	_rumble_slider.max_value = 1.0
-	_rumble_slider.step = 0.05
-	_rumble_slider.focus_mode = Control.FOCUS_ALL
-	_rumble_slider.value = float(_gamepad_manager.get("rumble_strength"))
-	_rumble_slider.value_changed.connect(func(value: float) -> void:
-		_update_rumble_strength_label(value)
-		if _gamepad_manager != null and _gamepad_manager.has_method("set_rumble_strength"):
-			_gamepad_manager.call("set_rumble_strength", value)
-	)
-	vbox.add_child(_rumble_slider)
-	_update_rumble_strength_label(_rumble_slider.value)
-
-	rumble_check.focus_neighbor_bottom = rumble_check.get_path_to(_rumble_slider)
-	_rumble_slider.focus_neighbor_top = _rumble_slider.get_path_to(rumble_check)
-	_rumble_slider.focus_neighbor_bottom = _rumble_slider.get_path_to(decrease_button)
-	decrease_button.focus_neighbor_top = decrease_button.get_path_to(_rumble_slider)
-	increase_button.focus_neighbor_top = increase_button.get_path_to(_rumble_slider)
-
-
-func _update_rumble_strength_label(value: float) -> void:
-	if _rumble_strength_label == null:
-		return
-	_rumble_strength_label.text = "Strength: %d%%" % int(round(value * 100.0))
 
 
 func _spawn_note() -> void:
@@ -206,12 +134,14 @@ func _flash_judgment_line() -> void:
 
 
 func _on_decrease_pressed() -> void:
+	_rumble_ui(&"ui_confirm")
 	current_offset -= OFFSET_STEP
 	update_offset_display()
 	update_judgment_line_position()
 
 
 func _on_increase_pressed() -> void:
+	_rumble_ui(&"ui_confirm")
 	current_offset += OFFSET_STEP
 	update_offset_display()
 	update_judgment_line_position()
@@ -261,5 +191,13 @@ func save_offset_config() -> void:
 
 
 func _return_to_main() -> void:
+	_rumble_ui(&"ui_back")
 	save_offset_config()
-	get_tree().change_scene_to_file("res://scenes/Main.tscn")
+	if get_tree().has_meta(RETURN_SCENE_META):
+		get_tree().remove_meta(RETURN_SCENE_META)
+	get_tree().change_scene_to_file(_return_scene_path)
+
+
+func _rumble_ui(preset: StringName) -> void:
+	if _gamepad_manager != null and _gamepad_manager.has_method("rumble"):
+		_gamepad_manager.call("rumble", preset)

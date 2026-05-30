@@ -215,7 +215,7 @@ hint_dodge_offset = Vector2(0, -120)
 [node name="InputManager" type="Node" parent="GameManager"]
 script = ExtResource("13_input_mgr")
 ignore_empty_press_without_nearby_notes = true
-defense_hit_effect_anchor_path = NodePath("../../Player")
+defense_hit_effect_anchor_path = NodePath("../../Player/CharacterVisual")
 
 [node name="ScoreManager" type="Node" parent="GameManager"]
 script = ExtResource("14_score_mgr")
@@ -250,10 +250,8 @@ position = Vector2(59.5, -55.5)
 shape = SubResource("RectangleShape2D_cmspm")
 
 [node name="TutorialBattleUI" parent="." instance=ExtResource("19_tut_battle_ui")]
-offset = Vector2(0, 100)
-transform = Transform2D(1, 0, 0, 1, 0, 100)
-box_size = Vector2(30, 30)
-battle2_offset = Vector2(350, 50)
+box_size = Vector2(22, 22)
+battle2_offset = Vector2(0, 0)
 
 [node name="LevelGeometry" type="StaticBody2D" parent="."]
 
