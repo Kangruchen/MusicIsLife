@@ -1,19 +1,19 @@
 extends Resource
 class_name Note
-## 音符数据 - 表示铺面中的一个音符
 
 enum NoteType {
-	GUARD,  # 防御音符 (J键，第一条轨道)
-	HIT,    # 攻击音符 (I键，第二条轨道)
-	DODGE   # 闪避音符 (L键，第三条轨道)
+	GUARD,
+	HIT,
+	DODGE
 }
 
-@export var beat_time: float = 0.0  # 音符所在的节拍时间（秒）
-@export var beat_number: float = 0.0  # 音符所在的节拍编号（支持浮点数，如 0.5 表示半拍，0.333 表示三连音）
-@export var type: NoteType = NoteType.HIT  # 音符类型
+@export var beat_time: float = 0.0
+@export var beat_number: float = 0.0
+@export var type: NoteType = NoteType.HIT
+@export var slot_index: int = -1
+@export var source_layer: String = ""
 
 
-## 获取音符类型的字符串表示
 func get_type_string() -> String:
 	match type:
 		NoteType.GUARD:

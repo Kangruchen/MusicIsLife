@@ -87,9 +87,10 @@ func _on_music_started() -> void:
 
 func _recalculate_note_times(chart: Chart, old_offset: float, new_offset: float) -> void:
 	var offset_diff := new_offset - old_offset
-	for note in chart.notes:
-		note.beat_time += offset_diff
-	print("Recalculated ", chart.notes.size(), " notes, timing delta: ", offset_diff, " sec")
+	chart.offset = new_offset
+	chart.call("shift_times", offset_diff)
+	var laser_patterns: Array = chart.get("laser_patterns")
+	print("Recalculated ", chart.notes.size(), " notes and ", laser_patterns.size(), " laser patterns, timing delta: ", offset_diff, " sec")
 
 
 func _generate_test_chart() -> void:

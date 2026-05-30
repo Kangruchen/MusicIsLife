@@ -115,11 +115,17 @@ position = Vector2(0, 100)
 [node name="Laser2" type="Node2D" parent="PositionNodes"]
 position = Vector2(0, 130)
 
+[node name="Laser3" type="Node2D" parent="PositionNodes"]
+position = Vector2(0, 160)
+
+[node name="Laser4" type="Node2D" parent="PositionNodes"]
+position = Vector2(0, 190)
+
 [node name="GameManager" type="Node" parent="."]
 
 [node name="MusicPlayer" type="Node" parent="GameManager"]
 script = ExtResource("1_h5v3q")
-music_path = "uid://cyvxtvuk4kkc5"
+music_path = "uid://sb6irng2vpss"
 attack_intro_music_path = "res://assets/music/attack/in.ogg"
 attack_loop_music_path = "res://assets/music/attack/loop.ogg"
 attack_outro_music_path = "res://assets/music/attack/out.ogg"
@@ -133,10 +139,12 @@ script = ExtResource("2_b4ymn")
 bpm = 0.0
 chart_sm_path = "res://assets/charts/New Demo/New Demo.sm"
 
-[node name="TrackManager" type="Node" parent="GameManager" node_paths=PackedStringArray("guard_position_nodes", "game_ui")]
+[node name="TrackManager" type="Node" parent="GameManager" node_paths=PackedStringArray("guard_position_nodes", "laser_pattern_position_nodes", "laser_pattern_warn_position_nodes", "game_ui")]
 script = ExtResource("4_track_mgr")
 track_animation_config = ExtResource("8_mwfav")
 guard_position_nodes = [NodePath("../../PositionNodes/Laser1"), NodePath("../../PositionNodes/Laser2")]
+laser_pattern_position_nodes = [NodePath("../../PositionNodes/Laser1"), NodePath("../../PositionNodes/Laser2"), NodePath("../../PositionNodes/Laser3"), NodePath("../../PositionNodes/Laser4")]
+laser_pattern_warn_position_nodes = [NodePath("../../PositionNodes/Laser1"), NodePath("../../PositionNodes/Laser2"), NodePath("../../PositionNodes/Laser3"), NodePath("../../PositionNodes/Laser4")]
 game_ui = NodePath("../../GameUI")
 
 [node name="InputManager" type="Node" parent="GameManager"]

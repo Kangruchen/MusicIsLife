@@ -1,0 +1,64 @@
+#TITLE:Laser Pattern Layers Example;
+#SUBTITLE:;
+#ARTIST:;
+#MUSIC:;
+#OFFSET:0.000000;
+#BPMS:0.000000=120.000000;
+#STOPS:;
+// Main chart: parsed with the existing LDUR -> HIT/HIT/GUARD/DODGE mapping.
+#NOTES:
+     dance-single:
+     Main:
+     Beginner:
+     1:
+     0,0,0,0,0:
+0000
+0000
+0010
+0000
+,
+1000
+0000
+0000
+0000
+;
+// LaserEcho: each measure warns on these exact ArrowVortex beats,
+// then fires the same slots/rhythm one measure later.
+#NOTES:
+     dance-single:
+     LaserEcho:
+     Edit:
+     1:
+     0,0,0,0,0:
+0100
+0000
+0100
+0000
+0100
+0000
+0100
+0000
+,
+0000
+0000
+0000
+0000
+;
+// LaserChord: a chord warning lights all active slots at once,
+// then slots 1/3/4 fire on beats 1/3/4 of the next measure.
+#NOTES:
+     dance-single:
+     LaserChord:
+     Edit:
+     1:
+     0,0,0,0,0:
+1011
+0000
+0000
+0000
+,
+0000
+0000
+0000
+0000
+;

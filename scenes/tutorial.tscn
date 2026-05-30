@@ -173,6 +173,12 @@ position = Vector2(1010, 80)
 [node name="Laser2" type="Node2D" parent="PositionNodes"]
 position = Vector2(1010, 110)
 
+[node name="Laser3" type="Node2D" parent="PositionNodes"]
+position = Vector2(1010, 140)
+
+[node name="Laser4" type="Node2D" parent="PositionNodes"]
+position = Vector2(1010, 170)
+
 [node name="Missile1" type="Node2D" parent="PositionNodes"]
 position = Vector2(3102, -818)
 
@@ -190,7 +196,7 @@ script = ExtResource("11_beat_mgr")
 bpm = 0.0
 generate_test_chart = false
 
-[node name="TrackManager" type="Node" parent="GameManager" node_paths=PackedStringArray("guard_position_nodes", "game_ui")]
+[node name="TrackManager" type="Node" parent="GameManager" node_paths=PackedStringArray("guard_position_nodes", "laser_pattern_position_nodes", "laser_pattern_warn_position_nodes", "game_ui")]
 script = ExtResource("12_track_mgr")
 boss_node_path = null
 boss_charge_prepare_lead_beats = null
@@ -198,6 +204,8 @@ debug_missile_timing = null
 debug_charge_timing = null
 track_animation_config = ExtResource("15_track_anim")
 guard_position_nodes = [NodePath("../../PositionNodes/Laser1"), NodePath("../../PositionNodes/Laser2")]
+laser_pattern_position_nodes = [NodePath("../../PositionNodes/Laser1"), NodePath("../../PositionNodes/Laser2"), NodePath("../../PositionNodes/Laser3"), NodePath("../../PositionNodes/Laser4")]
+laser_pattern_warn_position_nodes = [NodePath("../../PositionNodes/Laser1"), NodePath("../../PositionNodes/Laser2"), NodePath("../../PositionNodes/Laser3"), NodePath("../../PositionNodes/Laser4")]
 guard_external_anim_sprite_path = null
 hit_external_anim_sprite_path = null
 dodge_external_anim_sprite_path = NodePath("../../tutorial_scene/Cannon")

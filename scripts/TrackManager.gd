@@ -69,6 +69,10 @@ var _boss_node: Node2D = null
 @export var guard_position_nodes: Array[Node2D] = []
 @export var hit_position_nodes: Array[Node2D] = []
 @export var dodge_position_nodes: Array[Node2D] = []
+@export_subgroup("Laser Pattern Layers")
+@export var laser_pattern_position_nodes: Array[Node2D] = []
+@export var laser_pattern_warn_position_nodes: Array[Node2D] = []
+@export_range(0.05, 2.0, 0.05) var laser_pattern_warning_duration_beats: float = 0.5
 
 # 可选：直接复用场景内现有 AnimatedSprite2D（不创建实例，保持原始位置不变）
 @export_group("外部动画节点")
@@ -108,6 +112,7 @@ var _boss_node: Node2D = null
 
 var current_chart: Chart = null
 var scheduled_notes: Array[Note] = []  # 待生成的音符
+var scheduled_laser_warnings: Array[Dictionary] = []
 var current_time: float = 0.0
 var is_paused: bool = false  # 是否暂停生成音符
 var pause_start_time: float = 0.0  # 暂停开始的时间
@@ -282,6 +287,7 @@ func _process(_delta: float) -> void:
 	if music_player and music_player.playing:
 		current_time = _get_music_clock_time()
 		_process_music_clock_events(current_time)
+		_check_and_spawn_laser_warnings_by_time(current_time)
 		
 		# 检查是否需要生成音符（基于时间）
 		_check_and_spawn_notes_by_time(current_time)
@@ -295,8 +301,40 @@ func set_chart(chart: Chart) -> void:
 	clear_all_notes()
 	current_chart = chart
 	scheduled_notes = chart.notes.duplicate()
+	_apply_laser_patterns_to_schedule(chart)
 	_assign_hit_note_sides()
-	print("轨道管理器已加载铺面，共 ", scheduled_notes.size(), " 个音符待生成")
+	print("TrackManager loaded chart: notes=", scheduled_notes.size(), ", laser_warnings=", scheduled_laser_warnings.size())
+
+
+func _apply_laser_patterns_to_schedule(chart: Chart) -> void:
+	scheduled_laser_warnings.clear()
+	if chart == null:
+		return
+
+	var laser_patterns: Array = chart.get("laser_patterns")
+	for pattern_value in laser_patterns:
+		var pattern: Resource = pattern_value as Resource
+		if pattern == null:
+			continue
+		var warning_steps: Array = pattern.get("warning_steps")
+		var fire_steps: Array = pattern.get("fire_steps")
+		for warning_step in warning_steps:
+			scheduled_laser_warnings.append(warning_step.duplicate())
+		for fire_step in fire_steps:
+			var note := Note.new()
+			note.type = Note.NoteType.GUARD
+			note.beat_number = float(fire_step["beat_number"])
+			note.beat_time = float(fire_step["beat_time"])
+			note.slot_index = int(fire_step["slot_index"])
+			note.source_layer = String(fire_step.get("source_layer", pattern.get("source_layer")))
+			scheduled_notes.append(note)
+
+	scheduled_notes.sort_custom(func(a: Note, b: Note) -> bool:
+		return a.beat_time < b.beat_time
+	)
+	scheduled_laser_warnings.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return float(a["beat_time"]) < float(b["beat_time"])
+	)
 
 
 func _assign_hit_note_sides() -> void:
@@ -322,6 +360,35 @@ func _process_tracked_note_runtime(now_time: float) -> void:
 
 
 ## 检查并生成需要提前生成的音符（基于时间）
+func _check_and_spawn_laser_warnings_by_time(now_time: float) -> void:
+	for warning_step in scheduled_laser_warnings.duplicate():
+		if now_time < float(warning_step["beat_time"]):
+			continue
+		scheduled_laser_warnings.erase(warning_step)
+		_spawn_laser_pattern_warning(warning_step)
+
+
+func _spawn_laser_pattern_warning(warning_step: Dictionary) -> void:
+	if _attack_phase_blocked:
+		return
+	if track_animation_config == null:
+		return
+
+	var warn_scene: PackedScene = track_animation_config.get_warn_scene(Note.NoteType.GUARD)
+	if warn_scene == null:
+		return
+
+	var warn_note := Note.new()
+	warn_note.type = Note.NoteType.GUARD
+	warn_note.beat_number = float(warning_step["beat_number"])
+	warn_note.beat_time = float(warning_step["beat_time"])
+	warn_note.slot_index = int(warning_step["slot_index"])
+	warn_note.source_layer = String(warning_step.get("source_layer", "laser_pattern"))
+
+	_spawn_warn(warn_note, warn_scene, warn_note.slot_index, laser_pattern_warning_duration_beats)
+	_play_boss_attack_sound_for_note_type(Note.NoteType.GUARD, true)
+
+
 func _check_and_spawn_notes_by_time(now_time: float) -> void:
 	for note in scheduled_notes.duplicate():
 		if note.type == Note.NoteType.HIT:
@@ -712,6 +779,10 @@ func resume_note_spawning() -> void:
 			_cue_requests.erase(note)
 			_hit_note_sides.erase(note)
 			removed_count += 1
+
+	for warning_step in scheduled_laser_warnings.duplicate():
+		if float(warning_step["beat_time"]) <= current_time:
+			scheduled_laser_warnings.erase(warning_step)
 	
 	if removed_count > 0:
 		print("已跳过 ", removed_count, " 个生成时机已过的音符")
@@ -783,29 +854,59 @@ func _spawn_track_animation(note: Note) -> void:
 
 
 ## 生成预警特效（在主动画之前显示，持续1拍后自动销毁）
-func _spawn_warn(note: Note, warn_scene: PackedScene, counter: int) -> void:
+func _get_main_position_nodes(note: Note) -> Array[Node2D]:
+	if note.type == Note.NoteType.GUARD and _uses_laser_pattern_positions(note) and laser_pattern_position_nodes.size() > 0:
+		return laser_pattern_position_nodes
+	match note.type:
+		Note.NoteType.GUARD:
+			return guard_position_nodes
+		Note.NoteType.HIT:
+			return hit_position_nodes
+		Note.NoteType.DODGE:
+			return dodge_position_nodes
+	return []
+
+
+func _get_warn_position_nodes(note: Note) -> Array[Node2D]:
+	if note.type == Note.NoteType.GUARD and _uses_laser_pattern_positions(note) and laser_pattern_warn_position_nodes.size() > 0:
+		return laser_pattern_warn_position_nodes
+	match note.type:
+		Note.NoteType.GUARD:
+			return guard_warn_position_nodes
+		Note.NoteType.HIT:
+			return hit_warn_position_nodes
+		Note.NoteType.DODGE:
+			return dodge_warn_position_nodes
+	return []
+
+
+func _get_position_node_index(note: Note, counter: int, node_count: int) -> int:
+	if node_count <= 0:
+		return 0
+	if note.slot_index >= 0:
+		return clampi(note.slot_index, 0, node_count - 1)
+	return counter % node_count
+
+
+func _uses_laser_pattern_positions(note: Note) -> bool:
+	return note != null and not note.source_layer.is_empty() and note.source_layer.to_lower().contains("laser")
+
+
+func _spawn_warn(note: Note, warn_scene: PackedScene, counter: int, duration_beats: float = 1.0) -> void:
 	var instance: Node2D = warn_scene.instantiate()
 	
 	# 获取预警位置节点
-	var warn_pos_nodes: Array[Node2D]
-	match note.type:
-		Note.NoteType.GUARD: warn_pos_nodes = guard_warn_position_nodes
-		Note.NoteType.HIT:   warn_pos_nodes = hit_warn_position_nodes
-		Note.NoteType.DODGE: warn_pos_nodes = dodge_warn_position_nodes
+	var warn_pos_nodes: Array[Node2D] = _get_warn_position_nodes(note)
 	
 	if warn_pos_nodes.size() > 0:
-		var pos_node: Node2D = warn_pos_nodes[counter % warn_pos_nodes.size()]
+		var pos_node: Node2D = warn_pos_nodes[_get_position_node_index(note, counter, warn_pos_nodes.size())]
 		game_ui.add_child(instance)
 		instance.position = get_viewport().get_canvas_transform() * pos_node.global_position
 	else:
 		# 无预警位置节点时回退到主动画位置节点
-		var pos_nodes: Array[Node2D]
-		match note.type:
-			Note.NoteType.GUARD: pos_nodes = guard_position_nodes
-			Note.NoteType.HIT:   pos_nodes = hit_position_nodes
-			Note.NoteType.DODGE: pos_nodes = dodge_position_nodes
+		var pos_nodes: Array[Node2D] = _get_main_position_nodes(note)
 		if pos_nodes.size() > 0:
-			var pos_node: Node2D = pos_nodes[counter % pos_nodes.size()]
+			var pos_node: Node2D = pos_nodes[_get_position_node_index(note, counter, pos_nodes.size())]
 			game_ui.add_child(instance)
 			instance.position = get_viewport().get_canvas_transform() * pos_node.global_position
 		else:
@@ -815,7 +916,7 @@ func _spawn_warn(note: Note, warn_scene: PackedScene, counter: int) -> void:
 	_active_warns.append(instance)
 
 	# 1拍后自动销毁
-	var warn_duration: float = EventBus.beat_interval
+	var warn_duration: float = EventBus.beat_interval * maxf(0.05, duration_beats)
 	var token: int = _effect_runtime_token
 	var warn_instance_id: int = instance.get_instance_id()
 	_schedule_music_clock_event(_get_music_clock_time() + warn_duration, Callable(self, "_on_warn_effect_timeout"), [token, warn_instance_id])
@@ -923,15 +1024,11 @@ func _spawn_main_animation(note: Note, target_beats: int, counter: int) -> void:
 	
 	# === 计算播放位置 ===
 	# 根据音符类型获取对应的位置节点数组
-	var pos_nodes: Array[Node2D]
-	match note.type:
-		Note.NoteType.GUARD: pos_nodes = guard_position_nodes
-		Note.NoteType.HIT:   pos_nodes = hit_position_nodes
-		Note.NoteType.DODGE: pos_nodes = dodge_position_nodes
+	var pos_nodes: Array[Node2D] = _get_main_position_nodes(note)
 	
 	if pos_nodes.size() > 0:
+		var pos_node: Node2D = pos_nodes[_get_position_node_index(note, counter, pos_nodes.size())]
 		# 使用传入的计数器轮换位置，避免连续动画重叠
-		var pos_node: Node2D = pos_nodes[counter % pos_nodes.size()]
 		# 先 add_child 再赋位置，将世界坐标转换为屏幕坐标（CanvasLayer 使用屏幕坐标系）
 		game_ui.add_child(instance)
 		instance.position = get_viewport().get_canvas_transform() * pos_node.global_position
