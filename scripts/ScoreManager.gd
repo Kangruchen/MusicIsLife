@@ -4,6 +4,7 @@ const RhythmClock := preload("res://scripts/RhythmClock.gd")
 const AttackHitQueue := preload("res://scripts/AttackHitQueue.gd")
 const DialoguePauseState := preload("res://scripts/DialoguePauseState.gd")
 const AttackPhaseTiming := preload("res://scripts/AttackPhaseTiming.gd")
+const BattleSubsystemCoordinator := preload("res://scripts/BattleSubsystemCoordinator.gd")
 ## 分数管理器 - 管理玩家分数、血量、Boss体力
 
 signal player_died()
@@ -165,18 +166,7 @@ func _on_boss_energy_depleted() -> void:
 	
 	print("\n========== 攻击阶段开始（共", total_attack_beats, "拍） ==========")
 	
-	# 暂停节拍检测
-	beat_manager.pause_beat_detection()
-	
-	# 暂停音符生成和清理已生成的音符
-	if track_manager:
-		if track_manager.has_method("pause_note_spawning"):
-			track_manager.pause_note_spawning()
-		track_manager.clear_all_notes()
-	
-	# 暂停输入检测
-	if input_manager and input_manager.has_method("pause_input"):
-		input_manager.pause_input()
+	BattleSubsystemCoordinator.pause_for_attack_phase(beat_manager, track_manager, input_manager)
 	
 	# 通过 EventBus 通知 UI 层（替代 get_node GameUI）
 	var depletion_music_time: float = _consume_attack_anchor_music_time()
@@ -223,21 +213,7 @@ func _try_start_first_break_dialogue() -> bool:
 
 
 func _pause_for_first_break_dialogue() -> void:
-	if music_player and music_player.has_method("pause_music"):
-		music_player.pause_music()
-
-	if beat_manager and beat_manager.has_method("pause_beat_detection"):
-		beat_manager.pause_beat_detection()
-
-	if track_manager:
-		if track_manager.has_method("pause_note_spawning"):
-			track_manager.pause_note_spawning()
-		if track_manager.has_method("clear_all_notes"):
-			track_manager.clear_all_notes()
-
-	if input_manager and input_manager.has_method("pause_input"):
-		input_manager.pause_input()
-
+	BattleSubsystemCoordinator.pause_for_dialogue(music_player, beat_manager, track_manager, input_manager)
 	_first_break_pause_state.enter(get_tree(), first_break_dialogue_ui)
 
 
@@ -275,20 +251,7 @@ func _on_pause_timeout() -> void:
 	# 通知 UI 隐藏暂停效果
 	EventBus.hide_pause_effects_requested.emit()
 	
-	# 恢复节拍检测
-	beat_manager.resume_beat_detection()
-	
-	# 恢复输入检测
-	if input_manager and input_manager.has_method("resume_input"):
-		input_manager.resume_input()
-	
-	# 恢复音符生成
-	if track_manager and track_manager.has_method("resume_note_spawning"):
-		track_manager.resume_note_spawning()
-
-	# 退出攻击阶段混音
-	if music_player and music_player.has_method("end_attack_mix_mode"):
-		music_player.end_attack_mix_mode()
+	BattleSubsystemCoordinator.resume_after_attack_phase(beat_manager, track_manager, input_manager, music_player)
 	
 	# 恢复 Boss 精力条（减去临时削减量）
 	var recovery_amount: float = GameConfigs.judgment.max_boss_energy - temporary_energy_reduce
@@ -475,17 +438,7 @@ func _trigger_player_game_over() -> void:
 	if pause_timer != null:
 		pause_timer.stop()
 
-	if beat_manager != null and beat_manager.has_method("pause_beat_detection"):
-		beat_manager.pause_beat_detection()
-
-	if track_manager != null:
-		if track_manager.has_method("pause_note_spawning"):
-			track_manager.pause_note_spawning()
-		if track_manager.has_method("clear_all_notes"):
-			track_manager.clear_all_notes()
-
-	if input_manager != null and input_manager.has_method("pause_input"):
-		input_manager.pause_input()
+	BattleSubsystemCoordinator.stop_for_game_over(beat_manager, track_manager, input_manager)
 
 	player_died.emit()
 	EventBus.player_died.emit()
@@ -504,29 +457,10 @@ func _on_boss_defeated() -> void:
 
 	if is_paused_for_attack:
 		is_paused_for_attack = false
-
-		if input_manager and input_manager.has_method("force_end_attack_phase"):
-			input_manager.force_end_attack_phase()
-
-		if music_player and music_player.has_method("end_attack_mix_mode"):
-			music_player.end_attack_mix_mode()
-
+		BattleSubsystemCoordinator.force_end_attack_phase(input_manager, music_player)
 		EventBus.hide_attack_ui_requested.emit()
 		EventBus.hide_pause_effects_requested.emit()
 
-	if music_player and music_player.has_method("fade_out_all_for_death"):
-		music_player.fade_out_all_for_death()
-
-	if beat_manager and beat_manager.has_method("pause_beat_detection"):
-		beat_manager.pause_beat_detection()
-
-	if track_manager:
-		if track_manager.has_method("pause_note_spawning"):
-			track_manager.pause_note_spawning()
-		if track_manager.has_method("clear_all_notes"):
-			track_manager.clear_all_notes()
-
-	if input_manager and input_manager.has_method("pause_input"):
-		input_manager.pause_input()
+	BattleSubsystemCoordinator.stop_for_boss_defeat(music_player, beat_manager, track_manager, input_manager)
 
 	print("Boss被击败！游戏结束。")

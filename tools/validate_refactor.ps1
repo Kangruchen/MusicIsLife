@@ -59,6 +59,7 @@ try {
     Invoke-GodotCheck "check-attack-hit-queue" @("--headless", "--check-only", "--script", "res://scripts/AttackHitQueue.gd")
     Invoke-GodotCheck "check-attack-music-fade-rules" @("--headless", "--check-only", "--script", "res://scripts/AttackMusicFadeRules.gd")
     Invoke-GodotCheck "check-attack-phase-timing" @("--headless", "--check-only", "--script", "res://scripts/AttackPhaseTiming.gd")
+    Invoke-GodotCheck "check-battle-subsystem-coordinator" @("--headless", "--check-only", "--script", "res://scripts/BattleSubsystemCoordinator.gd")
     Invoke-GodotCheck "check-attack-beat-grid" @("--headless", "--check-only", "--script", "res://scripts/AttackBeatGrid.gd")
     Invoke-GodotCheck "check-boss-charge-bullet-timing" @("--headless", "--check-only", "--script", "res://scripts/BossChargeBulletTiming.gd")
     Invoke-GodotCheck "check-character-attack-hitbox-rules" @("--headless", "--check-only", "--script", "res://scripts/CharacterAttackHitboxRules.gd")
