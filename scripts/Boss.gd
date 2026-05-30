@@ -1055,18 +1055,8 @@ func _on_boss_defeated() -> void:
 	_reset_attack_hit_visuals()
 	_stop_break_transition()
 	_attack_phase_interrupted = false
-	_is_preparing_missile = false
-	_is_preparing_charge = false
-	_has_pending_missile_launch = false
-	_missile_side_selector.clear_forced_sides()
-	_pending_charge_beats = 0.0
-	_has_pending_charge_fire = false
-	_pending_charge_fire_time = 0.0
-	_pending_missile_beats = 0
-	_missile_state_remaining_time = 0.0
-	_charge_bullet_fired_this_cycle = false
-	_stop_charge_animation()
-	_clear_active_missiles()
+	_reset_charge_flow(false, false)
+	_reset_missile_flow(true)
 	_set_visual_frame(_middle_body_visual, middle_part_broken_frame)
 	_set_visual_frame(_left_missile_visual, left_part_broken_frame)
 	_set_visual_frame(_right_missile_visual, right_part_broken_frame)
@@ -1092,20 +1082,9 @@ func _interrupt_for_attack_phase(target_state: BossState = BossState.IDLE) -> vo
 
 	_invalidate_boss_attack_sounds()
 	_attack_phase_interrupted = true
-	_is_preparing_missile = false
-	_is_preparing_charge = false
-	_has_pending_missile_launch = false
-	_missile_side_selector.clear_forced_sides()
-	_pending_charge_beats = 0.0
-	_has_pending_charge_fire = false
-	_pending_charge_fire_time = 0.0
-	_pending_missile_beats = 0
-	_charge_state_remaining_time = 0.0
-	_missile_state_remaining_time = 0.0
-	_charge_bullet_fired_this_cycle = false
+	_reset_charge_flow(false, false)
+	_reset_missile_flow(true)
 	_has_move_target = false
-	_stop_charge_animation()
-	_clear_active_missiles()
 	_set_state(target_state)
 
 
@@ -1120,17 +1099,8 @@ func _on_attack_phase_ended() -> void:
 	_stop_break_transition()
 	_stop_return_to_origin_transition()
 	_attack_phase_interrupted = false
-	_is_preparing_missile = false
-	_is_preparing_charge = false
-	_has_pending_missile_launch = false
-	_missile_side_selector.clear_forced_sides()
-	_pending_charge_beats = 0.0
-	_has_pending_charge_fire = false
-	_pending_charge_fire_time = 0.0
-	_pending_missile_beats = 0
-	_charge_state_remaining_time = 0.0
-	_missile_state_remaining_time = 0.0
-	_charge_bullet_fired_this_cycle = false
+	_reset_charge_flow(false, false)
+	_reset_missile_flow(false)
 
 	# 攻击阶段结束后立即执行一次正常选位移动，避免观感像瞬移。
 	_set_state(BossState.RANDOM_MOVE)
@@ -1150,19 +1120,8 @@ func _on_player_died() -> void:
 	_invalidate_boss_attack_sounds()
 	_attack_phase_interrupted = true
 	_has_move_target = false
-	_is_preparing_missile = false
-	_is_preparing_charge = false
-	_has_pending_missile_launch = false
-	_missile_side_selector.clear_forced_sides()
-	_has_pending_charge_fire = false
-	_pending_charge_fire_time = 0.0
-	_pending_missile_beats = 0
-	_pending_charge_beats = 0.0
-	_charge_state_remaining_time = 0.0
-	_missile_state_remaining_time = 0.0
-	_charge_bullet_fired_this_cycle = false
-	_stop_charge_animation()
-	_clear_active_missiles()
+	_reset_charge_flow(false, false)
+	_reset_missile_flow(true)
 	set_process(false)
 
 
@@ -1397,26 +1356,37 @@ func _set_part_destroyed_for_debug(part: int, destroyed: bool) -> void:
 
 
 func _cancel_charge_flow_after_part_broken() -> void:
-	_is_preparing_charge = false
-	_has_pending_charge_fire = false
-	_pending_charge_fire_time = 0.0
-	_pending_charge_beats = 0.0
-	_charge_state_remaining_time = 0.0
-	_charge_visual_remaining_time = 0.0
-	_charge_bullet_fired_this_cycle = false
-	_charge_sfx_played_in_cycle = false
-	_clear_active_charge_bullet()
-	_stop_charge_animation()
+	_reset_charge_flow(true, true)
 
 
 func _cancel_missile_flow_after_parts_broken() -> void:
+	_reset_missile_flow(true)
+
+
+func _reset_charge_flow(reset_visual_runtime: bool, clear_active_bullet: bool) -> void:
+	_is_preparing_charge = false
+	_pending_charge_beats = 0.0
+	_has_pending_charge_fire = false
+	_pending_charge_fire_time = 0.0
+	_charge_state_remaining_time = 0.0
+	_charge_bullet_fired_this_cycle = false
+	if reset_visual_runtime:
+		_charge_visual_remaining_time = 0.0
+		_charge_sfx_played_in_cycle = false
+	if clear_active_bullet:
+		_clear_active_charge_bullet()
+	_stop_charge_animation()
+
+
+func _reset_missile_flow(clear_active_missiles: bool) -> void:
 	_is_preparing_missile = false
 	_has_pending_missile_launch = false
 	_pending_missile_launch_time = 0.0
 	_pending_missile_beats = 0
 	_missile_state_remaining_time = 0.0
 	_missile_side_selector.clear_forced_sides()
-	_clear_active_missiles()
+	if clear_active_missiles:
+		_clear_active_missiles()
 
 
 func _are_missile_parts_all_destroyed() -> bool:
@@ -1591,9 +1561,7 @@ func _on_boss_charge_requested(duration_beats: float) -> void:
 			" now=", "%.3f" % now,
 			" state=", BossState.keys()[current_state])
 
-	var beat_seconds: float = EventBus.beat_interval
-	if beat_seconds <= 0.0:
-		beat_seconds = 0.5
+	var beat_seconds: float = _get_beat_seconds()
 
 	_charge_state_remaining_time = 0.0
 	# 蓄力动画播放时长保持固定，避免因请求剩余拍数波动导致时快时慢。
@@ -1638,9 +1606,7 @@ func _on_boss_missile_requested(duration_beats: float) -> void:
 	_pending_missile_beats = maxi(1, int(ceili(beats)))
 	_missile_return_arrived_logged = false
 
-	var beat_seconds: float = EventBus.beat_interval
-	if beat_seconds <= 0.0:
-		beat_seconds = 0.5
+	var beat_seconds: float = _get_beat_seconds()
 
 	# duration_beats 语义：距命中剩余拍数。发射到命中耗时=phase1+phase2。
 	var flight_beats: float = float(maxi(1, missile_phase1_beats) + maxi(1, missile_phase2_beats))
@@ -1720,9 +1686,7 @@ func _prepare_pre_missile_return_target() -> bool:
 
 func _begin_charge_attack(beats: float) -> void:
 	var beat_count: float = maxf(0.01, beats)
-	var beat_seconds: float = EventBus.beat_interval
-	if beat_seconds <= 0.0:
-		beat_seconds = 0.5
+	var beat_seconds: float = _get_beat_seconds()
 	_charge_cycle_id += 1
 	_charge_play_call_count = 0
 	if _charge_animation_started_early:
@@ -1765,9 +1729,7 @@ func _update_pending_charge_schedule() -> void:
 
 func _begin_missile_attack(beats: int) -> void:
 	var beat_count: int = maxi(1, beats)
-	var beat_seconds: float = EventBus.beat_interval
-	if beat_seconds <= 0.0:
-		beat_seconds = 0.5
+	var beat_seconds: float = _get_beat_seconds()
 
 	_pending_missile_beats = 0
 	_has_pending_missile_launch = false
@@ -1785,9 +1747,7 @@ func _start_missile_attack() -> void:
 		push_warning("[Boss] missile_scene 未配置")
 		return
 
-	var beat_seconds: float = EventBus.beat_interval
-	if beat_seconds <= 0.0:
-		beat_seconds = 0.5
+	var beat_seconds: float = _get_beat_seconds()
 
 	var phase1_duration: float = float(maxi(1, missile_phase1_beats)) * beat_seconds
 	var phase2_duration: float = float(maxi(1, missile_phase2_beats)) * beat_seconds
@@ -1928,9 +1888,7 @@ func _record_missile_despawn_position(missile: Node2D) -> void:
 
 
 func _get_missile_dash_duration(total_duration: float) -> float:
-	var beat_seconds: float = EventBus.beat_interval
-	if beat_seconds <= 0.0:
-		beat_seconds = 0.5
+	var beat_seconds: float = _get_beat_seconds()
 	var requested: float = maxf(0.1, missile_dash_beats) * beat_seconds
 	return clampf(requested, 0.01, maxf(0.01, total_duration))
 
@@ -2004,9 +1962,7 @@ func _start_missile_warning_blink(missile: Node2D, token: int) -> void:
 
 	_blink_missile_warning_once(missile)
 
-	var beat_seconds: float = EventBus.beat_interval
-	if beat_seconds <= 0.0:
-		beat_seconds = 0.5
+	var beat_seconds: float = _get_beat_seconds()
 	var missile_instance_id: int = missile.get_instance_id()
 	_schedule_music_clock_event(_get_now_seconds() + beat_seconds, Callable(self, "_on_missile_warning_blink_timeout"), [token, missile_instance_id])
 
@@ -2036,7 +1992,7 @@ func _blink_warning_light_once(warning_light: Sprite2D, owner_node: Node2D) -> v
 	if warning_light == null or not is_instance_valid(warning_light):
 		return
 
-	var beat_seconds: float = EventBus.beat_interval
+	var beat_seconds: float = _get_beat_seconds()
 	_missile_warning_style.blink_once(
 		warning_light,
 		owner_node,
@@ -2090,9 +2046,7 @@ func _start_missile_warning_preview_blink(token: int) -> void:
 
 	_blink_warning_light_once(_missile_warning_preview_light, self)
 
-	var beat_seconds: float = EventBus.beat_interval
-	if beat_seconds <= 0.0:
-		beat_seconds = 0.5
+	var beat_seconds: float = _get_beat_seconds()
 
 	_schedule_music_clock_event(_get_now_seconds() + beat_seconds, Callable(self, "_on_missile_warning_preview_blink_timeout"), [token])
 
@@ -2243,9 +2197,7 @@ func _launch_missile_attack_now() -> void:
 func _start_return_to_origin_transition() -> void:
 	_stop_return_to_origin_transition()
 
-	var bi: float = EventBus.beat_interval
-	if bi <= 0.0:
-		bi = 0.5
+	var bi: float = _get_beat_seconds()
 
 	var rotate_duration: float = bi
 	var move_duration: float = float(maxi(1, GameConstants.EXIT_BEATS - 1)) * bi
@@ -2278,6 +2230,12 @@ func _get_now_seconds() -> float:
 	return RhythmClock.get_music_or_wall_time(_music_player)
 
 
+func _get_beat_seconds() -> float:
+	if EventBus.beat_interval > 0.0:
+		return EventBus.beat_interval
+	return 0.5
+
+
 func _schedule_music_clock_event(target_time: float, callback: Callable, args: Array = []) -> void:
 	_music_clock_events.schedule(target_time, callback, args)
 
@@ -2295,9 +2253,7 @@ func _start_shield_break_transition() -> void:
 	if _player_node == null:
 		_resolve_aim_nodes()
 
-	var bi: float = EventBus.beat_interval
-	if bi <= 0.0:
-		bi = 0.5
+	var bi: float = _get_beat_seconds()
 	var total_beats: int = maxi(1, broken_transition_beats)
 	var duration: float = float(total_beats) * bi
 	var shake_duration: float = minf(duration, bi)
