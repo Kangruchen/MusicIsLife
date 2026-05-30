@@ -2,6 +2,7 @@ extends Node
 
 const RhythmClock := preload("res://scripts/RhythmClock.gd")
 const AttackHitQueue := preload("res://scripts/AttackHitQueue.gd")
+const DialoguePauseState := preload("res://scripts/DialoguePauseState.gd")
 ## 分数管理器 - 管理玩家分数、血量、Boss体力
 
 signal player_died()
@@ -38,10 +39,8 @@ var pause_end_music_time: float = 0.0
 var pending_attack_anchor_music_time: float = -1.0
 var _first_break_dialogue_played: bool = false
 var _first_break_dialogue_active: bool = false
-var _first_break_dialogue_previous_tree_paused: bool = false
-var _first_break_dialogue_ui_previous_process_mode: int = Node.PROCESS_MODE_INHERIT
-var _first_break_dialogue_layer_previous_process_mode: int = Node.PROCESS_MODE_INHERIT
 var _attack_hit_queue: RefCounted = AttackHitQueue.new(PENDING_ATTACK_TIMEOUT)
+var _first_break_pause_state: RefCounted = DialoguePauseState.new()
 
 
 func _ready() -> void:
@@ -220,15 +219,6 @@ func _try_start_first_break_dialogue() -> bool:
 
 
 func _pause_for_first_break_dialogue() -> void:
-	_first_break_dialogue_previous_tree_paused = get_tree().paused
-
-	_first_break_dialogue_ui_previous_process_mode = first_break_dialogue_ui.process_mode
-	first_break_dialogue_ui.process_mode = Node.PROCESS_MODE_ALWAYS
-	var dialogue_layer: Node = first_break_dialogue_ui.get_parent()
-	if dialogue_layer != null:
-		_first_break_dialogue_layer_previous_process_mode = dialogue_layer.process_mode
-		dialogue_layer.process_mode = Node.PROCESS_MODE_ALWAYS
-
 	if music_player and music_player.has_method("pause_music"):
 		music_player.pause_music()
 
@@ -244,7 +234,7 @@ func _pause_for_first_break_dialogue() -> void:
 	if input_manager and input_manager.has_method("pause_input"):
 		input_manager.pause_input()
 
-	get_tree().paused = true
+	_first_break_pause_state.enter(get_tree(), first_break_dialogue_ui)
 
 
 func _on_first_break_dialogue_closed() -> void:
@@ -252,13 +242,7 @@ func _on_first_break_dialogue_closed() -> void:
 		return
 
 	_first_break_dialogue_active = false
-	get_tree().paused = _first_break_dialogue_previous_tree_paused
-
-	if first_break_dialogue_ui != null and is_instance_valid(first_break_dialogue_ui):
-		first_break_dialogue_ui.process_mode = _first_break_dialogue_ui_previous_process_mode
-		var dialogue_layer: Node = first_break_dialogue_ui.get_parent()
-		if dialogue_layer != null:
-			dialogue_layer.process_mode = _first_break_dialogue_layer_previous_process_mode
+	_first_break_pause_state.exit(get_tree(), first_break_dialogue_ui)
 
 	if is_game_over:
 		return
