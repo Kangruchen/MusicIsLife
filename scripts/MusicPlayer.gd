@@ -1,6 +1,7 @@
 extends Node
 
 const MusicClockEventQueue := preload("res://scripts/MusicClockEventQueue.gd")
+const AttackMusicFadeRules := preload("res://scripts/AttackMusicFadeRules.gd")
 ## 音乐播放器 - 负责加载和播放多轨道音乐
 ## BGM 轨道路由到 "BGM" 总线（受 LowPass 滤镜影响）
 ## Miss 音效通过 SFXManager 路由到 "SFX" 总线（不受 LowPass 影响）
@@ -658,7 +659,7 @@ func _begin_attack_return_transition(crossfade_duration: float) -> void:
 	_fade_out_attack_player(attack_loop_player_a, crossfade_duration, true)
 	_fade_out_attack_player(attack_loop_player_b, crossfade_duration, true)
 	_active_attack_loop_player = null
-	_restore_base_tracks_for_attack(_get_remaining_attack_outro_time())
+	_restore_base_tracks_for_attack(_get_attack_return_restore_seconds())
 
 
 func _play_attack_loop_player(player: AudioStreamPlayer, phrase_index: int, fade_in_seconds: float = 0.0) -> bool:
@@ -864,37 +865,55 @@ func _get_attack_players() -> Array:
 
 
 func _get_attack_base_fade_seconds() -> float:
-	return maxf(attack_music_fade_seconds, attack_base_fade_seconds)
+	return AttackMusicFadeRules.base_fade_seconds(attack_music_fade_seconds, attack_base_fade_seconds)
 
 
 func _get_attack_segment_crossfade_seconds() -> float:
-	var bi: float = maxf(0.0, _resolve_attack_beat_interval())
-	var beat_fade: float = maxf(0.0, attack_segment_crossfade_beats) * bi
-	return maxf(maxf(attack_music_fade_seconds, attack_segment_crossfade_seconds), beat_fade)
+	return AttackMusicFadeRules.segment_crossfade_seconds(
+		attack_music_fade_seconds,
+		attack_segment_crossfade_seconds,
+		attack_segment_crossfade_beats,
+		_resolve_attack_beat_interval()
+	)
 
 
 func _get_attack_return_fade_seconds() -> float:
-	return maxf(attack_music_fade_seconds, attack_return_fade_seconds)
+	return AttackMusicFadeRules.return_fade_seconds(attack_music_fade_seconds, attack_return_fade_seconds)
 
 
 func _get_attack_base_crossfade_seconds() -> float:
-	var bi: float = maxf(0.0, _resolve_attack_beat_interval())
-	var beat_fade: float = maxf(0.0, attack_base_crossfade_beats) * bi
-	var intro_delay_fade: float = maxf(0.0, attack_intro_delay_beats) * bi
-	return maxf(maxf(_get_attack_base_fade_seconds(), beat_fade), intro_delay_fade)
+	return AttackMusicFadeRules.base_crossfade_seconds(
+		attack_music_fade_seconds,
+		attack_base_fade_seconds,
+		attack_base_crossfade_beats,
+		attack_intro_delay_beats,
+		_resolve_attack_beat_interval()
+	)
 
 
 func _get_attack_intro_fade_seconds() -> float:
 	var available: float = maxf(0.0, _attack_loop_start_time - _attack_intro_start_time)
-	if available <= 0.0:
-		return _get_attack_segment_crossfade_seconds()
-	return minf(_get_attack_base_crossfade_seconds(), maxf(_get_attack_segment_crossfade_seconds(), available))
+	return AttackMusicFadeRules.intro_fade_seconds(
+		_get_attack_base_crossfade_seconds(),
+		_get_attack_segment_crossfade_seconds(),
+		available
+	)
 
 
 func _get_attack_return_crossfade_seconds() -> float:
-	var bi: float = maxf(0.0, _resolve_attack_beat_interval())
-	var beat_fade: float = maxf(0.0, attack_return_crossfade_beats) * bi
-	return maxf(_get_attack_return_fade_seconds(), beat_fade)
+	return AttackMusicFadeRules.return_crossfade_seconds(
+		attack_music_fade_seconds,
+		attack_return_fade_seconds,
+		attack_return_crossfade_beats,
+		_resolve_attack_beat_interval()
+	)
+
+
+func _get_attack_return_restore_seconds() -> float:
+	return AttackMusicFadeRules.clamp_return_restore_seconds(
+		_get_remaining_attack_outro_time(),
+		_get_attack_return_crossfade_seconds()
+	)
 
 
 func _get_remaining_attack_outro_time() -> float:
