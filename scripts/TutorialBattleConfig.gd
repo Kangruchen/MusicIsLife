@@ -16,6 +16,5 @@ enum AttackType {
 @export var bpm: float = 128.0
 @export var offset: float = 0.0
 @export var start_delay_beats: int = 2
-@export_file("*.mp3", "*.ogg", "*.wav") var music_path: String = ""
 @export var camera_zoom: Vector2 = Vector2(0.6, 0.6)
 @export var camera_stick_bottom: bool = false

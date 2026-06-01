@@ -12,9 +12,9 @@ const BEAT_TRACK_WIDTH_RATIO: float = 0.8
 const CURSOR_HALF_WIDTH: float = 2.0
 
 # 血量条引用
-@onready var boss_health_bar: ProgressBar = $MarginContainer/VBoxContainer/BossHealthBar
-@onready var boss_guard_bar: ProgressBar = $MarginContainer/VBoxContainer/BossGuardBar
-@onready var player_health_bar: ProgressBar = $MarginContainer2/VBoxContainer/PlayerHealthBar
+@onready var boss_health_bar: OctagonBar = $MarginContainer/VBoxContainer/BossHealthBar
+@onready var boss_guard_bar: OctagonBar = $MarginContainer/VBoxContainer/BossGuardBar
+@onready var player_health_bar: OctagonBar = $MarginContainer2/VBoxContainer/PlayerHealthBar
 
 # 暂停阶段视觉效果元素
 var countdown_label: Label = null

@@ -5,7 +5,7 @@
 [ext_resource type="PackedScene" uid="uid://c6yxi20pgmbbx" path="res://scenes/tutorial_scene.tscn" id="3_ckvwl"]
 [ext_resource type="Script" uid="uid://e8i1qf3cicia" path="res://scripts/TutorialPlatformPlayer.gd" id="3_tutorial_player"]
 [ext_resource type="Script" uid="uid://ca0r3f27db17c" path="res://scripts/dialog_trigger.gd" id="4_4kmhl"]
-[ext_resource type="PackedScene" path="res://scenes/DialogueUI.tscn" id="5_cq4me"]
+[ext_resource type="PackedScene" uid="uid://bgai0ghblaof0" path="res://scenes/DialogueUI.tscn" id="5_cq4me"]
 [ext_resource type="Script" uid="uid://nfo3c4c1ywks" path="res://scenes/dialogue_ui.tscn.gd" id="6_6yjpi"]
 [ext_resource type="Script" uid="uid://dc42mm2n7qheh" path="res://scripts/TutorialBattleConfig.gd" id="9_cmspm"]
 [ext_resource type="PackedScene" uid="uid://c8jx3vn5qwm4r" path="res://scenes/GameUI.tscn" id="9_game_ui"]
@@ -186,15 +186,14 @@ position = Vector2(3102, -818)
 
 [node name="MusicPlayer" type="Node" parent="GameManager"]
 script = ExtResource("10_music_player")
-music_path = "uid://sb6irng2vpss"
-attack_music_path = "uid://cgvgdwlf2rft0"
+music_path = "res://assets/charts/New Demo/New Demo_mixed.mp3"
+attack_music_path = "res://assets/charts/New Demo/Chrome Pulse_mixed.mp3"
 auto_play = false
 enable_miss_audio_effect = true
 
 [node name="BeatManager" type="Node" parent="GameManager"]
 script = ExtResource("11_beat_mgr")
 bpm = 0.0
-generate_test_chart = false
 
 [node name="TrackManager" type="Node" parent="GameManager" node_paths=PackedStringArray("guard_position_nodes", "laser_pattern_position_nodes", "laser_pattern_warn_position_nodes", "game_ui")]
 script = ExtResource("12_track_mgr")
@@ -259,7 +258,6 @@ shape = SubResource("RectangleShape2D_cmspm")
 
 [node name="TutorialBattleUI" parent="." instance=ExtResource("19_tut_battle_ui")]
 box_size = Vector2(22, 22)
-battle2_offset = Vector2(0, 0)
 
 [node name="LevelGeometry" type="StaticBody2D" parent="."]
 

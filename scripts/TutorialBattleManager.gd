@@ -379,7 +379,7 @@ func _start_battle_internal() -> void:
 	if _music_player:
 		_music_player.auto_play = false
 		if _music_player.has_method("load_and_play_music"):
-			_music_player.load_and_play_music(_current_config.music_path)
+			_music_player.load_and_play_music()
 
 	battle_started.emit(_current_config.battle_id)
 
