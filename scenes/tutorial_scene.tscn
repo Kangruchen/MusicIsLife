@@ -1,4 +1,4 @@
-[gd_scene load_steps=84 format=4 uid="uid://c6yxi20pgmbbx"]
+[gd_scene load_steps=86 format=4 uid="uid://c6yxi20pgmbbx"]
 
 [ext_resource type="Texture2D" uid="uid://bixshvvvi35xi" path="res://assets/environment/scene_tutorial/background.png" id="1_k1v41"]
 [ext_resource type="Texture2D" uid="uid://2luontrbyikd" path="res://assets/environment/scene_tutorial/machine.png" id="2_7ncn3"]
@@ -19,7 +19,7 @@
 [ext_resource type="Texture2D" uid="uid://dovpo1keougv" path="res://assets/environment/scene_tutorial/gadgets.png" id="16_t3n2b"]
 [ext_resource type="Texture2D" uid="uid://bc62btooxy313" path="res://assets/environment/scene_tutorial/elevator_door_left.png" id="16_yv6gy"]
 [ext_resource type="Texture2D" uid="uid://brtsr0m18wd25" path="res://assets/environment/scene_tutorial/frame_2.png" id="17_3t30l"]
-[ext_resource type="Texture2D" uid="uid://bfr5vjyhpj2jy" path="res://assets/environment/scene_tutorial/elevator.png" id="17_50lb2"]
+[ext_resource type="Texture2D" uid="uid://dlouqtv77mcuc" path="res://assets/environment/scene_tutorial/elevator_door_right.png" id="17_vqpaf"]
 [ext_resource type="Texture2D" uid="uid://bruoau4667wwq" path="res://assets/environment/scene_tutorial/doorframe_back_1.png" id="18_6lktx"]
 [ext_resource type="Texture2D" uid="uid://bbt52vlcbqb4e" path="res://assets/environment/scene_tutorial/light.png" id="18_xptte"]
 [ext_resource type="Texture2D" uid="uid://c8iy5dprs8uvk" path="res://assets/environment/scene_tutorial/doorframe_front_1.png" id="19_dpd0b"]
@@ -430,6 +430,13 @@ animations = [{
 shader = ExtResource("5_nlknn")
 shader_parameter/speed = 0.05
 
+[sub_resource type="Gradient" id="Gradient_vqpaf"]
+offsets = PackedFloat32Array(0, 0.006666667)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_yv6gy"]
+gradient = SubResource("Gradient_vqpaf")
+fill = 1
+
 [node name="tutorial_scene" type="Node2D"]
 
 [node name="Background" type="Sprite2D" parent="."]
@@ -529,7 +536,7 @@ texture = ExtResource("16_yv6gy")
 [node name="elevator_door_right" type="Sprite2D" parent="."]
 visible = false
 position = Vector2(-1883, -152)
-texture = ExtResource("17_50lb2")
+texture = ExtResource("17_vqpaf")
 
 [node name="Frame" type="Sprite2D" parent="."]
 visible = false
@@ -547,6 +554,7 @@ texture = ExtResource("18_6lktx")
 
 [node name="SlidingDoor1" parent="." instance=ExtResource("19_nlknn")]
 position = Vector2(-872, 439)
+scale = Vector2(1, 1.1383531)
 custom_panel_texture = ExtResource("20_48nin")
 
 [node name="Doorframe_front_1" type="Sprite2D" parent="."]
@@ -563,6 +571,7 @@ texture = ExtResource("20_fstru")
 
 [node name="SlidingDoor2" parent="." instance=ExtResource("19_nlknn")]
 position = Vector2(571, 415)
+scale = Vector2(1, 1.12)
 custom_panel_texture = ExtResource("23_astrp")
 
 [node name="Doorframe_front_2" type="Sprite2D" parent="."]
@@ -577,7 +586,8 @@ position = Vector2(744, -290)
 texture = ExtResource("22_48nin")
 
 [node name="SlidingDoor3" parent="." instance=ExtResource("19_nlknn")]
-position = Vector2(752, -201)
+position = Vector2(751, -194)
+scale = Vector2(1, 1.12)
 custom_panel_texture = ExtResource("23_astrp")
 
 [node name="Doorframe_front_3" type="Sprite2D" parent="."]
@@ -645,3 +655,21 @@ metadata/_aseprite_wizard_interface_config_ = {
 "source_uid": -1
 }
 }
+
+[node name="PointLight2D" type="PointLight2D" parent="."]
+position = Vector2(-1354, 396)
+scale = Vector2(-2.8827057, 2.0130334)
+energy = 2.0
+texture = SubResource("GradientTexture2D_yv6gy")
+
+[node name="PointLight2D2" type="PointLight2D" parent="."]
+position = Vector2(-1108, 396)
+scale = Vector2(-2.8827057, 2.0130334)
+energy = 2.0
+texture = SubResource("GradientTexture2D_yv6gy")
+
+[node name="PointLight2D3" type="PointLight2D" parent="."]
+position = Vector2(-1600, 396)
+scale = Vector2(-2.8827057, 2.0130334)
+energy = 2.0
+texture = SubResource("GradientTexture2D_yv6gy")

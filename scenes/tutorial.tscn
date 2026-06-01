@@ -1,11 +1,11 @@
-[gd_scene load_steps=48 format=3 uid="uid://6o6cnudua672"]
+[gd_scene load_steps=49 format=3 uid="uid://6o6cnudua672"]
 
 [ext_resource type="Texture2D" uid="uid://dchsy7ncprqnu" path="res://assets/environment/scene_tutorial/工厂背景.png" id="1_c13y7"]
 [ext_resource type="PackedScene" uid="uid://da8ttcx4kdymg" path="res://scenes/character.tscn" id="2_8ho6b"]
 [ext_resource type="PackedScene" uid="uid://c6yxi20pgmbbx" path="res://scenes/tutorial_scene.tscn" id="3_ckvwl"]
 [ext_resource type="Script" uid="uid://e8i1qf3cicia" path="res://scripts/TutorialPlatformPlayer.gd" id="3_tutorial_player"]
 [ext_resource type="Script" uid="uid://ca0r3f27db17c" path="res://scripts/dialog_trigger.gd" id="4_4kmhl"]
-[ext_resource type="PackedScene" uid="uid://bgai0ghblaof0" path="res://scenes/DialogueUI.tscn" id="5_cq4me"]
+[ext_resource type="PackedScene" uid="uid://co7uijid0x7yl" path="res://scenes/DialogueUI.tscn.tscn" id="5_cq4me"]
 [ext_resource type="Script" uid="uid://nfo3c4c1ywks" path="res://scenes/dialogue_ui.tscn.gd" id="6_6yjpi"]
 [ext_resource type="Script" uid="uid://dc42mm2n7qheh" path="res://scripts/TutorialBattleConfig.gd" id="9_cmspm"]
 [ext_resource type="PackedScene" uid="uid://c8jx3vn5qwm4r" path="res://scenes/GameUI.tscn" id="9_game_ui"]
@@ -34,7 +34,7 @@ size = Vector2(70, 140)
 size = Vector2(1393, 581)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_cmspm"]
-size = Vector2(268, 492)
+size = Vector2(35, 141.5)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ground"]
 size = Vector2(4246, 40)
@@ -105,14 +105,21 @@ metadata/_custom_type_script = "uid://c1raarhgki7qr"
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ej4tf"]
 size = Vector2(223.5, 95)
 
-[node name="Tutorial" type="Node2D" node_paths=PackedStringArray("player", "walk_in_target", "elevator_interact_area", "left_door", "right_door", "interact_prompt")]
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_5qvs7"]
+size = Vector2(1.6917441, 13)
+
+[node name="Tutorial" type="Node2D" node_paths=PackedStringArray("player", "door_proximity_area", "level_end_area", "left_door", "right_door", "mask_left_bound", "mask_right_bound")]
+z_index = -1
+position = Vector2(94, -4)
 script = ExtResource("18_tutorial_root")
 player = NodePath("Player")
-walk_in_target = NodePath("WalkInTarget")
-elevator_interact_area = NodePath("Quit Zone")
+door_proximity_area = NodePath("DoorProximityArea")
+level_end_area = NodePath("LevelEndArea")
 left_door = NodePath("tutorial_scene/elevator_door_left2")
 right_door = NodePath("tutorial_scene/elevator_door_right2")
-interact_prompt = NodePath("Label")
+mask_left_bound = NodePath("MaskLeftBound")
+mask_right_bound = NodePath("MaskRightBound")
+player_idle_anim = "Idle"
 
 [node name="UILayer" type="CanvasLayer" parent="."]
 
@@ -123,7 +130,6 @@ script = ExtResource("6_6yjpi")
 player_node = NodePath("../../Player")
 
 [node name="Background" type="Sprite2D" parent="."]
-visible = false
 z_index = -10
 position = Vector2(1200, -420)
 scale = Vector2(0.333, 0.333)
@@ -133,11 +139,11 @@ texture = ExtResource("1_c13y7")
 position = Vector2(1204, -420)
 
 [node name="elevator_door_left2" type="Sprite2D" parent="tutorial_scene"]
-position = Vector2(-1978, -158)
+position = Vector2(-1972, -154)
 texture = ExtResource("26_qbchm")
 
 [node name="elevator_door_right2" type="Sprite2D" parent="tutorial_scene"]
-position = Vector2(-1889, -156)
+position = Vector2(-1882, -152)
 texture = ExtResource("27_gxgfo")
 
 [node name="Player" type="CharacterBody2D" parent="." groups=["player"]]
@@ -360,21 +366,37 @@ dialogue_ui = NodePath("../UILayer/DialogueUi_tscn")
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Trigger4"]
 shape = SubResource("RectangleShape2D_ej4tf")
 
-[node name="Quit Zone" type="Area2D" parent="."]
+[node name="DoorProximityArea" type="Area2D" parent="."]
 position = Vector2(-245, -361)
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Quit Zone"]
-position = Vector2(-476, -359)
+[node name="CollisionShape2D" type="CollisionShape2D" parent="DoorProximityArea"]
+position = Vector2(-332, -175)
 shape = SubResource("RectangleShape2D_cmspm")
+
+[node name="LevelEndArea" type="Area2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="LevelEndArea"]
+position = Vector2(-738, -531)
+scale = Vector2(5.911063, 1)
+shape = SubResource("RectangleShape2D_5qvs7")
 
 [node name="Marker2D" type="Marker2D" parent="."]
 position = Vector2(-402, 92)
 
 [node name="WalkInTarget" type="Marker2D" parent="."]
+visible = false
 position = Vector2(-717, -525)
 
 [node name="Label" type="Label" parent="."]
 visible = false
-offset_right = 40.0
-offset_bottom = 23.0
+offset_left = -595.0
+offset_top = -626.0
+offset_right = -555.0
+offset_bottom = -603.0
 text = "\"E\""
+
+[node name="MaskLeftBound" type="Marker2D" parent="."]
+position = Vector2(-812, -563)
+
+[node name="MaskRightBound" type="Marker2D" parent="."]
+position = Vector2(-629, -564)
