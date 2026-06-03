@@ -1,4 +1,4 @@
-[gd_scene load_steps=42 format=3 uid="uid://bcm01qchxk50h"]
+[gd_scene load_steps=32 format=3 uid="uid://bcm01qchxk50h"]
 
 [ext_resource type="Texture2D" uid="uid://bnss8br73fus2" path="res://assets/VFX/laser_sheet.png" id="1_xmihv"]
 [ext_resource type="Texture2D" uid="uid://desvwth01ki4a" path="res://assets/VFX/laser_sheet_re.png" id="2_a7dhc"]
@@ -82,46 +82,6 @@ region = Rect2(0, 18252, 1920, 1014)
 [sub_resource type="AtlasTexture" id="AtlasTexture_65ti5"]
 atlas = ExtResource("1_xmihv")
 region = Rect2(0, 19266, 1920, 1014)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_hjani"]
-atlas = ExtResource("2_a7dhc")
-region = Rect2(0, 0, 1920, 1080)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_2pg23"]
-atlas = ExtResource("2_a7dhc")
-region = Rect2(0, 1080, 1920, 1080)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_g66gc"]
-atlas = ExtResource("2_a7dhc")
-region = Rect2(0, 2160, 1920, 1080)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_tibpg"]
-atlas = ExtResource("2_a7dhc")
-region = Rect2(0, 3240, 1920, 1080)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_pyrps"]
-atlas = ExtResource("2_a7dhc")
-region = Rect2(0, 4320, 1920, 1080)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_gnkxm"]
-atlas = ExtResource("2_a7dhc")
-region = Rect2(0, 5400, 1920, 1080)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_uj2k7"]
-atlas = ExtResource("2_a7dhc")
-region = Rect2(0, 6480, 1920, 1080)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_c44xs"]
-atlas = ExtResource("2_a7dhc")
-region = Rect2(0, 7560, 1920, 1080)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_57sba"]
-atlas = ExtResource("2_a7dhc")
-region = Rect2(0, 8640, 1920, 1080)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_2dopv"]
-atlas = ExtResource("2_a7dhc")
-region = Rect2(0, 9720, 1920, 1080)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_ivrc4"]
 atlas = ExtResource("2_a7dhc")
@@ -224,36 +184,6 @@ animations = [{
 }, {
 "frames": [{
 "duration": 1.0,
-"texture": SubResource("AtlasTexture_hjani")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_2pg23")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_g66gc")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_tibpg")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_pyrps")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_gnkxm")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_uj2k7")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_c44xs")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_57sba")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_2dopv")
-}, {
-"duration": 1.0,
 "texture": SubResource("AtlasTexture_ivrc4")
 }, {
 "duration": 1.0,
@@ -291,5 +221,4 @@ modulate = Color(1.8247963, 1.8247963, 1.8247963, 1)
 position = Vector2(0, -57.5)
 sprite_frames = SubResource("SpriteFrames_hjani")
 animation = &"laser_re"
-frame = 17
-frame_progress = 1.0
+frame = 2

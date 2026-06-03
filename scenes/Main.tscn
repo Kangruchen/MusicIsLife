@@ -115,23 +115,30 @@ position = Vector2(0, 100)
 [node name="Laser2" type="Node2D" parent="PositionNodes"]
 position = Vector2(0, 130)
 
-[node name="Laser3" type="Node2D" parent="PositionNodes"]
-position = Vector2(0, 160)
+[node name="LaserWarn1" type="Node2D" parent="PositionNodes"]
+position = Vector2(-320, 40)
 
-[node name="Laser4" type="Node2D" parent="PositionNodes"]
-position = Vector2(0, 190)
+[node name="LaserWarn2" type="Node2D" parent="PositionNodes"]
+position = Vector2(-320, 70)
+
+[node name="LaserWarn3" type="Node2D" parent="PositionNodes"]
+position = Vector2(-320, 100)
+
+[node name="LaserWarn4" type="Node2D" parent="PositionNodes"]
+position = Vector2(-320, 130)
 
 [node name="GameManager" type="Node" parent="."]
 
 [node name="MusicPlayer" type="Node" parent="GameManager"]
 script = ExtResource("1_h5v3q")
 music_path = "uid://sb6irng2vpss"
-attack_intro_music_path = "res://assets/music/attack/in.ogg"
+attack_intro_music_path = "uid://djstg7rkwvpw1"
 attack_loop_music_path = "res://assets/music/attack/loop.ogg"
-attack_outro_music_path = "res://assets/music/attack/out.ogg"
+attack_outro_music_path = "uid://byamy7b17dce6"
+attack_intro_delay_beats = 0.0
 attack_intro_offset_seconds = -0.096
 attack_loop_offset_seconds = -0.03
-attack_outro_offset_seconds = -0.045
+attack_outro_offset_seconds = -0.10500000000000044
 enable_miss_audio_effect = true
 
 [node name="BeatManager" type="Node" parent="GameManager"]
@@ -139,12 +146,13 @@ script = ExtResource("2_b4ymn")
 bpm = 0.0
 chart_sm_path = "res://assets/charts/New Demo/New Demo.sm"
 
-[node name="TrackManager" type="Node" parent="GameManager" node_paths=PackedStringArray("guard_position_nodes", "laser_pattern_position_nodes", "laser_pattern_warn_position_nodes", "game_ui")]
+[node name="TrackManager" type="Node" parent="GameManager" node_paths=PackedStringArray("guard_position_nodes", "laser_pattern_position_nodes", "laser_pattern_warn_position_nodes", "guard_warn_position_nodes", "game_ui")]
 script = ExtResource("4_track_mgr")
 track_animation_config = ExtResource("8_mwfav")
 guard_position_nodes = [NodePath("../../PositionNodes/Laser1"), NodePath("../../PositionNodes/Laser2")]
-laser_pattern_position_nodes = [NodePath("../../PositionNodes/Laser1"), NodePath("../../PositionNodes/Laser2"), NodePath("../../PositionNodes/Laser3"), NodePath("../../PositionNodes/Laser4")]
-laser_pattern_warn_position_nodes = [NodePath("../../PositionNodes/Laser1"), NodePath("../../PositionNodes/Laser2"), NodePath("../../PositionNodes/Laser3"), NodePath("../../PositionNodes/Laser4")]
+laser_pattern_position_nodes = [NodePath("../../PositionNodes/Laser1"), NodePath("../../PositionNodes/Laser2"), NodePath("../../PositionNodes/Laser1"), NodePath("../../PositionNodes/Laser2")]
+laser_pattern_warn_position_nodes = [NodePath("../../PositionNodes/LaserWarn1"), NodePath("../../PositionNodes/LaserWarn2"), NodePath("../../PositionNodes/LaserWarn3"), NodePath("../../PositionNodes/LaserWarn4")]
+guard_warn_position_nodes = [NodePath("../../PositionNodes/LaserWarn3"), NodePath("../../PositionNodes/LaserWarn4")]
 game_ui = NodePath("../../GameUI")
 
 [node name="InputManager" type="Node" parent="GameManager"]
@@ -153,7 +161,6 @@ ignore_empty_press_without_nearby_notes = true
 
 [node name="ScoreManager" type="Node" parent="GameManager" node_paths=PackedStringArray("first_break_dialogue_ui")]
 script = ExtResource("6_score_mgr")
-attack_countdown_beats = 8
 enable_first_break_dialogue = true
 first_break_dialogue_ui = NodePath("../../DialogueLayer/AttackPhaseDialogueUI")
 first_break_dialogue_lines = Array[ExtResource("21_dialogue_line")]([SubResource("Resource_attack_phase_intro_1"), SubResource("Resource_attack_phase_intro_2"), SubResource("Resource_attack_phase_intro_3")])

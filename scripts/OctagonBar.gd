@@ -27,12 +27,12 @@ enum FillDirection {
 		empty_color = new_value
 		queue_redraw()
 
-@export var border_color: Color = Color(0.01, 0.015, 0.02, 1.0):
+@export var border_color: Color = Color.BLACK:
 	set(new_value):
 		border_color = new_value
 		queue_redraw()
 
-@export var border_highlight_color: Color = Color(0.55, 0.62, 0.7, 1.0):
+@export var border_highlight_color: Color = Color.BLACK:
 	set(new_value):
 		border_highlight_color = new_value
 		queue_redraw()
@@ -89,7 +89,8 @@ func _draw() -> void:
 
 
 func _make_octagon(rect: Rect2, cut: float) -> PackedVector2Array:
-	var clamped_cut: float = minf(cut, minf(rect.size.x, rect.size.y) * 0.5)
+	var max_cut: float = minf(rect.size.x * 0.5, rect.size.y * 0.35)
+	var clamped_cut: float = minf(cut, max_cut)
 	var left: float = rect.position.x
 	var top: float = rect.position.y
 	var right: float = rect.position.x + rect.size.x

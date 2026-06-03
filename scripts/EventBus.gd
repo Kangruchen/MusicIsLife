@@ -37,6 +37,8 @@ signal player_health_updated(current: float, maximum: float)
 signal boss_health_updated(current: float, maximum: float)
 signal boss_energy_updated(current: float, maximum: float)
 signal boss_energy_depleted
+signal boss_break_intro_started
+signal boss_break_fall_started
 signal boss_charge_requested(duration_beats: float)
 signal boss_missile_requested(duration_beats: float)
 signal player_died
@@ -78,6 +80,8 @@ func _suppress_unused_signal_warnings() -> void:
 	boss_health_updated.emit(0.0, 0.0)
 	boss_energy_updated.emit(0.0, 0.0)
 	boss_energy_depleted.emit()
+	boss_break_intro_started.emit()
+	boss_break_fall_started.emit()
 	boss_charge_requested.emit(0.0)
 	boss_missile_requested.emit(0.0)
 	player_died.emit()

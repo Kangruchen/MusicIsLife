@@ -72,6 +72,9 @@ var attack_beat_grid: RefCounted = AttackBeatGrid.new()
 var attack_countdown_beats: int = GameConstants.COUNTDOWN_BEATS
 var attack_input_beats: int = GameConstants.INPUT_BEATS
 var attack_exit_beats: int = GameConstants.EXIT_BEATS
+var _attack_clock_active: bool = false
+var _attack_clock_base_time: float = 0.0
+var _attack_clock_wall_start: float = 0.0
 var _defense_hit_effect_anchor: Node2D = null
 var _defense_hit_effect_boss: Node2D = null
 
@@ -461,11 +464,12 @@ func start_attack_phase(
 	input_beats: int = GameConstants.INPUT_BEATS,
 	exit_beats: int = GameConstants.EXIT_BEATS
 ) -> void:
-	current_phase = PhaseState.ATTACK
 	attack_beat_interval = bi
 	attack_countdown_beats = maxi(1, countdown_beats)
 	attack_input_beats = maxi(1, input_beats)
 	attack_exit_beats = maxi(1, exit_beats)
+	_start_attack_clock(first_beat_abs_time - float(attack_countdown_beats) * attack_beat_interval)
+	current_phase = PhaseState.ATTACK
 	current_beat_in_attack = 0
 	attack_phase_start_time = _get_music_clock_time()
 	attack_phase_end_time = first_beat_abs_time + float(attack_input_beats + attack_exit_beats) * attack_beat_interval
@@ -626,6 +630,7 @@ func force_end_attack_phase() -> void:
 
 func _reset_attack_phase_runtime() -> void:
 	current_phase = PhaseState.DEFENSE
+	_stop_attack_clock()
 	attack_phase_end_time = 0.0
 	_beat_generation += 1
 	attack_beat_grid.clear()
@@ -679,4 +684,16 @@ func _log_attack_drum_alignment(tag: String) -> void:
 
 
 func _get_music_clock_time() -> float:
+	if _attack_clock_active:
+		return _attack_clock_base_time + (RhythmClock.get_wall_time_seconds() - _attack_clock_wall_start)
 	return RhythmClock.get_music_time(music_player)
+
+
+func _start_attack_clock(base_time: float) -> void:
+	_attack_clock_base_time = base_time
+	_attack_clock_wall_start = RhythmClock.get_wall_time_seconds()
+	_attack_clock_active = true
+
+
+func _stop_attack_clock() -> void:
+	_attack_clock_active = false

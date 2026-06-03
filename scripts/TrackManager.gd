@@ -43,6 +43,7 @@ const SPAWN_ADVANCE := {
 
 const MISSILE_SIDE_LEFT: int = 0
 const MISSILE_SIDE_RIGHT: int = 1
+const GUARD_LASER_BEAT_ALIGNMENT_FRAME: int = 2
 
 const MISS_THRESHOLD: float = GameConstants.MISS_THRESHOLD
 
@@ -72,7 +73,7 @@ var _boss_node: Node2D = null
 @export_subgroup("Laser Pattern Layers")
 @export var laser_pattern_position_nodes: Array[Node2D] = []
 @export var laser_pattern_warn_position_nodes: Array[Node2D] = []
-@export_range(0.05, 2.0, 0.05) var laser_pattern_warning_duration_beats: float = 0.5
+@export_range(0.05, 2.0, 0.05) var laser_pattern_warning_duration_beats: float = 1.0
 
 # 可选：直接复用场景内现有 AnimatedSprite2D（不创建实例，保持原始位置不变）
 @export_group("外部动画节点")
@@ -374,10 +375,6 @@ func _spawn_laser_pattern_warning(warning_step: Dictionary) -> void:
 	if track_animation_config == null:
 		return
 
-	var warn_scene: PackedScene = track_animation_config.get_warn_scene(Note.NoteType.GUARD)
-	if warn_scene == null:
-		return
-
 	var warn_note := Note.new()
 	warn_note.type = Note.NoteType.GUARD
 	warn_note.beat_number = float(warning_step["beat_number"])
@@ -385,7 +382,7 @@ func _spawn_laser_pattern_warning(warning_step: Dictionary) -> void:
 	warn_note.slot_index = int(warning_step["slot_index"])
 	warn_note.source_layer = String(warning_step.get("source_layer", "laser_pattern"))
 
-	_spawn_warn(warn_note, warn_scene, warn_note.slot_index, laser_pattern_warning_duration_beats)
+	_spawn_guard_warn_animation(warn_note, warn_note.slot_index, laser_pattern_warning_duration_beats)
 	_play_boss_attack_sound_for_note_type(Note.NoteType.GUARD, true)
 
 
@@ -413,7 +410,7 @@ func _check_and_spawn_notes_by_time(now_time: float) -> void:
 				print("[ChargeDebug][Track] skip dodge_note=#", note.beat_number, " reason=middle_part_destroyed")
 			continue
 
-		var advance_beats: int = SPAWN_ADVANCE[note.type]
+		var advance_beats: int = _get_spawn_advance_beats(note)
 		var beat_interval: float = EventBus.beat_interval
 		if beat_interval <= 0.0:
 			beat_interval = 0.5
@@ -475,6 +472,12 @@ func _check_and_spawn_notes_by_time(now_time: float) -> void:
 			_spawn_note(note)
 			scheduled_notes.erase(note)
 			_cue_requests.erase(note)
+
+
+func _get_spawn_advance_beats(note: Note) -> int:
+	if note != null and SPAWN_ADVANCE.has(note.type):
+		return int(SPAWN_ADVANCE[note.type])
+	return 2
 
 
 func _is_attack_visual_ready_for_note(note_type: Note.NoteType) -> bool:
@@ -760,6 +763,37 @@ func pause_note_spawning() -> void:
 
 
 ## 恢复音符生成
+func discard_attack_interrupted_notes(cutoff_time: float) -> void:
+	var removed_count: int = 0
+	var beat_interval: float = EventBus.beat_interval
+	if beat_interval <= 0.0:
+		beat_interval = 0.5
+
+	for note in scheduled_notes.duplicate():
+		var advance_beats: int = _get_spawn_advance_beats(note)
+		var spawn_time: float = note.beat_time - advance_beats * beat_interval
+		var should_discard: bool = spawn_time <= cutoff_time
+		if note.type == Note.NoteType.HIT and _cue_requests.has_missile_request(note):
+			should_discard = true
+		elif note.type == Note.NoteType.DODGE and _cue_requests.has_charge_request(note):
+			should_discard = true
+
+		if not should_discard:
+			continue
+
+		scheduled_notes.erase(note)
+		_cue_requests.erase(note)
+		_hit_note_sides.erase(note)
+		removed_count += 1
+
+	for warning_step in scheduled_laser_warnings.duplicate():
+		if float(warning_step["beat_time"]) <= cutoff_time:
+			scheduled_laser_warnings.erase(warning_step)
+
+	if removed_count > 0:
+		print("Attack phase discarded ", removed_count, " interrupted defense notes")
+
+
 func resume_note_spawning() -> void:
 	# 先更新当前时间到最新值（避免使用暂停前的旧时间）
 	if music_player and music_player.playing:
@@ -772,7 +806,7 @@ func resume_note_spawning() -> void:
 		beat_interval = 0.5
 	
 	for note in scheduled_notes.duplicate():
-		var advance_beats: int = int(SPAWN_ADVANCE[note.type]) if SPAWN_ADVANCE.has(note.type) else 2
+		var advance_beats: int = _get_spawn_advance_beats(note)
 		var spawn_time: float = note.beat_time - advance_beats * beat_interval
 		if spawn_time <= current_time:
 			scheduled_notes.erase(note)
@@ -801,7 +835,11 @@ func resume_note_spawning() -> void:
 func _on_attack_phase_started() -> void:
 	if tutorial_mode:
 		return
+	if _attack_phase_blocked:
+		return
 	_attack_phase_blocked = true
+	current_time = _get_music_clock_time()
+	discard_attack_interrupted_notes(current_time)
 	pause_note_spawning()
 	clear_all_notes()
 
@@ -847,9 +885,17 @@ func _spawn_track_animation(note: Note) -> void:
 	var counter: int = _spawn_counters[note.type]
 	_spawn_counters[note.type] = counter + 1
 	
-	var advance_beats: int = SPAWN_ADVANCE[note.type]
-	var main_target_beats: int = advance_beats
+	if note.type == Note.NoteType.GUARD:
+		if _uses_laser_pattern_positions(note):
+			_spawn_guard_laser_attack(note, counter)
+		else:
+			_spawn_guard_warn_animation(note, counter, 1.0)
+			_play_boss_attack_sound_for_note_type(Note.NoteType.GUARD, true)
+			_spawn_guard_laser_attack(note, counter)
+		return
 
+	var advance_beats: int = _get_spawn_advance_beats(note)
+	var main_target_beats: int = advance_beats
 	_spawn_main_animation(note, main_target_beats, counter)
 
 
@@ -890,6 +936,79 @@ func _get_position_node_index(note: Note, counter: int, node_count: int) -> int:
 
 func _uses_laser_pattern_positions(note: Note) -> bool:
 	return note != null and not note.source_layer.is_empty() and note.source_layer.to_lower().contains("laser")
+
+
+func _spawn_guard_warn_animation(note: Note, counter: int, duration_beats: float = 1.0) -> void:
+	if track_animation_config == null:
+		return
+
+	var warn_scene: PackedScene = track_animation_config.get_warn_scene(Note.NoteType.GUARD)
+	if warn_scene == null:
+		return
+
+	_spawn_warn(note, warn_scene, counter, duration_beats)
+
+
+func _on_guard_laser_attack_time(token: int, note: Note, counter: int) -> void:
+	if token != _effect_runtime_token or _attack_phase_blocked:
+		return
+	if note == null:
+		return
+
+	_play_guard_laser_attack(note, counter)
+
+
+func _spawn_guard_laser_attack(note: Note, counter: int) -> void:
+	var attack_start_time: float = _get_guard_laser_attack_start_time(note)
+	if current_time >= attack_start_time - 0.001:
+		_play_guard_laser_attack(note, counter)
+		return
+
+	var token: int = _effect_runtime_token
+	_schedule_music_clock_event(attack_start_time, Callable(self, "_on_guard_laser_attack_time"), [token, note, counter])
+
+
+func _play_guard_laser_attack(note: Note, counter: int) -> void:
+	_spawn_main_animation(note, 0, counter, GUARD_LASER_BEAT_ALIGNMENT_FRAME)
+
+
+func _get_guard_laser_attack_start_time(note: Note) -> float:
+	if note == null:
+		return _get_music_clock_time()
+	return note.beat_time - _get_guard_laser_alignment_lead_seconds()
+
+
+func _get_guard_laser_alignment_lead_seconds() -> float:
+	if track_animation_config == null:
+		return 0.0
+
+	var scene: PackedScene = track_animation_config.get_scene(Note.NoteType.GUARD)
+	if scene == null:
+		return 0.0
+
+	var instance: Node2D = scene.instantiate()
+	var anim_sprite: AnimatedSprite2D = instance.get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
+	if anim_sprite == null:
+		instance.queue_free()
+		return 0.0
+
+	var sprite_frames: SpriteFrames = anim_sprite.sprite_frames
+	var anim_name: String = _resolve_animation_name_for_sprite(
+		Note.NoteType.GUARD,
+		track_animation_config.get_animation_name(Note.NoteType.GUARD),
+		sprite_frames
+	)
+	var lead_seconds: float = 0.0
+	if not anim_name.is_empty() and sprite_frames != null and sprite_frames.has_animation(anim_name):
+		lead_seconds = SpriteAnimationDuration.get_duration(
+			sprite_frames,
+			anim_name,
+			0,
+			maxi(0, GUARD_LASER_BEAT_ALIGNMENT_FRAME - 1)
+		)
+
+	instance.queue_free()
+	return maxf(0.0, lead_seconds)
 
 
 func _spawn_warn(note: Note, warn_scene: PackedScene, counter: int, duration_beats: float = 1.0) -> void:
@@ -942,7 +1061,7 @@ func _erase_active_warn_by_id(warn_instance_id: int) -> void:
 
 
 ## 生成主轨道动画（立即播放，通过速度缩放使 attack_end_frame 对齐判定时刻）
-func _spawn_main_animation(note: Note, target_beats: int, counter: int) -> void:
+func _spawn_main_animation(note: Note, target_beats: int, counter: int, alignment_frame: int = -1) -> void:
 	# 只要配置了外部节点路径，就强制使用外部节点，不再回退到实例化特效
 	if _has_external_anim_path(note.type):
 		var forced_external_sprite: AnimatedSprite2D = _get_external_anim_sprite(note.type)
@@ -951,6 +1070,7 @@ func _spawn_main_animation(note: Note, target_beats: int, counter: int) -> void:
 			if track_animation_config:
 				forced_anim_name = track_animation_config.get_animation_name(note.type)
 			_play_external_track_animation(note, target_beats, forced_anim_name, forced_external_sprite)
+			_play_boss_attack_sound_for_note_type(note.type, false)
 			return
 		push_warning("[TrackManager] 已配置外部动画路径，但未找到节点，已跳过该轨道动画: %s" % note.get_type_string())
 		return
@@ -996,9 +1116,10 @@ func _spawn_main_animation(note: Note, target_beats: int, counter: int) -> void:
 	
 	if sprite_frames and sprite_frames.has_animation(resolved_anim_name):
 		# 获取攻击结束帧配置（-1 表示不设置）
-		var attack_end_frame: int = -1
+		var attack_end_frame: int = alignment_frame
 		if track_animation_config and not use_default_bling:
-			attack_end_frame = track_animation_config.get_attack_end_frame(note.type)
+			if attack_end_frame < 0:
+				attack_end_frame = track_animation_config.get_attack_end_frame(note.type)
 		
 		var frame_count: int = sprite_frames.get_frame_count(resolved_anim_name)
 		
@@ -1045,12 +1166,7 @@ func _spawn_main_animation(note: Note, target_beats: int, counter: int) -> void:
 		instance.scale.x = -instance.scale.x
 	anim_sprite.speed_scale = anim_speed_scale
 	anim_sprite.play(resolved_anim_name)
-	_play_boss_attack_sound_for_note_type(note.type, true)
-	if note.type == Note.NoteType.GUARD and EventBus.beat_interval > 0.0:
-		var attack_delay: float = remaining_to_judge
-		if attack_delay > 0.01:
-			var attack_sound_token: int = _effect_runtime_token
-			_schedule_music_clock_event(note.beat_time, Callable(self, "_on_guard_attack_sound_time"), [attack_sound_token, note.type])
+	_play_boss_attack_sound_for_note_type(note.type, false)
 	
 	# 追踪活跃特效（用于默认 Bling 槽位避重）
 	if not _active_blings.has(note.type):
@@ -1281,12 +1397,6 @@ func _schedule_music_clock_event(target_time: float, callback: Callable, args: A
 
 func _process_music_clock_events(now: float) -> void:
 	_music_clock_events.process(now)
-
-
-func _on_guard_attack_sound_time(token: int, note_type: Note.NoteType) -> void:
-	if token != _effect_runtime_token or _attack_phase_blocked:
-		return
-	_play_boss_attack_sound_for_note_type(note_type, false)
 
 
 func _play_boss_attack_sound_for_note_type(note_type: Note.NoteType, is_warn: bool = false) -> void:

@@ -53,6 +53,9 @@ var _heavy_heat_consumed: bool = false
 
 var _victory_label: Label = null
 var _is_boss_defeated: bool = false
+var _attack_clock_active: bool = false
+var _attack_clock_base_time: float = 0.0
+var _attack_clock_wall_start: float = 0.0
 
 @export var show_on_ready: bool = true
 
@@ -120,6 +123,8 @@ func _process(_delta: float) -> void:
 
 
 func _get_beat_clock_time() -> float:
+	if _attack_clock_active:
+		return _attack_clock_base_time + (RhythmClock.get_wall_time_seconds() - _attack_clock_wall_start)
 	return RhythmClock.get_music_or_wall_time(music_player)
 
 
@@ -153,6 +158,7 @@ func _on_show_pause_countdown(bi: float, beat_count: int = GameConstants.COUNTDO
 	_countdown_beat_interval = bi
 	_countdown_beat_count = maxi(1, beat_count)
 	_countdown_last_index = -1
+	_start_attack_clock(start_time)
 
 	countdown_label.visible = true
 	_update_pause_countdown_by_clock()
@@ -586,8 +592,19 @@ func hide_attack_ui() -> void:
 		_update_heat_dots(0)
 	if countdown_label:
 		countdown_label.visible = false
+	_stop_attack_clock()
 	_clear_beat_track()
 	_cleanup_heat_effects()
+
+
+func _start_attack_clock(base_time: float) -> void:
+	_attack_clock_base_time = base_time
+	_attack_clock_wall_start = RhythmClock.get_wall_time_seconds()
+	_attack_clock_active = true
+
+
+func _stop_attack_clock() -> void:
+	_attack_clock_active = false
 
 
 func _on_heat_changed(heat_level: int, heat_counter: int) -> void:

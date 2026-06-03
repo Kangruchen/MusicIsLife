@@ -73,13 +73,13 @@ sounds = Array[ExtResource("16_entry_script")]([SubResource("SE_laser_atk1")])
 [sub_resource type="Resource" id="BossType_laser"]
 script = ExtResource("12_boss_type_script")
 default_sound = SubResource("Pool_laser_atk")
-beat_sounds = Array[ExtResource("15_pool_script")]([SubResource("Pool_laser_warn")])
+beat_sounds = Array[ExtResource("15_pool_script")]([SubResource("Pool_laser_warn"), SubResource("Pool_laser_atk")])
 loop_beat_sounds = true
 
 [sub_resource type="Resource" id="SE_missile1"]
 script = ExtResource("16_entry_script")
 stream = ExtResource("8_oghr7")
-volume_db = 5.0
+volume_db = -3.0
 
 [sub_resource type="Resource" id="Pool_missile"]
 script = ExtResource("15_pool_script")

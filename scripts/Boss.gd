@@ -475,6 +475,8 @@ func _connect_global_signals() -> void:
 		EventBus.boss_defeated.connect(_on_boss_defeated)
 	if not EventBus.boss_energy_depleted.is_connected(_on_boss_energy_depleted):
 		EventBus.boss_energy_depleted.connect(_on_boss_energy_depleted)
+	if not EventBus.boss_break_intro_started.is_connected(_on_boss_break_intro_started):
+		EventBus.boss_break_intro_started.connect(_on_boss_break_intro_started)
 	if not EventBus.boss_charge_requested.is_connected(_on_boss_charge_requested):
 		EventBus.boss_charge_requested.connect(_on_boss_charge_requested)
 	if not EventBus.boss_missile_requested.is_connected(_on_boss_missile_requested):
@@ -1076,6 +1078,12 @@ func _on_boss_energy_depleted() -> void:
 	_start_shield_break_transition()
 
 
+func _on_boss_break_intro_started() -> void:
+	_stop_return_to_origin_transition()
+	_interrupt_for_attack_phase(BossState.BROKEN)
+	_start_shield_break_transition()
+
+
 func _interrupt_for_attack_phase(target_state: BossState = BossState.IDLE) -> void:
 	if is_dead:
 		return
@@ -1100,7 +1108,7 @@ func _on_attack_phase_ended() -> void:
 	_stop_return_to_origin_transition()
 	_attack_phase_interrupted = false
 	_reset_charge_flow(false, false)
-	_reset_missile_flow(false)
+	_reset_missile_flow(true)
 
 	# 攻击阶段结束后立即执行一次正常选位移动，避免观感像瞬移。
 	_set_state(BossState.RANDOM_MOVE)
@@ -2279,9 +2287,20 @@ func _start_shield_break_transition() -> void:
 		_break_tilt_tween.tween_property(self, "rotation", tilt_target, shake_duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 
 	if fall_duration > 0.0:
+		_break_transition_tween.tween_callback(_emit_boss_break_fall_started)
 		_break_transition_tween.tween_property(self, "global_position:y", broken_fall_target_y, fall_duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	else:
+		call_deferred("_emit_boss_break_fall_started")
 
 	# 需求变更：取消转阶段冲刺，玩家位置保持不变。
+
+
+func _emit_boss_break_fall_started() -> void:
+	if is_dead:
+		return
+	if current_state != BossState.BROKEN:
+		return
+	EventBus.boss_break_fall_started.emit()
 
 
 func _play_shield_break_sound_delayed() -> void:

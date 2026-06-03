@@ -14,12 +14,16 @@ static func pause_for_dialogue(music_player: Node, beat_manager: Node, track_man
 
 
 static func resume_after_attack_phase(beat_manager: Node, track_manager: Node, input_manager: Node, music_player: Node) -> void:
+	if input_manager != null and input_manager.has_method("force_end_attack_phase"):
+		input_manager.force_end_attack_phase()
 	if beat_manager != null and beat_manager.has_method("resume_beat_detection"):
 		beat_manager.resume_beat_detection()
 	if input_manager != null and input_manager.has_method("resume_input"):
 		input_manager.resume_input()
 	if track_manager != null and track_manager.has_method("resume_note_spawning"):
 		track_manager.resume_note_spawning()
+	if music_player != null and music_player.has_method("resume_music"):
+		music_player.resume_music()
 	if music_player != null and music_player.has_method("end_attack_mix_mode"):
 		music_player.end_attack_mix_mode()
 
