@@ -697,7 +697,7 @@ func _on_boss_defeated() -> void:
 	_victory_label.anchor_top = 0.35
 	_victory_label.anchor_right = 1.0
 	_victory_label.anchor_bottom = 0.55
-	_victory_label.text = "通关！"
+	_victory_label.text = "Victory!"
 	_victory_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_victory_label)
 
@@ -713,7 +713,7 @@ func _on_boss_defeated() -> void:
 	restart_hint.anchor_top = 0.55
 	restart_hint.anchor_right = 1.0
 	restart_hint.anchor_bottom = 0.65
-	restart_hint.text = "按 %s 重新开始" % GameConstants.get_action_key_label("restart", "R")
+	restart_hint.text = "Press %s to restart" % GameConstants.get_action_key_label("restart", "R")
 	restart_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(restart_hint)
 

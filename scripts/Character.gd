@@ -1044,7 +1044,7 @@ func _show_death_restart_hints() -> void:
 	_hide_death_restart_hints()
 
 	_death_hint_line_top = Label.new()
-	_death_hint_line_top.text = "按 %s 重新开始" % GameConstants.get_action_key_label("restart", "R")
+	_death_hint_line_top.text = "Press %s to restart" % GameConstants.get_action_key_label("restart", "R")
 	_death_hint_line_top.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_death_hint_line_top.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_death_hint_line_top.add_theme_font_size_override("font_size", 26)
@@ -1060,7 +1060,7 @@ func _show_death_restart_hints() -> void:
 	_death_fx_layer.add_child(_death_hint_line_top)
 
 	_death_hint_line_bottom = Label.new()
-	_death_hint_line_bottom.text = "按 %s 返回主菜单" % GameConstants.get_action_key_label("menu", "Esc")
+	_death_hint_line_bottom.text = "Press %s to return to menu" % GameConstants.get_action_key_label("menu", "Esc")
 	_death_hint_line_bottom.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_death_hint_line_bottom.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_death_hint_line_bottom.add_theme_font_size_override("font_size", 22)
@@ -1109,7 +1109,7 @@ func _return_to_main_menu() -> void:
 	_hide_death_restart_hints()
 	var err: int = get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
 	if err != OK:
-		push_warning("[Character] 返回主菜单失败: %d" % err)
+		push_warning("[Character] Failed to return to main menu: %d" % err)
 
 
 func _freeze_current_animation_last_frame() -> void:

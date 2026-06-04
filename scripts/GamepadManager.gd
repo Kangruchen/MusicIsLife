@@ -1,14 +1,20 @@
 extends Node
 
 signal input_scheme_changed(is_gamepad: bool)
+signal controller_icon_family_changed(family: String)
 
 const SETTINGS_FILE_PATH: String = "user://settings.cfg"
 const SETTINGS_SECTION: String = "gamepad"
 const SETTINGS_RUMBLE_ENABLED: String = "rumble_enabled"
 const SETTINGS_RUMBLE_STRENGTH: String = "rumble_strength"
+const SETTINGS_CONTROLLER_ICON_FAMILY: String = "controller_icon_family"
 
 const SCHEME_KEYBOARD_MOUSE: StringName = &"keyboard_mouse"
 const SCHEME_GAMEPAD: StringName = &"gamepad"
+const CONTROLLER_ICON_AUTO: String = "auto"
+const CONTROLLER_ICON_PLAYSTATION: String = "playstation"
+const CONTROLLER_ICON_XBOX: String = "xbox"
+const CONTROLLER_ICON_NINTENDO: String = "nintendo"
 const NOTE_TYPE_GUARD: int = 0
 const NOTE_TYPE_HIT: int = 1
 const NOTE_TYPE_DODGE: int = 2
@@ -31,10 +37,10 @@ const BUTTON_LABELS_XBOX := {
 }
 
 const BUTTON_LABELS_PLAYSTATION := {
-	JOY_BUTTON_A: "Cross",
-	JOY_BUTTON_B: "Circle",
-	JOY_BUTTON_X: "Square",
-	JOY_BUTTON_Y: "Triangle",
+	JOY_BUTTON_A: "×",
+	JOY_BUTTON_B: "○",
+	JOY_BUTTON_X: "□",
+	JOY_BUTTON_Y: "△",
 	JOY_BUTTON_BACK: "Share",
 	JOY_BUTTON_START: "Options",
 	JOY_BUTTON_LEFT_SHOULDER: "L1",
@@ -68,6 +74,7 @@ const BUTTON_LABELS_NINTENDO := {
 @export_range(0.0, 1.0, 0.05) var rumble_strength: float = 1.0
 
 var current_scheme: StringName = SCHEME_KEYBOARD_MOUSE
+var controller_icon_family: String = CONTROLLER_ICON_AUTO
 var last_gamepad_device: int = -1
 var _last_rumble_msec: int = 0
 var _last_heat_level: int = 0
@@ -246,6 +253,24 @@ func set_rumble_strength(value: float) -> void:
 	_save_settings()
 
 
+func get_controller_icon_mode() -> String:
+	return controller_icon_family
+
+
+func get_controller_icon_family() -> String:
+	return _get_controller_family()
+
+
+func set_controller_icon_mode(mode: String) -> void:
+	var normalized: String = _normalize_controller_icon_mode(mode)
+	if controller_icon_family == normalized:
+		return
+	controller_icon_family = normalized
+	_save_settings()
+	controller_icon_family_changed.emit(_get_controller_family())
+	input_scheme_changed.emit(is_gamepad_active())
+
+
 func _ensure_controller_ui_actions() -> void:
 	_ensure_key_action(&"ui_accept", KEY_ENTER)
 	_ensure_key_action(&"ui_accept", KEY_SPACE)
@@ -366,24 +391,38 @@ func _format_joypad_motion(event: InputEventJoypadMotion) -> String:
 
 func _get_button_labels() -> Dictionary:
 	match _get_controller_family():
-		"playstation":
+		CONTROLLER_ICON_PLAYSTATION:
 			return BUTTON_LABELS_PLAYSTATION
-		"nintendo":
+		CONTROLLER_ICON_NINTENDO:
 			return BUTTON_LABELS_NINTENDO
 		_:
 			return BUTTON_LABELS_XBOX
 
 
 func _get_controller_family() -> String:
+	if controller_icon_family != CONTROLLER_ICON_AUTO:
+		return controller_icon_family
+
 	var device: int = _get_active_gamepad_device()
 	if device < 0:
-		return "xbox"
+		return CONTROLLER_ICON_PLAYSTATION
 	var joy_name: String = Input.get_joy_name(device).to_lower()
-	if joy_name.contains("playstation") or joy_name.contains("dualshock") or joy_name.contains("dualsense") or joy_name.contains("sony"):
-		return "playstation"
-	if joy_name.contains("switch") or joy_name.contains("nintendo") or joy_name.contains("joy-con"):
-		return "nintendo"
-	return "xbox"
+	if joy_name.contains("switch") or joy_name.contains("nintendo") or joy_name.contains("joy-con") or joy_name.contains("joycon") or joy_name.contains("pro controller"):
+		return CONTROLLER_ICON_NINTENDO
+	if joy_name.contains("xbox") or joy_name.contains("xinput") or joy_name.contains("microsoft") or joy_name.contains("x-box"):
+		return CONTROLLER_ICON_XBOX
+	if joy_name.contains("playstation") or joy_name.contains("dualshock") or joy_name.contains("dualsense") or joy_name.contains("sony") or joy_name.contains("ps4") or joy_name.contains("ps5") or joy_name.contains("wireless controller"):
+		return CONTROLLER_ICON_PLAYSTATION
+	return CONTROLLER_ICON_PLAYSTATION
+
+
+func _normalize_controller_icon_mode(mode: String) -> String:
+	var normalized: String = mode.strip_edges().to_lower()
+	match normalized:
+		CONTROLLER_ICON_AUTO, CONTROLLER_ICON_PLAYSTATION, CONTROLLER_ICON_XBOX, CONTROLLER_ICON_NINTENDO:
+			return normalized
+		_:
+			return CONTROLLER_ICON_AUTO
 
 
 func _get_active_gamepad_device() -> int:
@@ -397,9 +436,15 @@ func _get_active_gamepad_device() -> int:
 
 
 func _set_gamepad_active(device: int) -> void:
+	var previous_family: String = _get_controller_family()
+	var was_gamepad_active: bool = is_gamepad_active()
 	if device >= 0:
 		last_gamepad_device = device
 	_set_scheme(SCHEME_GAMEPAD)
+	var next_family: String = _get_controller_family()
+	if was_gamepad_active and previous_family != next_family:
+		controller_icon_family_changed.emit(next_family)
+		input_scheme_changed.emit(true)
 
 
 func _set_keyboard_mouse_active() -> void:
@@ -458,12 +503,17 @@ func _on_boss_defeated() -> void:
 
 
 func _on_joy_connection_changed(device: int, connected: bool) -> void:
+	var previous_family: String = _get_controller_family()
 	if connected:
 		last_gamepad_device = device
 	elif device == last_gamepad_device:
 		last_gamepad_device = _get_active_gamepad_device()
 		if last_gamepad_device < 0:
 			_set_keyboard_mouse_active()
+	var next_family: String = _get_controller_family()
+	if previous_family != next_family:
+		controller_icon_family_changed.emit(next_family)
+		input_scheme_changed.emit(is_gamepad_active())
 
 
 func _load_settings() -> void:
@@ -473,6 +523,7 @@ func _load_settings() -> void:
 		return
 	rumble_enabled = bool(config.get_value(SETTINGS_SECTION, SETTINGS_RUMBLE_ENABLED, rumble_enabled))
 	rumble_strength = clampf(float(config.get_value(SETTINGS_SECTION, SETTINGS_RUMBLE_STRENGTH, rumble_strength)), 0.0, 1.0)
+	controller_icon_family = _normalize_controller_icon_mode(String(config.get_value(SETTINGS_SECTION, SETTINGS_CONTROLLER_ICON_FAMILY, controller_icon_family)))
 
 
 func _save_settings() -> void:
@@ -482,4 +533,5 @@ func _save_settings() -> void:
 		return
 	config.set_value(SETTINGS_SECTION, SETTINGS_RUMBLE_ENABLED, rumble_enabled)
 	config.set_value(SETTINGS_SECTION, SETTINGS_RUMBLE_STRENGTH, rumble_strength)
+	config.set_value(SETTINGS_SECTION, SETTINGS_CONTROLLER_ICON_FAMILY, controller_icon_family)
 	config.save(SETTINGS_FILE_PATH)

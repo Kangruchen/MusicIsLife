@@ -98,9 +98,9 @@ var _boss_node: Node2D = null
 # CanvasLayer 引用（用于添加动画实例，在场景编辑器中设置指向 GameUI）
 @export var game_ui: CanvasLayer = null
 
-@export_group("判定前按键提示")
+@export_group("Prejudge Key Hints")
 @export var enable_prejudge_key_hint: bool = true
-@export_enum("全程显示", "部分显示") var prejudge_key_hint_display_mode: int = 1
+@export_enum("Always", "Limited") var prejudge_key_hint_display_mode: int = 1
 @export_range(0, 10, 1) var defense_hint_max_per_attack_type: int = 2
 @export_node_path("Node2D") var hint_player_node_path: NodePath = NodePath("../../Character")
 @export var hint_guard_offset: Vector2 = Vector2(-70.0, -110.0)  # J: 左上
@@ -228,9 +228,9 @@ func _toggle_prejudge_hint_display_mode() -> void:
 	_reset_defense_hint_counts()
 	_save_prejudge_hint_settings()
 
-	var mode_text: String = "全程显示" if prejudge_key_hint_display_mode == 0 else "部分显示"
+	var mode_text: String = "Always" if prejudge_key_hint_display_mode == 0 else "Limited"
 	_show_hint_mode_status_toast(mode_text)
-	print("[HintMode] 按键提示模式已切换为: ", mode_text, " (F5)")
+	print("[HintMode] Key hint mode changed to: ", mode_text, " (F5)")
 
 
 func _show_hint_mode_status_toast(mode_text: String) -> void:
@@ -263,7 +263,7 @@ func _show_hint_mode_status_toast(mode_text: String) -> void:
 
 	_hint_mode_toast_token += 1
 	var token: int = _hint_mode_toast_token
-	_hint_mode_toast_label.text = "按键提示模式: " + mode_text
+	_hint_mode_toast_label.text = "Key Hints: " + mode_text
 	_hint_mode_toast_label.modulate = Color(1.0, 1.0, 1.0, 1.0)
 	_hint_mode_toast_label.visible = true
 
@@ -665,8 +665,9 @@ func _spawn_prejudge_key_hint(note_type: Note.NoteType) -> void:
 	var hint_style: Dictionary = PrejudgeKeyHintStyle.get_style(note_type)
 	var key_text: String = hint_style["key_text"]
 	var core_color: Color = hint_style["core_color"]
+	var glyph_family: String = String(hint_style.get("glyph_family", ""))
 
-	hint.setup(key_text, EventBus.beat_interval, core_color, Color(1.0, 1.0, 1.0, 0.95), Color(1.0, 1.0, 1.0, 1.0))
+	hint.setup(key_text, EventBus.beat_interval, core_color, Color(1.0, 1.0, 1.0, 0.95), Color(1.0, 1.0, 1.0, 1.0), glyph_family)
 	game_ui.add_child(hint)
 	hint.position = _get_hint_screen_position(note_type)
 	_active_key_hints.append(hint)

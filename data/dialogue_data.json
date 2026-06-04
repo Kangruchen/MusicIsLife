@@ -2,8 +2,8 @@
     {
         "id": 1,
         "role_type": "NPC",
-        "role_name": "小明",
-        "text": "你好，欢迎来到节奏世界！",
+        "role_name": "Ming",
+        "text": "Welcome to the rhythm world!",
         "artwork": "res://assets/portraits/hero.png",
         "next_id": 2,
         "trigger_scene": "StartScene",
@@ -12,8 +12,8 @@
     {
         "id": 2,
         "role_type": "PLAYER",
-        "role_name": "玩家",
-        "text": "让我们开始吧！",
+        "role_name": "Player",
+        "text": "Let's begin!",
         "artwork": "null",
         "next_id": 3,
         "trigger_scene": "Level1",
@@ -22,8 +22,8 @@
     {
         "id": 3,
         "role_type": "NPC",
-        "role_name": "小明",
-        "text": "祝你好运！",
+        "role_name": "Ming",
+        "text": "Good luck!",
         "artwork": "null",
         "next_id": null,
         "trigger_scene": "",

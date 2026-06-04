@@ -69,7 +69,7 @@ offset_bottom = 147.0
 scale = Vector2(0.6, 0.6)
 theme_override_font_sizes/normal_font_size = 18
 bbcode_enabled = true
-text = "[u][color=red]Defense Phase[/color] - Press the corresponding button in time with the enemy's attack rhythm！[/u]"
+text = "[u][color=red]Defense Phase[/color] - Match the attack color on the beat.[/u]"
 
 [node name="Content2" type="RichTextLabel" parent="."]
 layout_mode = 0

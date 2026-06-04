@@ -542,7 +542,7 @@ func _handle_attack_phase_input(event: InputEvent) -> void:
 					EventBus.attack_result_display.emit(AttackType.LIGHT, is_perfect, heat_model.heat_level)
 					EventBus.heat_changed.emit(heat_model.heat_level, heat_model.heat_counter)
 					_log_attack_drum_alignment("light_" + ("perfect" if is_perfect else "miss"))
-					print("轻攻击 - ", "PERFECT" if is_perfect else "MISS", " 热度:", heat_model.heat_level, "(", heat_model.heat_counter, "/", GameConstants.PERFECTS_PER_LEVEL, ")")
+					print("Light attack - ", "PERFECT" if is_perfect else "MISS", " Heat:", heat_model.heat_level, "(", heat_model.heat_counter, "/", GameConstants.PERFECTS_PER_LEVEL, ")")
 
 				AttackType.HEAVY:
 					var current_heat: int = heat_model.consume_heavy_heat()
@@ -553,13 +553,13 @@ func _handle_attack_phase_input(event: InputEvent) -> void:
 						attack_beat_grid.set_beat_used(judge_beat + 1, true)
 						_heavy_skip_next_beat = true
 					_log_attack_drum_alignment("heavy")
-					print("重攻击 - 消耗热度:", current_heat, " 伤害倍率:", 1 + current_heat * GameConstants.HEAT_DAMAGE_MULTIPLIER_PER_LEVEL)
+					print("Heavy attack - spent heat:", current_heat, " damage multiplier:", 1 + current_heat * GameConstants.HEAT_DAMAGE_MULTIPLIER_PER_LEVEL)
 
 				AttackType.HEAL:
 					EventBus.attack_performed.emit(AttackType.HEAL, 0)
 					EventBus.attack_result_display.emit(AttackType.HEAL, true, 0)
 					_log_attack_drum_alignment("heal")
-					print("回复")
+					print("Heal")
 
 			return
 
@@ -650,13 +650,13 @@ func _emit_attack_phase_ended() -> void:
 func _get_attack_name(attack_type: AttackType) -> String:
 	match attack_type:
 		AttackType.LIGHT:
-			return "轻攻击"
+			return "Light Attack"
 		AttackType.HEAVY:
-			return "重攻击"
+			return "Heavy Attack"
 		AttackType.HEAL:
-			return "回复"
+			return "Heal"
 		_:
-			return "未知"
+			return "Unknown"
 
 
 func _log_attack_drum_alignment(tag: String) -> void:

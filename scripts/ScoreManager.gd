@@ -308,6 +308,7 @@ func _on_first_break_dialogue_closed() -> void:
 	if music_player and music_player.has_method("resume_music"):
 		music_player.resume_music()
 
+	pending_attack_anchor_music_time = _get_music_clock_time()
 	_on_boss_energy_depleted()
 	print("First boss shield break dialogue finished; attack phase resumed.")
 
@@ -410,7 +411,7 @@ func _on_attack_performed(attack_type: int, heat_level: int = 0) -> void:
 			player_cost = GameConfigs.sound.light_player_health_cost
 			boss_damage = GameConfigs.sound.light_boss_damage
 			energy_max_reduce = GameConfigs.sound.light_boss_energy_max_reduce
-			print("轻攻击 - 伤害:", boss_damage)
+			print("Light attack - damage:", boss_damage)
 
 			current_player_health -= player_cost
 			temporary_energy_reduce += energy_max_reduce
@@ -422,17 +423,17 @@ func _on_attack_performed(attack_type: int, heat_level: int = 0) -> void:
 			var heat_multiplier: float = GameConstants.HEAT_DAMAGE_MULTIPLIER_BASE + heat_level * GameConstants.HEAT_DAMAGE_MULTIPLIER_PER_LEVEL
 			boss_damage = GameConfigs.sound.heavy_boss_damage * heat_multiplier
 			energy_max_reduce = GameConfigs.sound.heavy_boss_energy_max_reduce
-			print("重攻击 - 热度:", heat_level, " 倍率:", heat_multiplier, " 伤害:", boss_damage)
+			print("Heavy attack - heat:", heat_level, " multiplier:", heat_multiplier, " damage:", boss_damage)
 
 			current_player_health -= player_cost
 			temporary_energy_reduce += energy_max_reduce
 			_queue_attack_hit(attack_type, boss_damage)
 
-		2:  # HEAL - 回复
+		2:  # HEAL
 			_play_attack_action_sfx(attack_type, false)
 			heal_amount = GameConfigs.sound.heal_amount
 			current_player_health += heal_amount
-			print("回复 - 恢复:", heal_amount)
+			print("Heal - recovered:", heal_amount)
 
 		_:
 			return

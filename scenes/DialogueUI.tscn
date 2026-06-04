@@ -50,7 +50,7 @@ offset_left = 269.418
 offset_top = 137.532
 offset_right = 309.418
 offset_bottom = 164.532
-text = "主角"
+text = "Hero"
 vertical_alignment = 1
 
 [node name="TextLabel" type="RichTextLabel" parent="DialogPanel"]

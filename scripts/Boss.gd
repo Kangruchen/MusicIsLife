@@ -1091,7 +1091,7 @@ func _interrupt_for_attack_phase(target_state: BossState = BossState.IDLE) -> vo
 	_invalidate_boss_attack_sounds()
 	_attack_phase_interrupted = true
 	_reset_charge_flow(false, false)
-	_reset_missile_flow(true)
+	_reset_missile_flow(false)
 	_has_move_target = false
 	_set_state(target_state)
 
@@ -1913,6 +1913,7 @@ func get_missile_hit_effect_position() -> Vector2:
 	var reference_pos: Vector2 = global_position
 	if _target_character != null:
 		reference_pos = _target_character.global_position
+		return reference_pos
 
 	var best_pos: Vector2 = Vector2.ZERO
 	var best_dist_sq: float = INF
