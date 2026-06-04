@@ -384,13 +384,17 @@ func _begin_attack_mix_mode() -> void:
 		push_warning("Attack phase music is not configured; keep current BGM mix.")
 		return
 
-	_cached_main_volume_db = main_player.volume_db if main_player != null else 0.0
-	_cached_drum_volume_db = drum_player.volume_db if drum_player != null else 0.0
-	_cached_bass_volume_db = bass_player.volume_db if bass_player != null else 0.0
-
 	if _attack_mix_tween != null:
 		_attack_mix_tween.kill()
 		_attack_mix_tween = null
+	if _attack_mix_active:
+		_set_base_track_volumes(_cached_main_volume_db, _cached_drum_volume_db, _cached_bass_volume_db)
+		_attack_mix_active = false
+		_attack_base_return_started = false
+
+	_cached_main_volume_db = main_player.volume_db if main_player != null else 0.0
+	_cached_drum_volume_db = drum_player.volume_db if drum_player != null else 0.0
+	_cached_bass_volume_db = bass_player.volume_db if bass_player != null else 0.0
 
 	_stop_attack_players()
 	_attack_schedule_token += 1
@@ -412,6 +416,7 @@ func _end_attack_mix_mode() -> void:
 	_attack_clock_callbacks.clear()
 	_attack_track_setup_valid = false
 	_attack_music_active = false
+	_resume_base_tracks_for_attack_return()
 	var return_fade_duration: float = attack_music_fade_seconds if _attack_base_return_started else _get_attack_return_fade_seconds()
 	_fade_out_attack_players(return_fade_duration)
 
@@ -420,6 +425,7 @@ func _end_attack_mix_mode() -> void:
 
 	if _attack_mix_tween != null:
 		_attack_mix_tween.kill()
+		_attack_mix_tween = null
 
 	if _attack_base_return_started:
 		_set_base_track_volumes(_cached_main_volume_db, _cached_drum_volume_db, _cached_bass_volume_db)
@@ -431,6 +437,7 @@ func _end_attack_mix_mode() -> void:
 	if fade_duration <= 0.0:
 		_set_base_track_volumes(_cached_main_volume_db, _cached_drum_volume_db, _cached_bass_volume_db)
 		_attack_mix_active = false
+		_attack_base_return_started = false
 		return
 
 	_attack_mix_tween = create_tween()
@@ -444,8 +451,12 @@ func _end_attack_mix_mode() -> void:
 		_attack_mix_tween.tween_property(drum_player, "volume_db", _cached_drum_volume_db, fade_duration)
 	if bass_player != null and bass_player.stream:
 		_attack_mix_tween.tween_property(bass_player, "volume_db", _cached_bass_volume_db, fade_duration)
-
-	_attack_mix_active = false
+	_attack_mix_tween.finished.connect(func() -> void:
+		_set_base_track_volumes(_cached_main_volume_db, _cached_drum_volume_db, _cached_bass_volume_db)
+		_attack_mix_active = false
+		_attack_base_return_started = false
+		_attack_mix_tween = null
+	)
 
 
 func _load_attack_phase_streams() -> bool:
@@ -650,7 +661,7 @@ func _start_attack_loop(token: int, phrase_index: int = -1) -> void:
 	_fade_out_attack_player(attack_outro_player, crossfade_duration, true)
 
 	_active_attack_loop_player = attack_loop_player_a
-	_play_attack_loop_player(_active_attack_loop_player, phrase_index, crossfade_duration)
+	_play_attack_loop_player(_active_attack_loop_player, phrase_index, 0.0)
 	_schedule_next_attack_loop_restart(token, phrase_index)
 
 

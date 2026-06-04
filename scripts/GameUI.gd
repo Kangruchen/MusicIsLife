@@ -3,6 +3,7 @@ extends CanvasLayer
 const RhythmClock := preload("res://scripts/RhythmClock.gd")
 const HeatBeatFlashStyle := preload("res://scripts/HeatBeatFlashStyle.gd")
 const AttackBeatTrackLayout := preload("res://scripts/AttackBeatTrackLayout.gd")
+const ACTION_HINT_FONT: FontFile = preload("res://assets/UI/Orbitron-VariableFont_wght.ttf")
 ## 游戏UI - 管理血条显示和攻击阶段UI
 
 # 节拍轨道视觉配置
@@ -10,6 +11,9 @@ const BEAT_TRACK_HEIGHT: float = 24.0
 const BEAT_TRACK_TOP_OFFSET: float = 20.0
 const BEAT_TRACK_WIDTH_RATIO: float = 0.8
 const CURSOR_HALF_WIDTH: float = 2.0
+const ACTION_HINT_TEXT_COLOR: Color = Color(0.90, 0.92, 0.88, 0.92)
+const ACTION_HINT_KEY_COLOR: Color = Color(1.0, 0.78, 0.18, 1.0)
+const ACTION_HINT_PHASE_COLOR: Color = Color(0.36, 0.82, 1.0, 1.0)
 
 # 血量条引用
 @onready var boss_health_bar: OctagonBar = $MarginContainer/VBoxContainer/BossHealthBar
@@ -32,6 +36,8 @@ var _beat_flash_last_index: int = -1
 
 # 攻击阶段UI元素
 var attack_ui_container: Control = null
+var action_hint_label: RichTextLabel = null
+var _is_attack_phase_hint: bool = false
 
 # 节拍轨道元素
 var beat_track_container: Control = null
@@ -58,6 +64,7 @@ var _attack_clock_base_time: float = 0.0
 var _attack_clock_wall_start: float = 0.0
 
 @export var show_on_ready: bool = true
+@export var show_action_hints: bool = true
 
 @onready var music_player: Node = get_node_or_null("../GameManager/MusicPlayer")
 
@@ -69,6 +76,8 @@ func _ready() -> void:
 
 	EventBus.show_attack_ui_requested.connect(show_attack_ui)
 	EventBus.hide_attack_ui_requested.connect(hide_attack_ui)
+	EventBus.attack_phase_started.connect(_on_attack_phase_started)
+	EventBus.attack_phase_ended.connect(_on_attack_phase_ended)
 	EventBus.show_return_countdown_requested.connect(show_return_countdown)
 	EventBus.show_pause_countdown_requested.connect(_on_show_pause_countdown)
 	EventBus.play_beat_flash_requested.connect(_on_play_beat_flash)
@@ -96,9 +105,9 @@ func _ready() -> void:
 	countdown_label.anchor_top = 0.5
 	countdown_label.anchor_right = 0.5
 	countdown_label.anchor_bottom = 0.5
-	countdown_label.offset_left = -150.0
+	countdown_label.offset_left = -260.0
 	countdown_label.offset_top = -75.0
-	countdown_label.offset_right = 150.0
+	countdown_label.offset_right = 260.0
 	countdown_label.offset_bottom = 75.0
 	countdown_label.visible = false
 	add_child(countdown_label)
@@ -113,6 +122,9 @@ func _ready() -> void:
 	move_child(beat_flash_effect, 0)
 
 	_create_attack_ui()
+	if show_action_hints:
+		_create_action_hint()
+		_connect_gamepad_prompt_updates()
 
 
 func _process(_delta: float) -> void:
@@ -187,12 +199,28 @@ func _update_pause_countdown_by_clock() -> void:
 		return
 
 	_countdown_last_index = index
-	var count_num: int = _countdown_beat_count - index
-	_pulse_countdown(count_num, _countdown_beat_interval)
+	var count_text: String = _get_pause_countdown_text(index, _countdown_beat_count)
+	_pulse_countdown(count_text, _countdown_beat_interval)
 
 
-func _pulse_countdown(count_num: int, bi: float) -> void:
-	countdown_label.text = str(count_num)
+func _get_pause_countdown_text(index: int, beat_count: int) -> String:
+	if beat_count == GameConstants.COUNTDOWN_BEATS:
+		match index:
+			0:
+				return "3"
+			1:
+				return "2"
+			2:
+				return "Ready"
+			3:
+				return "Go!"
+	return str(maxi(1, beat_count - index))
+
+
+func _pulse_countdown(count_text: String, bi: float) -> void:
+	countdown_label.text = count_text
+	var font_size: int = 72 if count_text == "Ready" else 120
+	countdown_label.add_theme_font_size_override("font_size", font_size)
 
 	var scale_tween: Tween = create_tween()
 	scale_tween.set_ease(Tween.EASE_OUT)
@@ -275,6 +303,90 @@ func _create_attack_ui() -> void:
 	add_child(attack_ui_container)
 
 	_create_heat_dots()
+
+
+func _create_action_hint() -> void:
+	action_hint_label = RichTextLabel.new()
+	action_hint_label.name = "BossActionHint"
+	action_hint_label.bbcode_enabled = true
+	action_hint_label.fit_content = true
+	action_hint_label.scroll_active = false
+	action_hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	action_hint_label.anchor_left = 0.0
+	action_hint_label.anchor_top = 0.0
+	action_hint_label.anchor_right = 1.0
+	action_hint_label.anchor_bottom = 0.0
+	action_hint_label.offset_left = 452.0
+	action_hint_label.offset_top = 8.0
+	action_hint_label.offset_right = -12.0
+	action_hint_label.offset_bottom = 96.0
+	action_hint_label.add_theme_font_override("normal_font", ACTION_HINT_FONT)
+	action_hint_label.add_theme_font_size_override("normal_font_size", 11)
+	action_hint_label.add_theme_color_override("default_color", ACTION_HINT_TEXT_COLOR)
+	action_hint_label.z_index = 70
+	add_child(action_hint_label)
+	_update_action_hint()
+
+
+func _connect_gamepad_prompt_updates() -> void:
+	var gamepad_manager: Node = get_node_or_null("/root/GamepadManager")
+	if gamepad_manager == null:
+		return
+	if gamepad_manager.has_signal("input_scheme_changed"):
+		gamepad_manager.connect("input_scheme_changed", func(_is_gamepad: bool) -> void:
+			_update_action_hint()
+		)
+	if gamepad_manager.has_signal("controller_icon_family_changed"):
+		gamepad_manager.connect("controller_icon_family_changed", func(_family: String) -> void:
+			_update_action_hint()
+		)
+
+
+func _update_action_hint() -> void:
+	if action_hint_label == null:
+		return
+
+	var guard_prompt: String = GameConstants.get_action_key_label("note_guard", "J")
+	var hit_prompt: String = GameConstants.get_action_key_label("note_hit", "I")
+	var dodge_prompt: String = GameConstants.get_action_key_label("note_dodge", "L")
+	var phase_color: String = "#" + ACTION_HINT_PHASE_COLOR.to_html(false)
+	var key_color: String = "#" + ACTION_HINT_KEY_COLOR.to_html(false)
+
+	if _is_attack_phase_hint:
+		_apply_action_hint_layout(314.0, 74.0, -76.0, 124.0, 9)
+		var left_prompt: String = GameConstants.get_action_key_label("move_left", "A")
+		var right_prompt: String = GameConstants.get_action_key_label("move_right", "D")
+		action_hint_label.text = "[right][color=%s]ATTACK[/color]\nMOVE [color=%s]%s/%s[/color]\nLIGHT [color=%s]%s[/color]\nHEAVY [color=%s]%s[/color]\nHEAL [color=%s]%s[/color][/right]" % [
+			phase_color,
+			key_color,
+			left_prompt,
+			right_prompt,
+			key_color,
+			guard_prompt,
+			key_color,
+			hit_prompt,
+			key_color,
+			dodge_prompt,
+		]
+	else:
+		_apply_action_hint_layout(452.0, 8.0, -12.0, 96.0, 11)
+		action_hint_label.text = "[right][color=%s]DEFENSE[/color]\nGUARD [color=%s]%s[/color]\nHIT [color=%s]%s[/color]\nDODGE [color=%s]%s[/color][/right]" % [
+			phase_color,
+			key_color,
+			guard_prompt,
+			key_color,
+			hit_prompt,
+			key_color,
+			dodge_prompt,
+		]
+
+
+func _apply_action_hint_layout(left: float, top: float, right: float, bottom: float, font_size: int) -> void:
+	action_hint_label.offset_left = left
+	action_hint_label.offset_top = top
+	action_hint_label.offset_right = right
+	action_hint_label.offset_bottom = bottom
+	action_hint_label.add_theme_font_size_override("normal_font_size", font_size)
 
 
 func _create_heat_dots() -> void:
@@ -559,6 +671,8 @@ func _cleanup_heat_effects() -> void:
 
 
 func show_attack_ui() -> void:
+	_is_attack_phase_hint = true
+	_update_action_hint()
 	if attack_ui_container:
 		attack_ui_container.visible = true
 	if _heat_dots_container:
@@ -567,6 +681,7 @@ func show_attack_ui() -> void:
 
 func show_return_countdown(count: int) -> void:
 	if countdown_label:
+		countdown_label.add_theme_font_size_override("font_size", 120)
 		countdown_label.text = str(count)
 		countdown_label.visible = true
 		countdown_label.add_theme_color_override("font_color", Color(1.0, 0.5, 0.0))
@@ -584,6 +699,8 @@ func show_return_countdown(count: int) -> void:
 
 
 func hide_attack_ui() -> void:
+	_is_attack_phase_hint = false
+	_update_action_hint()
 	if attack_ui_container:
 		attack_ui_container.visible = false
 		attack_ui_container.position = Vector2.ZERO
@@ -595,6 +712,16 @@ func hide_attack_ui() -> void:
 	_stop_attack_clock()
 	_clear_beat_track()
 	_cleanup_heat_effects()
+
+
+func _on_attack_phase_started() -> void:
+	_is_attack_phase_hint = true
+	_update_action_hint()
+
+
+func _on_attack_phase_ended() -> void:
+	_is_attack_phase_hint = false
+	_update_action_hint()
 
 
 func _start_attack_clock(base_time: float) -> void:
@@ -678,6 +805,8 @@ func _on_boss_defeated() -> void:
 
 	hide_pause_effects()
 	hide_attack_ui()
+	if action_hint_label:
+		action_hint_label.visible = false
 
 	if beat_flash_effect:
 		beat_flash_effect.color.a = 0.0

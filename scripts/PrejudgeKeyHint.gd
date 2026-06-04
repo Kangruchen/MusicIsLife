@@ -162,6 +162,4 @@ func _draw_letter_button_glyph() -> void:
 	var font_size: int = 18 if label_text.length() <= 1 else 13
 	var text_size: Vector2 = font.get_string_size(label_text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size)
 	var pos: Vector2 = Vector2(-text_size.x * 0.5, text_size.y * 0.35)
-	draw_circle(Vector2.ZERO, 12.5, Color(0.04, 0.05, 0.06, 0.76))
-	draw_arc(Vector2.ZERO, 12.5, 0.0, TAU, 48, text_color, 2.0, true)
 	draw_string(font, pos, label_text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, text_color)

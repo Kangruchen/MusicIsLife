@@ -16,6 +16,9 @@ const PREJUDGE_KEY_HINT_SCRIPT := preload("res://scripts/PrejudgeKeyHint.gd")
 const SETTINGS_FILE_PATH: String = "user://settings.cfg"
 const SETTINGS_GAMEPLAY_SECTION: String = "gameplay"
 const SETTINGS_PREJUDGE_HINT_MODE_KEY: String = "prejudge_key_hint_display_mode"
+const PREJUDGE_HINT_MODE_ALWAYS: int = 0
+const PREJUDGE_HINT_MODE_LIMITED: int = 1
+const JUDGMENT_MISS: int = 3
 
 # Bling 特效配置
 const BLING_BASE_X: float = 50.0  # 特效基础X坐标（屏幕左侧）
@@ -100,7 +103,7 @@ var _boss_node: Node2D = null
 
 @export_group("Prejudge Key Hints")
 @export var enable_prejudge_key_hint: bool = true
-@export_enum("Always", "Limited") var prejudge_key_hint_display_mode: int = 1
+@export_enum("Always", "Limited") var prejudge_key_hint_display_mode: int = PREJUDGE_HINT_MODE_ALWAYS
 @export_range(0, 10, 1) var defense_hint_max_per_attack_type: int = 2
 @export_node_path("Node2D") var hint_player_node_path: NodePath = NodePath("../../Character")
 @export var hint_guard_offset: Vector2 = Vector2(-70.0, -110.0)  # J: 左上
@@ -148,7 +151,7 @@ var _hint_mode_toast_label: Label = null
 var _hint_mode_toast_tween: Tween = null
 var _hint_mode_toast_token: int = 0
 var _music_clock_events: RefCounted = MusicClockEventQueue.new()
-var _defense_hint_shown_counts: Dictionary = {
+var _defense_hint_success_counts: Dictionary = {
 	Note.NoteType.GUARD: 0,
 	Note.NoteType.HIT: 0,
 	Note.NoteType.DODGE: 0
@@ -164,6 +167,7 @@ func _ready() -> void:
 	EventBus.boss_energy_depleted.connect(_on_attack_phase_started)
 	EventBus.attack_phase_started.connect(_on_attack_phase_started)
 	EventBus.attack_phase_ended.connect(_on_attack_phase_ended)
+	EventBus.judgment_made.connect(_on_judgment_made)
 	if not game_ui:
 		push_warning("[TrackManager] game_ui 未设置，请在编辑器中拖拽 GameUI 节点到 @export")
 	_resolve_boss_node()
@@ -206,7 +210,7 @@ func _load_prejudge_hint_settings() -> void:
 		SETTINGS_PREJUDGE_HINT_MODE_KEY,
 		prejudge_key_hint_display_mode
 	))
-	prejudge_key_hint_display_mode = clampi(saved_mode, 0, 1)
+	prejudge_key_hint_display_mode = clampi(saved_mode, PREJUDGE_HINT_MODE_ALWAYS, PREJUDGE_HINT_MODE_LIMITED)
 
 
 func _save_prejudge_hint_settings() -> void:
@@ -224,11 +228,11 @@ func _save_prejudge_hint_settings() -> void:
 
 
 func _toggle_prejudge_hint_display_mode() -> void:
-	prejudge_key_hint_display_mode = 1 if prejudge_key_hint_display_mode == 0 else 0
+	prejudge_key_hint_display_mode = PREJUDGE_HINT_MODE_LIMITED if prejudge_key_hint_display_mode == PREJUDGE_HINT_MODE_ALWAYS else PREJUDGE_HINT_MODE_ALWAYS
 	_reset_defense_hint_counts()
 	_save_prejudge_hint_settings()
 
-	var mode_text: String = "Always" if prejudge_key_hint_display_mode == 0 else "Limited"
+	var mode_text: String = "Always" if prejudge_key_hint_display_mode == PREJUDGE_HINT_MODE_ALWAYS else "Limited"
 	_show_hint_mode_status_toast(mode_text)
 	print("[HintMode] Key hint mode changed to: ", mode_text, " (F5)")
 
@@ -300,6 +304,7 @@ func _process(_delta: float) -> void:
 ## 设置铺面数据
 func set_chart(chart: Chart) -> void:
 	clear_all_notes()
+	reset_prejudge_hint_progress()
 	current_chart = chart
 	scheduled_notes = chart.notes.duplicate()
 	_apply_laser_patterns_to_schedule(chart)
@@ -671,7 +676,6 @@ func _spawn_prejudge_key_hint(note_type: Note.NoteType) -> void:
 	game_ui.add_child(hint)
 	hint.position = _get_hint_screen_position(note_type)
 	_active_key_hints.append(hint)
-	_increment_prejudge_hint_count(note_type)
 
 
 func _get_hint_screen_position(note_type: Note.NoteType) -> Vector2:
@@ -851,32 +855,33 @@ func _on_attack_phase_ended() -> void:
 	# 避免 attack_phase_ended（提前半拍）导致过早恢复。
 
 
-func _can_show_prejudge_hint(note_type: Note.NoteType) -> bool:
-	# 教学模式下强制全程显示按键提示
-	if tutorial_mode:
-		return true
-	
-	# 全程显示：忽略每轨显示次数上限
-	if prejudge_key_hint_display_mode == 0:
-		return true
+func _on_judgment_made(track: int, judgment: int, _timing_diff: float) -> void:
+	if judgment == JUDGMENT_MISS:
+		return
+	if track != int(Note.NoteType.GUARD) and track != int(Note.NoteType.HIT) and track != int(Note.NoteType.DODGE):
+		return
+	var note_type: Note.NoteType = track as Note.NoteType
+	var success_count: int = int(_defense_hint_success_counts.get(note_type, 0))
+	_defense_hint_success_counts[note_type] = success_count + 1
 
-	# 部分显示：沿用现有每轨次数上限逻辑
+
+func _can_show_prejudge_hint(note_type: Note.NoteType) -> bool:
+	if prejudge_key_hint_display_mode == PREJUDGE_HINT_MODE_ALWAYS:
+		return true
 	if defense_hint_max_per_attack_type <= 0:
 		return false
-	var shown_count: int = int(_defense_hint_shown_counts.get(note_type, 0))
-	return shown_count < defense_hint_max_per_attack_type
-
-
-func _increment_prejudge_hint_count(note_type: Note.NoteType) -> void:
-	var shown_count: int = int(_defense_hint_shown_counts.get(note_type, 0))
-	_defense_hint_shown_counts[note_type] = shown_count + 1
+	var success_count: int = int(_defense_hint_success_counts.get(note_type, 0))
+	return success_count < defense_hint_max_per_attack_type
 
 
 func _reset_defense_hint_counts() -> void:
-	_defense_hint_shown_counts[Note.NoteType.GUARD] = 0
-	_defense_hint_shown_counts[Note.NoteType.HIT] = 0
-	_defense_hint_shown_counts[Note.NoteType.DODGE] = 0
+	_defense_hint_success_counts[Note.NoteType.GUARD] = 0
+	_defense_hint_success_counts[Note.NoteType.HIT] = 0
+	_defense_hint_success_counts[Note.NoteType.DODGE] = 0
 
+
+func reset_prejudge_hint_progress() -> void:
+	_reset_defense_hint_counts()
 
 ## 生成轨道动画（音符生成时自动播放，attack_end_frame 对齐判定时刻）
 func _spawn_track_animation(note: Note) -> void:

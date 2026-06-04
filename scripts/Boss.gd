@@ -1091,7 +1091,7 @@ func _interrupt_for_attack_phase(target_state: BossState = BossState.IDLE) -> vo
 	_invalidate_boss_attack_sounds()
 	_attack_phase_interrupted = true
 	_reset_charge_flow(false, false)
-	_reset_missile_flow(false)
+	_reset_missile_flow(true)
 	_has_move_target = false
 	_set_state(target_state)
 

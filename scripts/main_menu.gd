@@ -1,11 +1,16 @@
 extends Control
 class_name MainMenu
 
+const MENU_HINT_FONT: FontFile = preload("res://assets/UI/Orbitron-VariableFont_wght.ttf")
+
 @onready var new_game_btn: Button = $CenterContainer/MenuVBox/NewGameBtn
 @onready var tutorial_btn: Button = $CenterContainer/MenuVBox/TutorialBtn
 @onready var guide_btn: Button = $CenterContainer/MenuVBox/GuideBtn
 @onready var settings_btn: Button = $CenterContainer/MenuVBox/SettingsBtn
 @onready var quit_btn: Button = $CenterContainer/MenuVBox/QuitBtn
+
+const MENU_HINT_TEXT_COLOR: Color = Color(0.92, 0.92, 0.86, 0.92)
+const MENU_HINT_ACCENT_COLOR: Color = Color(1.0, 0.78, 0.18, 1.0)
 
 @export_file("*.tscn") var game_scene_path: String = "res://scenes/Main.tscn"
 @export_file("*.tscn") var tutorial_scene_path: String = "res://scenes/tutorial.tscn"
@@ -13,6 +18,7 @@ class_name MainMenu
 @export_file("*.tscn") var settings_scene_path: String = "res://scenes/settings.tscn"
 
 var _menu_buttons: Array[Button] = []
+var _menu_input_hint: RichTextLabel = null
 
 
 func _ready() -> void:
@@ -25,7 +31,15 @@ func _ready() -> void:
 	quit_btn.pressed.connect(_on_quit_pressed)
 
 	_setup_focus_navigation()
+	_create_menu_input_hint()
+	_connect_gamepad_prompt_updates()
 	call_deferred("_focus_first_button")
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel"):
+		get_viewport().set_input_as_handled()
+		_on_quit_pressed()
 
 
 func _setup_focus_navigation() -> void:
@@ -49,6 +63,55 @@ func _setup_focus_navigation() -> void:
 func _focus_first_button() -> void:
 	if new_game_btn != null and is_instance_valid(new_game_btn):
 		new_game_btn.grab_focus()
+
+
+func _create_menu_input_hint() -> void:
+	_menu_input_hint = RichTextLabel.new()
+	_menu_input_hint.name = "MenuInputHint"
+	_menu_input_hint.bbcode_enabled = true
+	_menu_input_hint.fit_content = true
+	_menu_input_hint.scroll_active = false
+	_menu_input_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_menu_input_hint.anchor_left = 0.0
+	_menu_input_hint.anchor_top = 1.0
+	_menu_input_hint.anchor_right = 1.0
+	_menu_input_hint.anchor_bottom = 1.0
+	_menu_input_hint.offset_left = 24.0
+	_menu_input_hint.offset_top = -74.0
+	_menu_input_hint.offset_right = -380.0
+	_menu_input_hint.offset_bottom = -18.0
+	_menu_input_hint.add_theme_font_override("normal_font", MENU_HINT_FONT)
+	_menu_input_hint.add_theme_font_size_override("normal_font_size", 14)
+	_menu_input_hint.add_theme_color_override("default_color", MENU_HINT_TEXT_COLOR)
+	add_child(_menu_input_hint)
+	_update_menu_input_hint()
+
+
+func _connect_gamepad_prompt_updates() -> void:
+	var gamepad_manager: Node = get_node_or_null("/root/GamepadManager")
+	if gamepad_manager == null:
+		return
+	if gamepad_manager.has_signal("input_scheme_changed"):
+		gamepad_manager.connect("input_scheme_changed", func(_is_gamepad: bool) -> void:
+			_update_menu_input_hint()
+		)
+	if gamepad_manager.has_signal("controller_icon_family_changed"):
+		gamepad_manager.connect("controller_icon_family_changed", func(_family: String) -> void:
+			_update_menu_input_hint()
+		)
+
+
+func _update_menu_input_hint() -> void:
+	if _menu_input_hint == null:
+		return
+	var confirm_prompt: String = GameConstants.get_action_key_label("ui_accept", "Enter")
+	var cancel_prompt: String = GameConstants.get_action_key_label("ui_cancel", "Esc")
+	_menu_input_hint.text = "[color=%s]%s[/color]  CONFIRM\n[color=%s]%s[/color]  CANCEL" % [
+		"#" + MENU_HINT_ACCENT_COLOR.to_html(false),
+		confirm_prompt,
+		"#" + MENU_HINT_ACCENT_COLOR.to_html(false),
+		cancel_prompt,
+	]
 
 
 func _make_focus_style() -> StyleBoxFlat:

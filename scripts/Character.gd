@@ -425,7 +425,8 @@ func _update_attack_movement(delta: float) -> void:
 		_play_idle()
 		return
 
-	var input_dir: Vector2 = Input.get_vector(move_action_left, move_action_right, move_action_up, move_action_down)
+	var horizontal_input: float = Input.get_action_strength(move_action_right) - Input.get_action_strength(move_action_left)
+	var input_dir: Vector2 = Vector2(horizontal_input, 0.0)
 	velocity = input_dir * maxf(0.0, attack_move_speed)
 	global_position += velocity * delta
 

@@ -5,7 +5,7 @@
 [ext_resource type="PackedScene" uid="uid://c6yxi20pgmbbx" path="res://scenes/tutorial_scene.tscn" id="3_ckvwl"]
 [ext_resource type="Script" uid="uid://e8i1qf3cicia" path="res://scripts/TutorialPlatformPlayer.gd" id="3_tutorial_player"]
 [ext_resource type="Script" uid="uid://ca0r3f27db17c" path="res://scripts/dialog_trigger.gd" id="4_4kmhl"]
-[ext_resource type="PackedScene" path="res://scenes/DialogueUI.tscn.tscn" id="5_cq4me"]
+[ext_resource type="PackedScene" uid="uid://co7uijid0x7yl" path="res://scenes/DialogueUI.tscn.tscn" id="5_cq4me"]
 [ext_resource type="Script" uid="uid://nfo3c4c1ywks" path="res://scenes/dialogue_ui.tscn.gd" id="6_6yjpi"]
 [ext_resource type="Script" uid="uid://dc42mm2n7qheh" path="res://scripts/TutorialBattleConfig.gd" id="9_cmspm"]
 [ext_resource type="PackedScene" uid="uid://c8jx3vn5qwm4r" path="res://scenes/GameUI.tscn" id="9_game_ui"]
@@ -49,13 +49,13 @@ size = Vector2(296, 20)
 size = Vector2(20, 124)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ph3nu"]
-size = Vector2(31.782238, 4.430827)
+size = Vector2(29.320433, 4.430827)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_4kmhl"]
-size = Vector2(30.264616, 7.021118)
+size = Vector2(32.57888, 7.021118)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_cq4me"]
-size = Vector2(10.89446, 6.2460127)
+size = Vector2(15.6817875, 6.2460127)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_wall"]
 size = Vector2(40, 1204)
@@ -148,7 +148,7 @@ texture = ExtResource("27_gxgfo")
 
 [node name="Player" type="CharacterBody2D" parent="." groups=["player"]]
 z_index = 2
-position = Vector2(-98, 109)
+position = Vector2(-705, 109)
 script = ExtResource("3_tutorial_player")
 move_speed = 500.0
 walkable_slope_angle_degrees = 60.0
@@ -160,9 +160,9 @@ shape = SubResource("RectangleShape2D_player")
 [node name="Camera2D" type="Camera2D" parent="Player"]
 position = Vector2(3, -9)
 zoom = Vector2(0.6, 0.6)
-limit_left = -930
+limit_left = -815
 limit_top = -985
-limit_right = 3345
+limit_right = 3415
 limit_bottom = 175
 position_smoothing_enabled = true
 position_smoothing_speed = 6.0
@@ -174,16 +174,16 @@ script = null
 [node name="PositionNodes" type="Node2D" parent="."]
 
 [node name="Laser1" type="Node2D" parent="PositionNodes"]
-position = Vector2(1010, 80)
+position = Vector2(980, 80)
 
 [node name="Laser2" type="Node2D" parent="PositionNodes"]
-position = Vector2(1010, 110)
+position = Vector2(980, 110)
 
 [node name="LaserWarn3" type="Node2D" parent="PositionNodes"]
-position = Vector2(1450, 80)
+position = Vector2(1510, 80)
 
 [node name="LaserWarn4" type="Node2D" parent="PositionNodes"]
-position = Vector2(1450, 110)
+position = Vector2(1510, 110)
 
 [node name="Missile1" type="Node2D" parent="PositionNodes"]
 position = Vector2(3102, -818)
@@ -220,12 +220,15 @@ hint_dodge_offset = Vector2(0, -120)
 script = ExtResource("13_input_mgr")
 ignore_empty_press_without_nearby_notes = true
 defense_hit_effect_anchor_path = NodePath("../../Player/CharacterVisual")
+defense_hit_effect_offset = Vector2(-40, 0)
+defense_hit_effect_scale_multiplier = Vector2(1.67, 1.67)
 
 [node name="ScoreManager" type="Node" parent="GameManager"]
 script = ExtResource("14_score_mgr")
 enabled = false
 
 [node name="GameUI" parent="." instance=ExtResource("9_game_ui")]
+show_action_hints = false
 
 [node name="TutorialBattleManager" type="Node" parent="."]
 script = ExtResource("17_tutorial_battle_mgr")
@@ -243,7 +246,7 @@ missile_launch_path = NodePath("../PositionNodes/Missile1")
 position = Vector2(998, -1)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="TutorialBattleManager/BattleZone1"]
-position = Vector2(13, -137)
+position = Vector2(77, -133)
 shape = SubResource("RectangleShape2D_battle_zone")
 
 [node name="BattleZone2" type="Area2D" parent="TutorialBattleManager"]
@@ -276,28 +279,31 @@ position = Vector2(2257, -525)
 shape = SubResource("RectangleShape2D_nlqja")
 
 [node name="Stair2" type="CollisionShape2D" parent="LevelGeometry"]
-position = Vector2(2098.0002, -289.00003)
+z_index = 10
+position = Vector2(2108, -288.99997)
 rotation = 2.2911122
-scale = Vector2(15.0396805, -4.8051047)
+scale = Vector2(15.03968, -4.8051047)
 shape = SubResource("RectangleShape2D_ph3nu")
 one_way_collision = true
 
 [node name="Stair1" type="CollisionShape2D" parent="LevelGeometry"]
-position = Vector2(1948, 14.999935)
+z_index = 10
+position = Vector2(1957.4573, 28.00095)
 rotation = -2.3998044
-scale = Vector2(15.039682, -4.8051047)
+scale = Vector2(13.619409, -4.8051047)
 shape = SubResource("RectangleShape2D_4kmhl")
 one_way_collision = true
 
 [node name="StairMid" type="CollisionShape2D" parent="LevelGeometry"]
-position = Vector2(1865.0754, -118.99363)
+z_index = 10
+position = Vector2(1901.0754, -118.99362)
 rotation = -3.1415925
 scale = Vector2(15.039682, -4.8051047)
 shape = SubResource("RectangleShape2D_cq4me")
 one_way_collision = true
 
 [node name="LeftWall" type="CollisionShape2D" parent="LevelGeometry"]
-position = Vector2(-948.885, -415)
+position = Vector2(-903, -405)
 shape = SubResource("RectangleShape2D_wall")
 
 [node name="LeftWall2" type="CollisionShape2D" parent="LevelGeometry"]
@@ -305,7 +311,7 @@ position = Vector2(1778, -292)
 shape = SubResource("RectangleShape2D_gbqnl")
 
 [node name="RightWall" type="CollisionShape2D" parent="LevelGeometry"]
-position = Vector2(3356, -407)
+position = Vector2(3015, -407)
 shape = SubResource("RectangleShape2D_wall")
 
 [node name="Ceiling" type="CollisionShape2D" parent="LevelGeometry"]

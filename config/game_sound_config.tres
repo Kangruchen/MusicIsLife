@@ -79,7 +79,7 @@ loop_beat_sounds = true
 [sub_resource type="Resource" id="SE_missile1"]
 script = ExtResource("16_entry_script")
 stream = ExtResource("8_oghr7")
-volume_db = -3.0
+volume_db = 6.0
 
 [sub_resource type="Resource" id="Pool_missile"]
 script = ExtResource("15_pool_script")
@@ -176,10 +176,12 @@ enhance = SubResource("Pool_atk_enhance")
 [sub_resource type="Resource" id="SE_miss1"]
 script = ExtResource("16_entry_script")
 stream = ExtResource("31_miss1")
+volume_db = 5.0
 
 [sub_resource type="Resource" id="SE_miss2"]
 script = ExtResource("16_entry_script")
 stream = ExtResource("32_miss2")
+volume_db = 5.0
 
 [sub_resource type="Resource" id="Pool_miss"]
 script = ExtResource("15_pool_script")
@@ -256,4 +258,4 @@ charged_heavy_boss_damage = 50.0
 charged_heavy_boss_energy_max_reduce = 3.0
 player_defense = SubResource("PlayerDefense")
 miss_sound = ExtResource("9_miss")
-miss_sound_volume_db = -15.0
+miss_sound_volume_db = 0.0

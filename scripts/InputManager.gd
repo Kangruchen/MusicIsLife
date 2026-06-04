@@ -203,6 +203,7 @@ func _handle_input(track_type: Note.NoteType) -> void:
 		# 按错键：消耗该音符并判定为 MISS（避免之后自动超时再触发一次 MISS）
 		track_manager.tracked_notes.erase(wrong_note)
 		_apply_miss_audio_effect()
+		_play_defense_sound(wrong_note.type, true)
 		EventBus.judgment_made.emit(wrong_note.type, JudgmentType.MISS, 0.0)
 		print("判定: MISS (按错键 - 应为 ", wrong_note.get_type_string(), ")")
 		return
@@ -214,6 +215,7 @@ func _handle_input(track_type: Note.NoteType) -> void:
 			print("判定: 忽略空按 (附近无音符)")
 			return
 	_apply_miss_audio_effect()
+	_play_defense_sound(track_type, true)
 	EventBus.judgment_made.emit(track_type, JudgmentType.MISS, 0.0)
 	print("判定: MISS (空按)")
 
@@ -432,6 +434,7 @@ func _on_miss_triggered(track_type: int) -> void:
 	if current_phase != PhaseState.DEFENSE:
 		return
 	_apply_miss_audio_effect()
+	_play_defense_sound(track_type, true)
 	EventBus.judgment_made.emit(track_type, JudgmentType.MISS, 0.0)
 	print("判定: MISS (自动)")
 

@@ -98,16 +98,16 @@ func _build_skip_hint() -> void:
 	skip_box.z_index = 130
 	skip_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	skip_box.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	skip_box.offset_left = -280.0
-	skip_box.offset_top = -76.0
-	skip_box.offset_right = -24.0
-	skip_box.offset_bottom = -24.0
+	skip_box.offset_left = -204.0
+	skip_box.offset_top = -54.0
+	skip_box.offset_right = -8.0
+	skip_box.offset_bottom = -8.0
 	add_child(skip_box)
 
 	_skip_hint = Label.new()
 	_skip_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_skip_hint.text = "Hold %s to skip" % GameConstants.get_action_key_label(String(skip_action), "R")
-	_skip_hint.add_theme_font_size_override("font_size", 16)
+	_skip_hint.add_theme_font_size_override("font_size", 13)
 	_skip_hint.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.88))
 	_skip_hint.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.75))
 	_skip_hint.add_theme_constant_override("shadow_offset_x", 1)
@@ -115,7 +115,7 @@ func _build_skip_hint() -> void:
 	skip_box.add_child(_skip_hint)
 
 	_skip_progress = ProgressBar.new()
-	_skip_progress.custom_minimum_size = Vector2(240.0, 6.0)
+	_skip_progress.custom_minimum_size = Vector2(188.0, 5.0)
 	_skip_progress.min_value = 0.0
 	_skip_progress.max_value = 1.0
 	_skip_progress.value = 0.0

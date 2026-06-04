@@ -44,6 +44,7 @@ var pause_end_music_time: float = 0.0
 var pending_attack_anchor_music_time: float = -1.0
 var _first_break_dialogue_played: bool = false
 var _first_break_dialogue_active: bool = false
+var _first_break_intro_systems_paused: bool = false
 var _first_break_slow_active: bool = false
 var _first_break_previous_time_scale: float = 1.0
 var _first_break_wait_token: int = 0
@@ -114,6 +115,7 @@ func _on_judgment_made(track: int, judgment: int, _timing_diff: float) -> void:
 	# 检测精力条是否被打空
 	if old_energy > 0.0 and current_boss_energy <= 0.0:
 		pending_attack_anchor_music_time = judgment_target_music_time
+		EventBus.boss_energy_updated.emit(current_boss_energy, GameConfigs.judgment.max_boss_energy)
 		if not _try_start_first_break_dialogue():
 			_trigger_boss_energy_depleted()
 		print("Boss 精力耗尽！")
@@ -148,6 +150,7 @@ func reset_game() -> void:
 	temporary_energy_reduce = 0.0
 	_first_break_dialogue_played = false
 	_first_break_dialogue_active = false
+	_first_break_intro_systems_paused = false
 	_first_break_wait_token += 1
 	_disconnect_first_break_fall_signal()
 	_restore_first_break_time_scale()
@@ -227,6 +230,7 @@ func _start_first_break_slow_intro() -> void:
 	_first_break_previous_time_scale = Engine.time_scale
 	_first_break_slow_active = true
 	Engine.time_scale = clampf(first_break_slow_time_scale, 0.05, 1.0)
+	_pause_for_first_break_intro()
 
 	if not EventBus.boss_break_fall_started.is_connected(_on_first_break_fall_started):
 		EventBus.boss_break_fall_started.connect(_on_first_break_fall_started)
@@ -294,6 +298,13 @@ func _pause_for_first_break_dialogue() -> void:
 	_first_break_pause_state.enter(get_tree(), first_break_dialogue_ui)
 
 
+func _pause_for_first_break_intro() -> void:
+	if _first_break_intro_systems_paused:
+		return
+	BattleSubsystemCoordinator.pause_for_attack_phase(beat_manager, track_manager, input_manager)
+	_first_break_intro_systems_paused = true
+
+
 func _on_first_break_dialogue_closed() -> void:
 	if not _first_break_dialogue_active:
 		return
@@ -308,6 +319,7 @@ func _on_first_break_dialogue_closed() -> void:
 	if music_player and music_player.has_method("resume_music"):
 		music_player.resume_music()
 
+	_first_break_intro_systems_paused = false
 	pending_attack_anchor_music_time = _get_music_clock_time()
 	_on_boss_energy_depleted()
 	print("First boss shield break dialogue finished; attack phase resumed.")
@@ -525,6 +537,8 @@ func _trigger_player_game_over() -> void:
 	is_game_over = true
 	is_paused_for_attack = false
 	pause_end_music_time = 0.0
+	_first_break_dialogue_active = false
+	_first_break_intro_systems_paused = false
 	_first_break_wait_token += 1
 	_disconnect_first_break_fall_signal()
 	_restore_first_break_time_scale()
@@ -546,6 +560,8 @@ func _on_boss_defeated() -> void:
 
 	is_game_over = true
 	pause_end_music_time = 0.0
+	_first_break_dialogue_active = false
+	_first_break_intro_systems_paused = false
 	_first_break_wait_token += 1
 	_disconnect_first_break_fall_signal()
 	_restore_first_break_time_scale()
