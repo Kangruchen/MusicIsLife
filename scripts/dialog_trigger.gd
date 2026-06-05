@@ -7,12 +7,16 @@ class_name DialogueTrigger
 @export var start_battle_after_dialogue: bool = false
 @export var battle_manager_path: NodePath = NodePath("")
 @export var battle_id: int = 1
+@export var pre_dialogue_cutscene: Node = null
 
 @export var require_input: bool = false
 @export var interact_action: StringName = &"interact"
 @export var prompt_node: CanvasItem = null
 
 var _player_in_area: bool = false
+var _player_body: Node2D = null
+var _has_triggered: bool = false
+var _is_waiting_for_cutscene: bool = false
 
 
 func _ready() -> void:
@@ -33,6 +37,7 @@ func _ready() -> void:
 func _on_body_entered(body: Node2D) -> void:
 	if body.name != "Player":
 		return
+	_player_body = body
 
 	if require_input:
 		_player_in_area = true
@@ -47,6 +52,8 @@ func _on_body_exited(body: Node2D) -> void:
 	if body.name != "Player":
 		return
 	_player_in_area = false
+	if _player_body == body:
+		_player_body = null
 	if prompt_node:
 		prompt_node.hide()
 
@@ -73,11 +80,27 @@ func _update_prompt_text() -> void:
 
 
 func _try_trigger_dialogue() -> void:
+	if _has_triggered or _is_waiting_for_cutscene:
+		return
 	if dialogue_ui == null or dialogue_ui.is_busy or dialogue_lines.is_empty():
 		return
 
 	if prompt_node:
 		prompt_node.hide()
+
+	_has_triggered = true
+	if pre_dialogue_cutscene != null and pre_dialogue_cutscene.has_method("play"):
+		_is_waiting_for_cutscene = true
+		if pre_dialogue_cutscene.has_method("play_for_player"):
+			await pre_dialogue_cutscene.play_for_player(_player_body)
+		else:
+			await pre_dialogue_cutscene.play()
+		_is_waiting_for_cutscene = false
+		if not is_inside_tree():
+			return
+		if dialogue_ui == null or dialogue_ui.is_busy:
+			_has_triggered = false
+			return
 
 	dialogue_ui.play_sequence(dialogue_lines)
 	if start_battle_after_dialogue or trigger_battle_id > 0:
