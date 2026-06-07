@@ -1,4 +1,4 @@
-[gd_scene load_steps=86 format=4 uid="uid://c6yxi20pgmbbx"]
+[gd_scene load_steps=88 format=4 uid="uid://c6yxi20pgmbbx"]
 
 [ext_resource type="Texture2D" uid="uid://bixshvvvi35xi" path="res://assets/environment/scene_tutorial/background.png" id="1_k1v41"]
 [ext_resource type="Texture2D" uid="uid://2luontrbyikd" path="res://assets/environment/scene_tutorial/machine.png" id="2_7ncn3"]
@@ -15,15 +15,17 @@
 [ext_resource type="Texture2D" uid="uid://hw5lc1v4fiww" path="res://assets/environment/scene_tutorial/warn_light.png" id="12_fuyrj"]
 [ext_resource type="Texture2D" uid="uid://b863twija10i0" path="res://assets/environment/scene_tutorial/doors.png" id="13_getnj"]
 [ext_resource type="Texture2D" uid="uid://b1egjm3f33igc" path="res://assets/environment/scene_tutorial/shadow.png" id="15_6m8eg"]
-[ext_resource type="Texture2D" uid="uid://2rkfyob2ioer" path="res://assets/environment/scene_tutorial/elevator_2.png" id="15_vqpaf"]
+[ext_resource type="Texture2D" uid="uid://j34oopqgj0la" path="res://assets/environment/scene_tutorial/board.png" id="15_vqpaf"]
 [ext_resource type="Texture2D" uid="uid://dovpo1keougv" path="res://assets/environment/scene_tutorial/gadgets.png" id="16_t3n2b"]
 [ext_resource type="Texture2D" uid="uid://bc62btooxy313" path="res://assets/environment/scene_tutorial/elevator_door_left.png" id="16_yv6gy"]
 [ext_resource type="Texture2D" uid="uid://brtsr0m18wd25" path="res://assets/environment/scene_tutorial/frame_2.png" id="17_3t30l"]
 [ext_resource type="Texture2D" uid="uid://dlouqtv77mcuc" path="res://assets/environment/scene_tutorial/elevator_door_right.png" id="17_vqpaf"]
 [ext_resource type="Texture2D" uid="uid://bruoau4667wwq" path="res://assets/environment/scene_tutorial/doorframe_back_1.png" id="18_6lktx"]
+[ext_resource type="Texture2D" uid="uid://kjccrose86dk" path="res://assets/environment/scene_tutorial/elevator_door_left_lower.png" id="18_utlrr"]
 [ext_resource type="Texture2D" uid="uid://bbt52vlcbqb4e" path="res://assets/environment/scene_tutorial/light.png" id="18_xptte"]
 [ext_resource type="Texture2D" uid="uid://c8iy5dprs8uvk" path="res://assets/environment/scene_tutorial/doorframe_front_1.png" id="19_dpd0b"]
 [ext_resource type="PackedScene" uid="uid://quhx0tbyixhe" path="res://scenes/sliding_door.tscn" id="19_nlknn"]
+[ext_resource type="Texture2D" uid="uid://qsgt8tq0yqr8" path="res://assets/environment/scene_tutorial/elevator_door_right_lower.png" id="19_o6d35"]
 [ext_resource type="Texture2D" uid="uid://qce0j3kyyu6k" path="res://assets/environment/scene_tutorial/door_1.png" id="20_48nin"]
 [ext_resource type="Texture2D" uid="uid://iamksp4onaqq" path="res://assets/environment/scene_tutorial/doorframe_back_2.png" id="20_fstru"]
 [ext_resource type="Texture2D" uid="uid://ccdcot12nfccp" path="res://assets/environment/scene_tutorial/doorframe_front_2.png" id="21_nlknn"]
@@ -428,7 +430,7 @@ animations = [{
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_vqpaf"]
 shader = ExtResource("5_nlknn")
-shader_parameter/speed = 0.05
+shader_parameter/speed = -0.05
 
 [sub_resource type="Gradient" id="Gradient_vqpaf"]
 offsets = PackedFloat32Array(0, 0.006666667)
@@ -525,8 +527,32 @@ position = Vector2(0, 80)
 modulate = Color(0.92941177, 0.92941177, 0.92941177, 1)
 texture = ExtResource("16_t3n2b")
 
-[node name="Elevator" type="Sprite2D" parent="."]
+[node name="Board" type="Sprite2D" parent="."]
 texture = ExtResource("15_vqpaf")
+metadata/_aseprite_wizard_interface_config_ = {
+"animation_section": false,
+"layer_section": false,
+"output_section": false,
+"pending_changes": {
+"convert_fps_field": 60.0,
+"convert_ms_field": 16.0,
+"convert_to_fps": false,
+"embed_tex": true,
+"i_mode": 0,
+"keep_anim_length": false,
+"layers": [],
+"o_ex_p": "",
+"o_folder": "",
+"o_name": "",
+"only_visible": false,
+"player": "",
+"scale": "1.0",
+"slice": "",
+"source": "",
+"source_uid": -1
+},
+"slice_section": false
+}
 
 [node name="elevator_door_left" type="Sprite2D" parent="."]
 visible = false
@@ -537,6 +563,16 @@ texture = ExtResource("16_yv6gy")
 visible = false
 position = Vector2(-1883, -152)
 texture = ExtResource("17_vqpaf")
+
+[node name="elevator_door_left_lower" type="Sprite2D" parent="."]
+visible = false
+position = Vector2(-1980, 450)
+texture = ExtResource("18_utlrr")
+
+[node name="elevator_door_right_lower" type="Sprite2D" parent="."]
+visible = false
+position = Vector2(-1871, 455)
+texture = ExtResource("19_o6d35")
 
 [node name="Frame" type="Sprite2D" parent="."]
 visible = false
