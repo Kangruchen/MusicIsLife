@@ -22,7 +22,7 @@ func _ready() -> void:
 		_pool.append(player)
 
 
-func play_entry(entry, bus = &"SFX"):
+func play_entry(entry, bus = &"SFX", extra_time_offset: float = 0.0):
 	if entry == null or entry.stream == null:
 		return null
 	var player = _acquire_player()
@@ -30,17 +30,17 @@ func play_entry(entry, bus = &"SFX"):
 	player.volume_db = entry.volume_db
 	player.pitch_scale = maxf(0.01, entry.pitch_scale)
 	player.bus = String(bus)
-	player.play(maxf(0.0, entry.time_offset))
+	player.play(_get_safe_playback_offset(entry.stream, entry.time_offset + extra_time_offset))
 	return player
 
 
-func play_pool(pool, bus = &"SFX"):
+func play_pool(pool, bus = &"SFX", extra_time_offset: float = 0.0):
 	if pool == null:
 		return null
 	var entry = pool.pick_random()
 	if entry == null:
 		return null
-	return play_entry(entry, bus)
+	return play_entry(entry, bus, extra_time_offset)
 
 
 func play_stream(stream, volume_db = 0.0, pitch_scale = 1.0, time_offset = 0.0, bus = &"SFX"):
@@ -51,33 +51,33 @@ func play_stream(stream, volume_db = 0.0, pitch_scale = 1.0, time_offset = 0.0, 
 	player.volume_db = volume_db
 	player.pitch_scale = maxf(0.01, pitch_scale)
 	player.bus = String(bus)
-	player.play(maxf(0.0, time_offset))
+	player.play(_get_safe_playback_offset(stream, time_offset))
 	return player
 
 
-func play_pool_delayed(pool, delay_sec, bus = &"SFX") -> void:
+func play_pool_delayed(pool, delay_sec, bus = &"SFX", extra_time_offset: float = 0.0) -> void:
 	if pool == null or delay_sec <= 0.0:
-		play_pool(pool, bus)
+		play_pool(pool, bus, extra_time_offset)
 		return
 	var token = _delay_token
 	get_tree().create_timer(delay_sec).timeout.connect(func() -> void:
 		if token != _delay_token:
 			return
-		play_pool(pool, bus)
+		play_pool(pool, bus, extra_time_offset)
 	)
 
 
-func play_entry_delayed(entry, delay_sec, bus = &"SFX") -> void:
+func play_entry_delayed(entry, delay_sec, bus = &"SFX", extra_time_offset: float = 0.0) -> void:
 	if entry == null or entry.stream == null:
 		return
 	if delay_sec <= 0.0:
-		play_entry(entry, bus)
+		play_entry(entry, bus, extra_time_offset)
 		return
 	var token = _delay_token
 	get_tree().create_timer(delay_sec).timeout.connect(func() -> void:
 		if token != _delay_token:
 			return
-		play_entry(entry, bus)
+		play_entry(entry, bus, extra_time_offset)
 	)
 
 
@@ -100,6 +100,16 @@ func _acquire_player():
 	add_child(player)
 	_pool.append(player)
 	return player
+
+
+func _get_safe_playback_offset(stream: AudioStream, requested_offset: float) -> float:
+	var offset: float = maxf(0.0, requested_offset)
+	if stream == null:
+		return offset
+	var length: float = stream.get_length()
+	if length > 0.0 and offset >= length:
+		return 0.0
+	return offset
 
 
 var _delay_token = 0

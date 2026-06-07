@@ -115,7 +115,8 @@ func _play_defense_sound(note_type: Note.NoteType, is_miss: bool) -> void:
 	var pool: RandomSoundPool = GameConfigs.sound.player_defense.get_miss_sound(note_type) if is_miss else GameConfigs.sound.player_defense.get_success_sound(note_type)
 	if pool == null:
 		return
-	SFXManager.play_pool(pool, GameConfigs.sound.player_defense.sfx_bus)
+	var time_offset: float = GameConfigs.sound.player_defense.get_miss_time_offset(note_type) if is_miss else GameConfigs.sound.player_defense.get_success_time_offset(note_type)
+	SFXManager.play_pool(pool, GameConfigs.sound.player_defense.sfx_bus, time_offset)
 
 
 func _process(_delta: float) -> void:
@@ -187,9 +188,14 @@ func _handle_input(track_type: Note.NoteType) -> void:
 		if is_miss:
 			_apply_miss_audio_effect()
 			_play_key_sound(track_type)
+			_play_defense_sound(track_type, true)
 		else:
-			_spawn_defense_hit_effect(track_type)
-		_play_defense_sound(track_type, is_miss)
+			if track_type == Note.NoteType.GUARD:
+				_play_defense_sound(track_type, false)
+				_spawn_defense_hit_effect(track_type)
+			else:
+				_spawn_defense_hit_effect(track_type)
+				_play_defense_sound(track_type, false)
 		EventBus.judgment_made.emit(track_type, judgment, timing_diff)
 		print("判定: ", _get_judgment_text(judgment), " (", int(min_tracked_diff * 1000), "ms)")
 		return

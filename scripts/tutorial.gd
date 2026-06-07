@@ -1,6 +1,7 @@
 extends Node2D
 
 @export_file("*.tscn") var main_menu_scene_path: String = "res://scenes/main_menu.tscn"
+@export_file("*.tscn") var next_scene_path: String = "res://scenes/Main.tscn"
 
 @export_group("Elevator Areas")
 @export var player: CharacterBody2D
@@ -134,7 +135,7 @@ func _play_outro_cutscene() -> void:
         await _door_tween.finished
         
     await get_tree().create_timer(1.5).timeout
-    get_tree().change_scene_to_file(main_menu_scene_path)
+    get_tree().change_scene_to_file(next_scene_path)
 
 # 核心修复2：暴力接管玩家动画节点，强制定格在待机第一帧
 func _enforce_absolute_idle(node: Node) -> void:

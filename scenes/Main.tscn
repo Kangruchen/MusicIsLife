@@ -64,6 +64,7 @@ process_mode = 3
 script = ExtResource("20_dialogue_script")
 player_node = NodePath("../../Character")
 typing_speed = 18
+large_popup_mode = true
 
 [node name="Camera2D" type="Camera2D" parent="."]
 limit_left = -320

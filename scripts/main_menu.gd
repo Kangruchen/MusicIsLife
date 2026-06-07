@@ -4,7 +4,10 @@ class_name MainMenu
 const MENU_HINT_FONT: FontFile = preload("res://assets/UI/Orbitron-VariableFont_wght.ttf")
 
 @onready var new_game_btn: Button = $CenterContainer/MenuVBox/NewGameBtn
-@onready var tutorial_btn: Button = $CenterContainer/MenuVBox/TutorialBtn
+@onready var main_menu_container: CenterContainer = $CenterContainer
+@onready var new_game_choice_overlay: Control = $NewGameChoiceOverlay
+@onready var start_with_tutorial_btn: Button = $NewGameChoiceOverlay/ChoiceCenter/ChoiceVBox/ChoiceHBox/StartWithTutorialBtn
+@onready var skip_tutorial_btn: Button = $NewGameChoiceOverlay/ChoiceCenter/ChoiceVBox/ChoiceHBox/SkipTutorialBtn
 @onready var guide_btn: Button = $CenterContainer/MenuVBox/GuideBtn
 @onready var settings_btn: Button = $CenterContainer/MenuVBox/SettingsBtn
 @onready var quit_btn: Button = $CenterContainer/MenuVBox/QuitBtn
@@ -18,14 +21,19 @@ const MENU_HINT_ACCENT_COLOR: Color = Color(1.0, 0.78, 0.18, 1.0)
 @export_file("*.tscn") var settings_scene_path: String = "res://scenes/settings.tscn"
 
 var _menu_buttons: Array[Button] = []
+var _main_menu_buttons: Array[Button] = []
 var _menu_input_hint: RichTextLabel = null
+var _is_new_game_choice_open: bool = false
 
 
 func _ready() -> void:
-	_menu_buttons = [new_game_btn, tutorial_btn, guide_btn, settings_btn, quit_btn]
+	_main_menu_buttons = [new_game_btn, guide_btn, settings_btn, quit_btn]
+	_menu_buttons = _main_menu_buttons.duplicate()
+	_set_new_game_choice_open(false)
 
 	new_game_btn.pressed.connect(_on_new_game_pressed)
-	tutorial_btn.pressed.connect(_on_tutorial_pressed)
+	start_with_tutorial_btn.pressed.connect(_on_start_with_tutorial_pressed)
+	skip_tutorial_btn.pressed.connect(_on_skip_tutorial_pressed)
 	guide_btn.pressed.connect(_on_guide_pressed)
 	settings_btn.pressed.connect(_on_settings_pressed)
 	quit_btn.pressed.connect(_on_quit_pressed)
@@ -39,10 +47,16 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
 		get_viewport().set_input_as_handled()
+		if _is_new_game_choice_open:
+			_hide_new_game_choice()
+			return
 		_on_quit_pressed()
 
 
 func _setup_focus_navigation() -> void:
+	if _menu_buttons.is_empty():
+		return
+
 	for i in range(_menu_buttons.size()):
 		var button: Button = _menu_buttons[i]
 		if button == null:
@@ -58,11 +72,18 @@ func _setup_focus_navigation() -> void:
 		var next_button: Button = _menu_buttons[(i + 1) % _menu_buttons.size()]
 		button.focus_neighbor_top = button.get_path_to(previous_button)
 		button.focus_neighbor_bottom = button.get_path_to(next_button)
+		button.focus_neighbor_left = button.get_path_to(previous_button)
+		button.focus_neighbor_right = button.get_path_to(next_button)
 
 
 func _focus_first_button() -> void:
 	if new_game_btn != null and is_instance_valid(new_game_btn):
 		new_game_btn.grab_focus()
+
+
+func _focus_first_new_game_choice() -> void:
+	if start_with_tutorial_btn != null and is_instance_valid(start_with_tutorial_btn):
+		start_with_tutorial_btn.grab_focus()
 
 
 func _create_menu_input_hint() -> void:
@@ -141,14 +162,19 @@ func _on_button_focus_exited(button: Button) -> void:
 
 func _on_new_game_pressed() -> void:
 	_rumble_ui(&"ui_confirm")
-	if not game_scene_path.is_empty():
-		get_tree().change_scene_to_file(game_scene_path)
+	_show_new_game_choice()
 
 
-func _on_tutorial_pressed() -> void:
+func _on_start_with_tutorial_pressed() -> void:
 	_rumble_ui(&"ui_confirm")
 	if not tutorial_scene_path.is_empty():
 		get_tree().change_scene_to_file(tutorial_scene_path)
+
+
+func _on_skip_tutorial_pressed() -> void:
+	_rumble_ui(&"ui_confirm")
+	if not game_scene_path.is_empty():
+		get_tree().change_scene_to_file(game_scene_path)
 
 
 func _on_guide_pressed() -> void:
@@ -172,3 +198,23 @@ func _rumble_ui(preset: StringName) -> void:
 	var gamepad_manager: Node = get_node_or_null("/root/GamepadManager")
 	if gamepad_manager != null and gamepad_manager.has_method("rumble"):
 		gamepad_manager.call("rumble", preset)
+
+
+func _show_new_game_choice() -> void:
+	_set_new_game_choice_open(true)
+	_menu_buttons = [start_with_tutorial_btn, skip_tutorial_btn]
+	_setup_focus_navigation()
+	call_deferred("_focus_first_new_game_choice")
+
+
+func _hide_new_game_choice() -> void:
+	_set_new_game_choice_open(false)
+	_menu_buttons = _main_menu_buttons.duplicate()
+	_setup_focus_navigation()
+	call_deferred("_focus_first_button")
+
+
+func _set_new_game_choice_open(is_open: bool) -> void:
+	_is_new_game_choice_open = is_open
+	main_menu_container.visible = not is_open
+	new_game_choice_overlay.visible = is_open

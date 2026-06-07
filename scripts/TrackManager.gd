@@ -1427,7 +1427,9 @@ func _play_boss_attack_sound_for_note_type(note_type: Note.NoteType, is_warn: bo
 	if pool == null or pool.is_empty():
 		return
 	var bus: StringName = cfg.sfx_bus
-	SFXManager.play_pool(pool, bus)
+	var sound_index: int = 0 if is_warn else 1
+	var time_offset: float = cfg.get_time_offset_for_beat(sound_index)
+	SFXManager.play_pool(pool, bus, time_offset)
 
 
 func _get_music_clock_time() -> float:

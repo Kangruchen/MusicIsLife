@@ -401,7 +401,8 @@ func _play_boss_attack_sound(attack_type: int) -> void:
 		return
 	var cfg: BossAttackTypeSoundConfig = GameConfigs.sound.boss_sounds.get_config(attack_type)
 	var bus: StringName = cfg.sfx_bus if cfg != null else &"SFX"
-	SFXManager.play_pool(pool, bus)
+	var time_offset: float = cfg.get_time_offset_for_beat(beat_index) if cfg != null else 0.0
+	SFXManager.play_pool(pool, bus, time_offset)
 	_boss_attack_beat_index[attack_type] = beat_index + 1
 
 
@@ -2316,7 +2317,8 @@ func _play_shield_break_sound_delayed() -> void:
 func _on_shield_break_sound_time(break_sound: RandomSoundPool) -> void:
 	if is_dead or current_state != BossState.BROKEN:
 		return
-	SFXManager.play_pool(break_sound, GameConfigs.sound.player_defense.sfx_bus)
+	var time_offset: float = GameConfigs.sound.player_defense.get_success_time_offset(Note.NoteType.GUARD)
+	SFXManager.play_pool(break_sound, GameConfigs.sound.player_defense.sfx_bus, time_offset)
 
 
 func _stop_break_transition() -> void:

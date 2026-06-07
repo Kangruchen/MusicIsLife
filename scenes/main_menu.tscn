@@ -101,23 +101,6 @@ theme_override_styles/focus = SubResource("StyleBoxEmpty_rtw2f")
 text = "New Game"
 script = ExtResource("4_wu84c")
 
-[node name="TutorialBtn" type="Button" parent="CenterContainer/MenuVBox"]
-layout_mode = 2
-theme_override_colors/font_hover_color = Color(1, 0.8, 0, 1)
-theme_override_colors/font_hover_pressed_color = Color(1, 0.27058825, 0, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 4
-theme_override_constants/h_separation = 4
-theme_override_fonts/font = SubResource("FontVariation_rtw2f")
-theme_override_font_sizes/font_size = 32
-theme_override_styles/normal = SubResource("StyleBoxEmpty_7b55j")
-theme_override_styles/pressed = SubResource("StyleBoxEmpty_5pajh")
-theme_override_styles/hover = SubResource("StyleBoxEmpty_j7ex8")
-theme_override_styles/focus = SubResource("StyleBoxEmpty_a8gd2")
-text = "Tutorial
-"
-script = ExtResource("7_jk1qb")
-
 [node name="GuideBtn" type="Button" parent="CenterContainer/MenuVBox"]
 layout_mode = 2
 theme_override_colors/font_hover_color = Color(1, 0.8, 0, 1)
@@ -165,3 +148,80 @@ theme_override_styles/hover = SubResource("StyleBoxEmpty_j7ex8")
 theme_override_styles/focus = SubResource("StyleBoxEmpty_a8gd2")
 text = "Quit"
 script = ExtResource("7_jk1qb")
+
+[node name="NewGameChoiceOverlay" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="DimBackground" type="ColorRect" parent="NewGameChoiceOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.58)
+
+[node name="ChoiceCenter" type="CenterContainer" parent="NewGameChoiceOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ChoiceVBox" type="VBoxContainer" parent="NewGameChoiceOverlay/ChoiceCenter"]
+layout_mode = 2
+theme_override_constants/separation = 32
+
+[node name="ChoiceTitle" type="Label" parent="NewGameChoiceOverlay/ChoiceCenter/ChoiceVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.92, 0.92, 0.86, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 6
+theme_override_fonts/font = SubResource("FontVariation_ekxnf")
+theme_override_font_sizes/font_size = 36
+text = "New Game"
+horizontal_alignment = 1
+
+[node name="ChoiceHBox" type="HBoxContainer" parent="NewGameChoiceOverlay/ChoiceCenter/ChoiceVBox"]
+layout_mode = 2
+theme_override_constants/separation = 56
+alignment = 1
+
+[node name="StartWithTutorialBtn" type="Button" parent="NewGameChoiceOverlay/ChoiceCenter/ChoiceVBox/ChoiceHBox"]
+custom_minimum_size = Vector2(220, 72)
+layout_mode = 2
+theme_override_colors/font_hover_color = Color(1, 0.8, 0, 1)
+theme_override_colors/font_hover_pressed_color = Color(1, 0.27058825, 0, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_constants/h_separation = 4
+theme_override_fonts/font = SubResource("FontVariation_rtw2f")
+theme_override_font_sizes/font_size = 24
+theme_override_styles/normal = SubResource("StyleBoxEmpty_7b55j")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_5pajh")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_j7ex8")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_a8gd2")
+text = "Play Tutorial"
+
+[node name="SkipTutorialBtn" type="Button" parent="NewGameChoiceOverlay/ChoiceCenter/ChoiceVBox/ChoiceHBox"]
+custom_minimum_size = Vector2(220, 72)
+layout_mode = 2
+theme_override_colors/font_hover_color = Color(1, 0.8, 0, 1)
+theme_override_colors/font_hover_pressed_color = Color(1, 0.27058825, 0, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_constants/h_separation = 4
+theme_override_fonts/font = SubResource("FontVariation_rtw2f")
+theme_override_font_sizes/font_size = 24
+theme_override_styles/normal = SubResource("StyleBoxEmpty_7b55j")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_5pajh")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_j7ex8")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_a8gd2")
+text = "Skip Tutorial"

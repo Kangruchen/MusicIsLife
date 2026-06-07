@@ -4,6 +4,9 @@ class_name SMFileLoader
 const LASER_ECHO_LAYER := "laser_echo"
 const LASER_CHORD_LAYER := "laser_chord"
 const BEATS_PER_MEASURE := 4.0
+const LASER_ECHO_WARNING_LEAD_BEATS := 2.0
+const LASER_CHORD_FIRE_START_OFFSET_BEATS := 2.0
+const LASER_CHORD_FIRE_STEP_BEATS := 0.5
 const LaserPatternEventScript := preload("res://scripts/LaserPatternEvent.gd")
 
 
@@ -234,8 +237,8 @@ static func _parse_laser_echo_layer(section: Dictionary, chart: Chart) -> void:
 		for i in range(lines_count):
 			var line := String(measure_lines[i])
 			var beat_in_measure := float(i) * beats_per_line
-			var warning_beat := float(measure) * BEATS_PER_MEASURE + beat_in_measure
-			var fire_beat := warning_beat + BEATS_PER_MEASURE
+			var fire_beat := float(measure) * BEATS_PER_MEASURE + beat_in_measure
+			var warning_beat := fire_beat - LASER_ECHO_WARNING_LEAD_BEATS
 
 			for slot_idx in range(min(4, line.length())):
 				if _is_active_note_char(line.substr(slot_idx, 1)):
@@ -259,8 +262,6 @@ static func _parse_laser_chord_layer(section: Dictionary, chart: Chart) -> void:
 
 		var lines_count := measure_lines.size()
 		var beats_per_line := BEATS_PER_MEASURE / float(lines_count)
-		var next_measure_start := (float(measure) + 1.0) * BEATS_PER_MEASURE
-
 		for i in range(lines_count):
 			var line := String(measure_lines[i])
 			var slots := _get_active_slots(line)
@@ -276,7 +277,7 @@ static func _parse_laser_chord_layer(section: Dictionary, chart: Chart) -> void:
 
 			for slot_idx in slots:
 				event.add_warning_step(warning_beat, chart.offset + warning_beat * beat_interval, slot_idx)
-				var fire_beat := next_measure_start + float(slot_idx)
+				var fire_beat := warning_beat + LASER_CHORD_FIRE_START_OFFSET_BEATS + float(slot_idx) * LASER_CHORD_FIRE_STEP_BEATS
 				event.add_fire_step(fire_beat, chart.offset + fire_beat * beat_interval, slot_idx)
 
 			event.sort_steps()

@@ -74,12 +74,13 @@ sounds = Array[ExtResource("16_entry_script")]([SubResource("SE_laser_atk1")])
 script = ExtResource("12_boss_type_script")
 default_sound = SubResource("Pool_laser_atk")
 beat_sounds = Array[ExtResource("15_pool_script")]([SubResource("Pool_laser_warn"), SubResource("Pool_laser_atk")])
+beat_sound_time_offsets = Array[float]([0.1, 0.0])
 loop_beat_sounds = true
 
 [sub_resource type="Resource" id="SE_missile1"]
 script = ExtResource("16_entry_script")
 stream = ExtResource("8_oghr7")
-volume_db = 6.0
+volume_db = -4.0
 
 [sub_resource type="Resource" id="Pool_missile"]
 script = ExtResource("15_pool_script")
@@ -176,12 +177,12 @@ enhance = SubResource("Pool_atk_enhance")
 [sub_resource type="Resource" id="SE_miss1"]
 script = ExtResource("16_entry_script")
 stream = ExtResource("31_miss1")
-volume_db = 5.0
+volume_db = -80.0
 
 [sub_resource type="Resource" id="SE_miss2"]
 script = ExtResource("16_entry_script")
 stream = ExtResource("32_miss2")
-volume_db = 5.0
+volume_db = -80.0
 
 [sub_resource type="Resource" id="Pool_miss"]
 script = ExtResource("15_pool_script")
@@ -232,6 +233,7 @@ sounds = Array[ExtResource("16_entry_script")]([SubResource("SE_def_hit_ok1"), S
 [sub_resource type="Resource" id="PlayerDefense"]
 script = ExtResource("14_def_script")
 guard_success = SubResource("Pool_def_guard_ok")
+guard_success_time_offset = 0.1
 guard_miss = SubResource("Pool_miss")
 hit_success = SubResource("Pool_def_hit_ok")
 hit_miss = SubResource("Pool_miss")
@@ -258,4 +260,3 @@ charged_heavy_boss_damage = 50.0
 charged_heavy_boss_energy_max_reduce = 3.0
 player_defense = SubResource("PlayerDefense")
 miss_sound = ExtResource("9_miss")
-miss_sound_volume_db = 0.0
