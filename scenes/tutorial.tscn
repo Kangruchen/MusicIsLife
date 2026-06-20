@@ -125,7 +125,6 @@ size = Vector2(1.6917441, 13)
 
 [node name="Tutorial" type="Node2D" node_paths=PackedStringArray("player", "door_proximity_area", "level_end_area", "left_door", "right_door", "mask_left_bound", "mask_right_bound", "intro_left_door", "intro_right_door", "intro_mask_left_bound", "intro_mask_right_bound", "intro_spawn_point", "intro_exit_point", "intro_proximity_shape")]
 z_index = -1
-position = Vector2(94, -4)
 script = ExtResource("18_tutorial_root")
 player = NodePath("Player")
 door_proximity_area = NodePath("DoorProximityArea")
@@ -138,6 +137,7 @@ intro_left_door = NodePath("tutorial_scene/elevator_door_left_lower2")
 intro_right_door = NodePath("tutorial_scene/elevator_door_right_lower2")
 intro_mask_left_bound = NodePath("MaskLeftBound2")
 intro_mask_right_bound = NodePath("MaskRightBound2")
+play_intro_cutscene = false
 intro_spawn_point = NodePath("IntroSpawnPoint")
 intro_exit_point = NodePath("IntroExitPoint")
 intro_proximity_shape = NodePath("DoorProximityArea/CollisionShape2D2")
@@ -177,7 +177,7 @@ texture = ExtResource("9_2urjh")
 
 [node name="Player" type="CharacterBody2D" parent="." groups=["player"]]
 z_index = 2
-position = Vector2(-705, 109)
+position = Vector2(-272, -536)
 script = ExtResource("3_tutorial_player")
 move_speed = 500.0
 walkable_slope_angle_degrees = 60.0

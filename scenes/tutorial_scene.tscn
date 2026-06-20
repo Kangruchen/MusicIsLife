@@ -1,4 +1,4 @@
-[gd_scene load_steps=88 format=4 uid="uid://c6yxi20pgmbbx"]
+[gd_scene load_steps=89 format=4 uid="uid://c6yxi20pgmbbx"]
 
 [ext_resource type="Texture2D" uid="uid://bixshvvvi35xi" path="res://assets/environment/scene_tutorial/background.png" id="1_k1v41"]
 [ext_resource type="Texture2D" uid="uid://2luontrbyikd" path="res://assets/environment/scene_tutorial/machine.png" id="2_7ncn3"]
@@ -34,6 +34,7 @@
 [ext_resource type="Texture2D" uid="uid://yx7s05h1b0rm" path="res://assets/environment/scene_tutorial/door_2.png" id="23_astrp"]
 [ext_resource type="Texture2D" uid="uid://cyyrngokdk32e" path="res://assets/environment/scene_tutorial/cargo.png" id="28_154sd"]
 [ext_resource type="Texture2D" uid="uid://cy1wbrl53c2jw" path="res://assets/environment/scene_tutorial/launcher.png" id="29_astrp"]
+[ext_resource type="Script" uid="uid://bxtkjanxcar8w" path="res://scripts/TutorialSceneParallax.gd" id="30_pvndr"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_48nin"]
 
@@ -440,6 +441,9 @@ gradient = SubResource("Gradient_vqpaf")
 fill = 1
 
 [node name="tutorial_scene" type="Node2D"]
+script = ExtResource("30_pvndr")
+background_camera_follow_x = 0.93
+machine_camera_follow_x = 0.85
 
 [node name="Background" type="Sprite2D" parent="."]
 texture = ExtResource("1_k1v41")
@@ -447,10 +451,14 @@ texture = ExtResource("1_k1v41")
 [node name="Machine" type="Sprite2D" parent="."]
 texture = ExtResource("2_7ncn3")
 
+[node name="Fan" type="Sprite2D" parent="."]
+texture = ExtResource("7_x2sx6")
+
 [node name="Wall" type="Sprite2D" parent="."]
 texture = ExtResource("3_hce6s")
 
 [node name="DoorPart" type="Sprite2D" parent="."]
+visible = false
 texture = ExtResource("4_ley6y")
 
 [node name="Belt" type="Sprite2D" parent="."]
@@ -458,9 +466,6 @@ visible = false
 texture_repeat = 2
 material = SubResource("ShaderMaterial_48nin")
 texture = ExtResource("5_8sa38")
-
-[node name="Fan" type="Sprite2D" parent="."]
-texture = ExtResource("7_x2sx6")
 
 [node name="StairPart" type="Sprite2D" parent="."]
 z_index = 1
