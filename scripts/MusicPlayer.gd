@@ -43,6 +43,7 @@ const MISS_VOLUME_DB: float = -10.46
 var lowpass_filter: AudioEffectLowPassFilter = null
 var filter_tween: Tween = null
 var volume_tween: Tween = null
+var _base_music_tween: Tween = null
 var _attack_mix_tween: Tween = null
 var _attack_mix_active: bool = false
 var _cached_main_volume_db: float = 0.0
@@ -85,6 +86,8 @@ var _attack_music_clock_active: bool = false
 var _attack_music_clock_base_time: float = 0.0
 var _attack_music_clock_wall_start: float = 0.0
 var _base_pause_token: int = 0
+var _ambient_attack_loop_active: bool = false
+var _ambient_transition_token: int = 0
 
 func _ready() -> void:
 	_output_latency_seconds = AudioServer.get_output_latency()
@@ -112,6 +115,9 @@ func _ready() -> void:
 	add_child(attack_loop_player_a)
 	add_child(attack_loop_player_b)
 	add_child(attack_outro_player)
+
+	if not attack_loop_player_a.finished.is_connected(_on_ambient_attack_loop_finished):
+		attack_loop_player_a.finished.connect(_on_ambient_attack_loop_finished)
 
 	main_player.bus = "BGM"
 	drum_player.bus = "BGM"
@@ -175,6 +181,93 @@ func load_and_play_music(custom_path: String = "") -> void:
 	print("音乐开始播放")
 
 
+func play_ambient_attack_loop(fade_seconds: float = 1.0) -> bool:
+	var stream: AudioStream = _load_ambient_attack_loop_stream()
+	if stream == null:
+		return false
+
+	if _base_music_tween != null:
+		_base_music_tween.kill()
+		_base_music_tween = null
+
+	_stop_attack_music_clock()
+	_attack_schedule_token += 1
+	_attack_clock_callbacks.clear()
+	_attack_music_active = false
+	_attack_mix_active = false
+	_attack_base_return_started = false
+	_ambient_attack_loop_active = true
+	_last_song_time = 0.0
+
+	if attack_loop_player_a.stream == stream and attack_loop_player_a.playing:
+		_fade_in_attack_player(attack_loop_player_a, fade_seconds)
+		return true
+
+	_stop_attack_players()
+	attack_loop_player_a.stream = stream
+	attack_loop_player_a.stream_paused = false
+	attack_loop_player_a.pitch_scale = 1.0
+	attack_loop_player_a.volume_db = -80.0 if fade_seconds > 0.0 else attack_music_volume_db
+	attack_loop_player_a.play()
+	_active_attack_loop_player = attack_loop_player_a
+	if fade_seconds > 0.0:
+		_fade_in_attack_player(attack_loop_player_a, fade_seconds)
+	return true
+
+
+func crossfade_ambient_attack_loop_to_base_music(fade_seconds: float = 1.0) -> bool:
+	if not _load_base_music_for_playback():
+		return false
+
+	var fade_duration: float = maxf(0.0, fade_seconds)
+	var main_target: float = main_player.volume_db
+	var drum_target: float = drum_player.volume_db
+	var bass_target: float = bass_player.volume_db
+
+	_ambient_transition_token += 1
+	_ambient_attack_loop_active = false
+	_stop_attack_music_clock()
+	_attack_schedule_token += 1
+	_attack_clock_callbacks.clear()
+	_attack_music_active = false
+	_attack_mix_active = false
+	_attack_base_return_started = false
+
+	_fade_out_attack_players(fade_duration)
+	_play_base_tracks_from_start(main_target, drum_target, bass_target, fade_duration)
+	EventBus.music_started.emit()
+	print("Base battle music crossfaded in from ambient attack loop")
+	return true
+
+
+func crossfade_base_music_to_ambient_attack_loop(fade_seconds: float = 1.0) -> bool:
+	var stream: AudioStream = _load_ambient_attack_loop_stream()
+	if stream == null:
+		return false
+
+	var fade_duration: float = maxf(0.0, fade_seconds)
+	var ambient_offset: float = 0.0
+	var stream_length: float = _get_stream_length(stream)
+	if stream_length > 0.0:
+		ambient_offset = fposmod(get_song_time(), stream_length)
+
+	_ambient_transition_token += 1
+	_ambient_attack_loop_active = true
+	_stop_attack_music_clock()
+	_attack_schedule_token += 1
+	_attack_clock_callbacks.clear()
+	_attack_music_active = false
+	_attack_mix_active = false
+	_attack_base_return_started = false
+	_last_song_time = 0.0
+
+	_fade_out_base_tracks(fade_duration, true)
+	_start_attack_player_from_offset(attack_loop_player_a, stream, ambient_offset, fade_duration)
+	_active_attack_loop_player = attack_loop_player_a
+	print("Ambient attack loop crossfaded back in")
+	return true
+
+
 func _load_from_config() -> void:
 	if not music_config:
 		return
@@ -208,6 +301,150 @@ func _load_single_track(path: String) -> void:
 		push_error("无法加载音乐文件: ", path)
 
 
+func _load_base_music_for_playback() -> bool:
+	if music_config:
+		_load_from_config()
+	elif music_path != "":
+		_load_single_track(music_path)
+	else:
+		push_warning("No base battle music configured.")
+		return false
+
+	return main_player.stream != null or drum_player.stream != null or bass_player.stream != null
+
+
+func _load_ambient_attack_loop_stream() -> AudioStream:
+	var loop_path: String = attack_loop_music_path
+	if loop_path.is_empty():
+		loop_path = attack_music_path
+	if loop_path.is_empty():
+		push_warning("No ambient attack loop music configured.")
+		return null
+	var stream: AudioStream = _load_attack_stream_from_path(loop_path)
+	return _make_looping_stream(stream)
+
+
+func _make_looping_stream(stream: AudioStream) -> AudioStream:
+	if stream == null:
+		return null
+
+	var looping_stream: AudioStream = stream.duplicate() as AudioStream
+	if looping_stream == null:
+		return stream
+
+	for property in looping_stream.get_property_list():
+		var property_name: String = String(property.get("name", ""))
+		if property_name == "loop":
+			looping_stream.set("loop", true)
+		elif property_name == "loop_mode":
+			looping_stream.set("loop_mode", 1)
+	return looping_stream
+
+
+func _on_ambient_attack_loop_finished() -> void:
+	if not _ambient_attack_loop_active:
+		return
+	if attack_loop_player_a == null or attack_loop_player_a.stream == null:
+		return
+	if _active_attack_loop_player != attack_loop_player_a:
+		return
+	attack_loop_player_a.volume_db = attack_music_volume_db
+	attack_loop_player_a.play()
+
+
+func _play_base_tracks_from_start(
+	main_target_db: float,
+	drum_target_db: float,
+	bass_target_db: float,
+	fade_seconds: float
+) -> void:
+	if _base_music_tween != null:
+		_base_music_tween.kill()
+		_base_music_tween = null
+
+	_base_pause_token += 1
+	_song_time_frozen = false
+	_frozen_song_time = 0.0
+	_last_song_time = 0.0
+
+	for player in [main_player, drum_player, bass_player]:
+		var audio_player: AudioStreamPlayer = player as AudioStreamPlayer
+		if audio_player == null or audio_player.stream == null:
+			continue
+		audio_player.stop()
+		audio_player.stream_paused = false
+
+	if main_player.stream:
+		main_player.volume_db = -80.0 if fade_seconds > 0.0 else main_target_db
+		main_player.play()
+	if drum_player.stream:
+		drum_player.volume_db = -80.0 if fade_seconds > 0.0 else drum_target_db
+		drum_player.play()
+	if bass_player.stream:
+		bass_player.volume_db = -80.0 if fade_seconds > 0.0 else bass_target_db
+		bass_player.play()
+
+	if fade_seconds <= 0.0:
+		return
+
+	_base_music_tween = create_tween()
+	_base_music_tween.set_parallel(true)
+	_base_music_tween.set_ease(Tween.EASE_OUT)
+	_base_music_tween.set_trans(Tween.TRANS_SINE)
+	if main_player.stream:
+		_base_music_tween.tween_property(main_player, "volume_db", main_target_db, fade_seconds)
+	if drum_player.stream:
+		_base_music_tween.tween_property(drum_player, "volume_db", drum_target_db, fade_seconds)
+	if bass_player.stream:
+		_base_music_tween.tween_property(bass_player, "volume_db", bass_target_db, fade_seconds)
+	_base_music_tween.finished.connect(func() -> void:
+		_base_music_tween = null
+	)
+
+
+func _fade_out_base_tracks(duration: float, stop_after: bool) -> void:
+	if _base_music_tween != null:
+		_base_music_tween.kill()
+		_base_music_tween = null
+
+	var fade_duration: float = maxf(0.0, duration)
+	var token: int = _ambient_transition_token
+	if fade_duration <= 0.0:
+		_set_base_track_volumes(-80.0, -80.0, -80.0)
+		if stop_after:
+			_stop_base_tracks_if_current(token)
+		return
+
+	_base_music_tween = create_tween()
+	_base_music_tween.set_parallel(true)
+	_base_music_tween.set_ease(Tween.EASE_OUT)
+	_base_music_tween.set_trans(Tween.TRANS_SINE)
+	if main_player.stream and main_player.playing:
+		_base_music_tween.tween_property(main_player, "volume_db", -80.0, fade_duration)
+	if drum_player.stream and drum_player.playing:
+		_base_music_tween.tween_property(drum_player, "volume_db", -80.0, fade_duration)
+	if bass_player.stream and bass_player.playing:
+		_base_music_tween.tween_property(bass_player, "volume_db", -80.0, fade_duration)
+	_base_music_tween.finished.connect(func() -> void:
+		if token != _ambient_transition_token:
+			return
+		_base_music_tween = null
+		if stop_after:
+			_stop_base_tracks_if_current(token)
+	)
+
+
+func _stop_base_tracks_if_current(token: int) -> void:
+	if token != _ambient_transition_token:
+		return
+	for player in [main_player, drum_player, bass_player]:
+		var audio_player: AudioStreamPlayer = player as AudioStreamPlayer
+		if audio_player == null:
+			continue
+		audio_player.stream_paused = false
+		audio_player.stop()
+
+
 func _play_all_tracks() -> void:
 	_last_song_time = 0.0
 	if main_player.stream:
@@ -222,7 +459,11 @@ func stop_music() -> void:
 	if _attack_mix_tween != null:
 		_attack_mix_tween.kill()
 		_attack_mix_tween = null
+	if _base_music_tween != null:
+		_base_music_tween.kill()
+		_base_music_tween = null
 	_attack_schedule_token += 1
+	_ambient_transition_token += 1
 	_attack_clock_callbacks.clear()
 	main_player.stop()
 	drum_player.stop()
@@ -230,6 +471,7 @@ func stop_music() -> void:
 	_stop_attack_players()
 	_attack_music_active = false
 	_attack_mix_active = false
+	_ambient_attack_loop_active = false
 	_last_song_time = 0.0
 
 
@@ -239,6 +481,9 @@ func fade_out_all_for_death(duration: float = 1.2, target_volume_db: float = -40
 
 	if volume_tween != null:
 		volume_tween.kill()
+	if _base_music_tween != null:
+		_base_music_tween.kill()
+		_base_music_tween = null
 
 	volume_tween = create_tween()
 	volume_tween.set_parallel(true)
@@ -1035,6 +1280,8 @@ func _get_remaining_attack_outro_time() -> float:
 
 
 func get_playback_position() -> float:
+	if _ambient_attack_loop_active and attack_loop_player_a.stream and attack_loop_player_a.playing:
+		return attack_loop_player_a.get_playback_position()
 	if main_player.stream and main_player.playing:
 		return main_player.get_playback_position()
 	elif drum_player.stream and drum_player.playing:
@@ -1047,6 +1294,9 @@ func get_playback_position() -> float:
 func get_song_time() -> float:
 	if _song_time_frozen:
 		return _frozen_song_time
+
+	if _ambient_attack_loop_active and attack_loop_player_a.stream and attack_loop_player_a.playing:
+		return maxf(0.0, attack_loop_player_a.get_playback_position() + AudioServer.get_time_since_last_mix() - _output_latency_seconds)
 
 	var song_time: float = get_playback_position() + AudioServer.get_time_since_last_mix() - _output_latency_seconds
 	song_time = maxf(0.0, song_time)

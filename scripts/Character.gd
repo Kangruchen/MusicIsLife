@@ -112,6 +112,10 @@ func _ready() -> void:
 		EventBus.player_died.connect(_on_player_died)
 	if not EventBus.judgment_made.is_connected(_on_judgment_made):
 		EventBus.judgment_made.connect(_on_judgment_made)
+	if not EventBus.chart_loaded.is_connected(_on_chart_loaded):
+		EventBus.chart_loaded.connect(_on_chart_loaded)
+	if not EventBus.music_started.is_connected(_on_music_started):
+		EventBus.music_started.connect(_on_music_started)
 
 	if attack_hitbox != null and not attack_hitbox.area_entered.is_connected(_on_attack_hitbox_area_entered):
 		attack_hitbox.area_entered.connect(_on_attack_hitbox_area_entered)
@@ -133,6 +137,14 @@ func _on_judgment_made(_track: int, judgment: int, _timing_diff: float) -> void:
 	if judgment != 3:
 		return
 	_play_defense_miss_flash()
+
+
+func _on_chart_loaded(_chart: Variant) -> void:
+	_refresh_idle_beat_sync()
+
+
+func _on_music_started() -> void:
+	_refresh_idle_beat_sync()
 
 
 func _play_defense_miss_flash() -> void:
@@ -769,7 +781,7 @@ func _play_idle() -> void:
 		return
 	if anim_config.idle_anim.is_empty():
 		return
-	_play_anim_if_needed(anim_config.idle_anim, false)
+	_play_anim_if_needed(anim_config.idle_anim, true)
 
 
 func _play_move() -> void:
@@ -789,8 +801,24 @@ func _play_anim_if_needed(anim_name: String, beat_sync: bool) -> void:
 	if animated_sprite == null:
 		return
 	if String(animated_sprite.animation) == anim_name and animated_sprite.is_playing():
+		if beat_sync:
+			_apply_beat_sync_speed(anim_name)
 		return
 	_play_anim(anim_name, beat_sync)
+
+
+func _refresh_idle_beat_sync() -> void:
+	if anim_config == null:
+		return
+	if anim_config.idle_anim.is_empty():
+		return
+	if animated_sprite == null or animated_sprite.sprite_frames == null:
+		return
+	if String(animated_sprite.animation) != anim_config.idle_anim:
+		return
+	if not animated_sprite.sprite_frames.has_animation(anim_config.idle_anim):
+		return
+	_apply_beat_sync_speed(anim_config.idle_anim)
 
 
 func _has_anim(anim_name: String) -> bool:

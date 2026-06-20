@@ -26,6 +26,8 @@ enum BattleState {
 @export var cannon_charge_warn_sound: AudioStream = preload("res://assets/SFX/charge/charge_warn.wav")
 @export var cannon_charge_attack_sound: AudioStream = preload("res://assets/SFX/charge/charge_attack.wav")
 @export var battle_zone_paths: Array[NodePath] = []
+@export var play_non_battle_attack_loop: bool = true
+@export_range(0.0, 4.0, 0.05) var music_crossfade_seconds: float = 1.0
 
 @export var missile_scene: PackedScene = preload("res://scenes/missile.tscn")
 @export_node_path("Node2D") var missile_launch_path: NodePath = NodePath("")
@@ -63,6 +65,7 @@ var _battle_active: bool = false
 var _music_player: Node = null
 var _beat_manager: Node = null
 var _track_manager: Node = null
+var _input_manager: Node = null
 var _last_generated_beat: float = 0.0
 var _ending_scheduled: bool = false
 var _battle_end_target_time: float = -1.0
@@ -93,6 +96,7 @@ signal all_battles_completed
 func _ready() -> void:
 	EventBus.judgment_made.connect(_on_judgment_made)
 	_hide_health_bars()
+	call_deferred("_start_non_battle_music")
 
 
 func _process(_delta: float) -> void:
@@ -171,6 +175,20 @@ func start_battle(battle_id: int) -> void:
 	_begin_battle()
 
 
+func _start_non_battle_music() -> void:
+	if not play_non_battle_attack_loop:
+		return
+	_resolve_nodes()
+	_apply_non_battle_beat_interval()
+	_set_tutorial_defense_input_active(false)
+	_sync_player_idle_to_current_beat()
+	if _music_player == null:
+		return
+	_music_player.auto_play = false
+	if _music_player.has_method("play_ambient_attack_loop"):
+		_music_player.play_ambient_attack_loop(music_crossfade_seconds)
+
+
 func _resolve_nodes() -> void:
 	if _camera == null or not is_instance_valid(_camera):
 		if not camera_path.is_empty():
@@ -213,6 +231,8 @@ func _resolve_nodes() -> void:
 			_beat_manager = gm.get_node_or_null("BeatManager")
 		if _track_manager == null or not is_instance_valid(_track_manager):
 			_track_manager = gm.get_node_or_null("TrackManager")
+		if _input_manager == null or not is_instance_valid(_input_manager):
+			_input_manager = gm.get_node_or_null("InputManager")
 
 
 func _get_battle_zone_rect(battle_id: int) -> Rect2:
@@ -348,6 +368,7 @@ func _start_battle_internal() -> void:
 		_player.set_physics_process(false)
 		if _player.has_method("enter_battle"):
 			_player.enter_battle()
+	_set_tutorial_defense_input_active(true)
 
 	_beat_interval = 60.0 / _current_config.bpm
 
@@ -363,6 +384,7 @@ func _start_battle_internal() -> void:
 		_beat_manager.generate_test_chart = false
 
 	EventBus.beat_interval = _beat_interval
+	_sync_player_idle_to_current_beat()
 
 	_missile_target_times.clear()
 	_missile_fired_count = 0
@@ -374,12 +396,14 @@ func _start_battle_internal() -> void:
 		if _current_config.battle_id == 2 and _battle_ui and _battle_ui.has_method("setup_dual_row_mode"):
 			_battle_ui.setup_dual_row_mode()
 
-	_generate_and_emit_chart()
-
 	if _music_player:
 		_music_player.auto_play = false
-		if _music_player.has_method("load_and_play_music"):
+		if _music_player.has_method("crossfade_ambient_attack_loop_to_base_music"):
+			_music_player.crossfade_ambient_attack_loop_to_base_music(music_crossfade_seconds)
+		elif _music_player.has_method("load_and_play_music"):
 			_music_player.load_and_play_music()
+
+	_generate_and_emit_chart()
 
 	battle_started.emit(_current_config.battle_id)
 
@@ -564,7 +588,9 @@ func _end_battle() -> void:
 	if _track_manager and _track_manager.has_method("clear_all_notes"):
 		_track_manager.clear_all_notes()
 
-	if _music_player and _music_player.has_method("fade_out_all_for_death"):
+	if _music_player and _music_player.has_method("crossfade_base_music_to_ambient_attack_loop"):
+		_music_player.crossfade_base_music_to_ambient_attack_loop(music_crossfade_seconds)
+	elif _music_player and _music_player.has_method("fade_out_all_for_death"):
 		_music_player.fade_out_all_for_death(1.0, -40.0)
 
 	if _beat_manager:
@@ -574,19 +600,52 @@ func _end_battle() -> void:
 		_player.set_physics_process(true)
 		if _player.has_method("exit_battle"):
 			_player.exit_battle()
+	_apply_non_battle_beat_interval()
+	_set_tutorial_defense_input_active(false)
+	_sync_player_idle_to_current_beat()
 
 	_restore_camera()
 
-	var fade_duration: float = 1.2
-	get_tree().create_timer(fade_duration).timeout.connect(func() -> void:
-		if _music_player and _music_player.has_method("stop_music"):
-			_music_player.stop_music()
-	)
+	if _music_player and not _music_player.has_method("crossfade_base_music_to_ambient_attack_loop"):
+		var fade_duration: float = 1.2
+		get_tree().create_timer(fade_duration).timeout.connect(func() -> void:
+			if _music_player and _music_player.has_method("stop_music"):
+				_music_player.stop_music()
+		)
 
 	battle_ended.emit(_current_config.battle_id)
 
 	if _current_battle_index >= battle_configs.size() - 1:
 		all_battles_completed.emit()
+
+
+func _apply_non_battle_beat_interval() -> void:
+	var bpm: float = 0.0
+	if _current_config != null and _current_config.bpm > 0.0:
+		bpm = _current_config.bpm
+	elif not battle_configs.is_empty() and battle_configs[0] != null and battle_configs[0].bpm > 0.0:
+		bpm = battle_configs[0].bpm
+	if bpm <= 0.0:
+		return
+	EventBus.beat_interval = 60.0 / bpm
+
+
+func _set_tutorial_defense_input_active(active: bool) -> void:
+	if _input_manager == null or not is_instance_valid(_input_manager):
+		return
+	if active:
+		if _input_manager.has_method("resume_input"):
+			_input_manager.resume_input()
+	else:
+		if _input_manager.has_method("pause_input"):
+			_input_manager.pause_input()
+
+
+func _sync_player_idle_to_current_beat() -> void:
+	if _player == null or not is_instance_valid(_player):
+		return
+	if _player.has_method("sync_idle_animation_to_current_beat"):
+		_player.sync_idle_animation_to_current_beat()
 
 
 func _restore_camera() -> void:

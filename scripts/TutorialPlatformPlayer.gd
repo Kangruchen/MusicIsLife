@@ -19,6 +19,7 @@ extends CharacterBody2D
 @export var guard_anim: String = "Guard"
 @export var hit_anim: String = "Attack1"
 @export var dodge_anim: String = "Dodge"
+@export var sync_idle_to_beat: bool = true
 
 @onready var animated_sprite: AnimatedSprite2D = get_node_or_null("CharacterVisual/AnimatedSprite2D") as AnimatedSprite2D
 
@@ -139,6 +140,7 @@ func _play_anim(anim_name: String) -> void:
 		return
 	if not animated_sprite.sprite_frames.has_animation(anim_name):
 		return
+	animated_sprite.speed_scale = 1.0
 	animated_sprite.play(anim_name)
 
 
@@ -225,7 +227,9 @@ func _play_idle() -> void:
 	if not animated_sprite.sprite_frames.has_animation(&"Idle"):
 		return
 	if animated_sprite.animation == &"Idle" and animated_sprite.is_playing():
+		_apply_idle_beat_sync()
 		return
+	_apply_idle_beat_sync()
 	animated_sprite.play(&"Idle")
 
 
@@ -238,7 +242,44 @@ func _play_move() -> void:
 		return
 	if animated_sprite.animation == &"Run" and animated_sprite.is_playing():
 		return
+	animated_sprite.speed_scale = 1.0
 	animated_sprite.play(&"Run")
+
+
+func sync_idle_animation_to_current_beat() -> void:
+	if animated_sprite == null:
+		return
+	if animated_sprite.animation != &"Idle":
+		return
+	_apply_idle_beat_sync()
+
+
+func _apply_idle_beat_sync() -> void:
+	if not sync_idle_to_beat:
+		return
+	if animated_sprite == null or animated_sprite.sprite_frames == null:
+		return
+	if not animated_sprite.sprite_frames.has_animation(&"Idle"):
+		return
+
+	var beat_interval: float = EventBus.beat_interval
+	if beat_interval <= 0.0:
+		animated_sprite.speed_scale = 1.0
+		return
+
+	var sprite_frames: SpriteFrames = animated_sprite.sprite_frames
+	var frame_count: int = sprite_frames.get_frame_count(&"Idle")
+	var base_fps: float = sprite_frames.get_animation_speed(&"Idle")
+	if frame_count <= 0 or base_fps <= 0.0:
+		animated_sprite.speed_scale = 1.0
+		return
+
+	var duration_units: float = 0.0
+	for i in range(frame_count):
+		duration_units += sprite_frames.get_frame_duration(&"Idle", i)
+
+	var original_duration: float = duration_units / base_fps
+	animated_sprite.speed_scale = clampf(original_duration / beat_interval, 0.1, 10.0)
 
 
 func _update_visual_facing() -> void:
