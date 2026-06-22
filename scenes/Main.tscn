@@ -145,7 +145,7 @@ enable_miss_audio_effect = true
 [node name="BeatManager" type="Node" parent="GameManager"]
 script = ExtResource("2_b4ymn")
 bpm = 0.0
-chart_sm_path = "res://assets/charts/New Demo/New Demo.sm"
+chart_sm_path = "res://assets/charts/New Demo/New Pattern TestChart.sm"
 
 [node name="TrackManager" type="Node" parent="GameManager" node_paths=PackedStringArray("guard_position_nodes", "laser_pattern_position_nodes", "laser_pattern_warn_position_nodes", "guard_warn_position_nodes", "game_ui")]
 script = ExtResource("4_track_mgr")

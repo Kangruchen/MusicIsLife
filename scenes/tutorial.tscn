@@ -137,7 +137,6 @@ intro_left_door = NodePath("tutorial_scene/elevator_door_left_lower2")
 intro_right_door = NodePath("tutorial_scene/elevator_door_right_lower2")
 intro_mask_left_bound = NodePath("MaskLeftBound2")
 intro_mask_right_bound = NodePath("MaskRightBound2")
-play_intro_cutscene = false
 intro_spawn_point = NodePath("IntroSpawnPoint")
 intro_exit_point = NodePath("IntroExitPoint")
 intro_proximity_shape = NodePath("DoorProximityArea/CollisionShape2D2")
@@ -158,6 +157,8 @@ texture = ExtResource("1_c13y7")
 
 [node name="tutorial_scene" parent="." instance=ExtResource("3_ckvwl")]
 position = Vector2(1206, -420)
+background_camera_follow_x = 0.05
+machine_camera_follow_x = 0.1
 
 [node name="elevator_door_left_upper" type="Sprite2D" parent="tutorial_scene"]
 position = Vector2(-1972, -154)
@@ -177,7 +178,7 @@ texture = ExtResource("9_2urjh")
 
 [node name="Player" type="CharacterBody2D" parent="." groups=["player"]]
 z_index = 2
-position = Vector2(-272, -536)
+position = Vector2(-703, 118)
 script = ExtResource("3_tutorial_player")
 move_speed = 500.0
 walkable_slope_angle_degrees = 60.0
@@ -274,7 +275,7 @@ missile_launch_path = NodePath("../PositionNodes/Missile1")
 position = Vector2(998, -1)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="TutorialBattleManager/BattleZone1"]
-position = Vector2(77, -133)
+position = Vector2(-18, -133)
 shape = SubResource("RectangleShape2D_battle_zone")
 
 [node name="BattleZone2" type="Area2D" parent="TutorialBattleManager"]

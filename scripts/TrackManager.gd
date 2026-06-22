@@ -14,11 +14,14 @@ const TrackedNoteRuntime := preload("res://scripts/TrackedNoteRuntime.gd")
 const BLING_SCENE := preload("res://scenes/bling.tscn")
 const PREJUDGE_KEY_HINT_SCRIPT := preload("res://scripts/PrejudgeKeyHint.gd")
 const SETTINGS_FILE_PATH: String = "user://settings.cfg"
+const SETTINGS_AUDIO_SECTION: String = "audio"
+const SETTINGS_AUDIO_OFFSET_KEY: String = "offset"
 const SETTINGS_GAMEPLAY_SECTION: String = "gameplay"
 const SETTINGS_PREJUDGE_HINT_MODE_KEY: String = "prejudge_key_hint_display_mode"
 const PREJUDGE_HINT_MODE_ALWAYS: int = 0
 const PREJUDGE_HINT_MODE_LIMITED: int = 1
 const JUDGMENT_MISS: int = 3
+const GUARD_WARN_SOUND_PLAYED_META: StringName = &"_guard_warn_sound_played"
 
 # Bling 特效配置
 const BLING_BASE_X: float = 50.0  # 特效基础X坐标（屏幕左侧）
@@ -113,6 +116,7 @@ var _boss_node: Node2D = null
 
 # 同级兄弟节点引用
 @onready var music_player: Node = get_node("../MusicPlayer")
+@onready var beat_manager: Node = get_node_or_null("../BeatManager")
 
 var current_chart: Chart = null
 var scheduled_notes: Array[Note] = []  # 待生成的音符
@@ -367,14 +371,35 @@ func _process_tracked_note_runtime(now_time: float) -> void:
 
 ## 检查并生成需要提前生成的音符（基于时间）
 func _check_and_spawn_laser_warnings_by_time(now_time: float) -> void:
-	for warning_step in scheduled_laser_warnings.duplicate():
-		if now_time < float(warning_step["beat_time"]):
+	for index in range(scheduled_laser_warnings.size() - 1, -1, -1):
+		var warning_step: Dictionary = scheduled_laser_warnings[index]
+		var visual_time: float = float(warning_step["beat_time"])
+		var sound_time: float = _get_calibrated_sfx_play_time(visual_time)
+		var sound_played: bool = bool(warning_step.get(&"_sound_played", false))
+		var visual_spawned: bool = bool(warning_step.get(&"_visual_spawned", false))
+
+		if _attack_phase_blocked:
+			if now_time >= visual_time:
+				scheduled_laser_warnings.remove_at(index)
 			continue
-		scheduled_laser_warnings.erase(warning_step)
-		_spawn_laser_pattern_warning(warning_step)
+
+		if not sound_played and now_time >= sound_time:
+			_play_boss_attack_sound_for_note_type(Note.NoteType.GUARD, true)
+			sound_played = true
+			warning_step[&"_sound_played"] = true
+
+		if not visual_spawned and now_time >= visual_time:
+			_spawn_laser_pattern_warning(warning_step, false)
+			visual_spawned = true
+			warning_step[&"_visual_spawned"] = true
+
+		if sound_played and visual_spawned:
+			scheduled_laser_warnings.remove_at(index)
+		else:
+			scheduled_laser_warnings[index] = warning_step
 
 
-func _spawn_laser_pattern_warning(warning_step: Dictionary) -> void:
+func _spawn_laser_pattern_warning(warning_step: Dictionary, play_sound: bool = true) -> void:
 	if _attack_phase_blocked:
 		return
 	if track_animation_config == null:
@@ -388,7 +413,8 @@ func _spawn_laser_pattern_warning(warning_step: Dictionary) -> void:
 	warn_note.source_layer = String(warning_step.get("source_layer", "laser_pattern"))
 
 	_spawn_guard_warn_animation(warn_note, warn_note.slot_index, laser_pattern_warning_duration_beats)
-	_play_boss_attack_sound_for_note_type(Note.NoteType.GUARD, true)
+	if play_sound:
+		_play_boss_attack_sound_for_note_type(Note.NoteType.GUARD, true)
 
 
 func _check_and_spawn_notes_by_time(now_time: float) -> void:
@@ -420,6 +446,9 @@ func _check_and_spawn_notes_by_time(now_time: float) -> void:
 		if beat_interval <= 0.0:
 			beat_interval = 0.5
 		var spawn_time: float = note.beat_time - advance_beats * beat_interval
+		if note.type == Note.NoteType.GUARD and not _uses_laser_pattern_positions(note):
+			_try_play_guard_warning_sound_for_note(note, spawn_time, now_time)
+
 		if note.type == Note.NoteType.HIT:
 			var prepare_seconds: float = _get_boss_return_prepare_seconds()
 			var request_time: float = spawn_time - prepare_seconds
@@ -896,7 +925,9 @@ func _spawn_track_animation(note: Note) -> void:
 			_spawn_guard_laser_attack(note, counter)
 		else:
 			_spawn_guard_warn_animation(note, counter, 1.0)
-			_play_boss_attack_sound_for_note_type(Note.NoteType.GUARD, true)
+			if not _is_guard_warning_sound_played(note):
+				_mark_guard_warning_sound_played(note)
+				_play_boss_attack_sound_for_note_type(Note.NoteType.GUARD, true)
 			_spawn_guard_laser_attack(note, counter)
 		return
 
@@ -961,21 +992,22 @@ func _on_guard_laser_attack_time(token: int, note: Note, counter: int) -> void:
 	if note == null:
 		return
 
-	_play_guard_laser_attack(note, counter)
+	_play_guard_laser_attack(note, counter, false)
 
 
 func _spawn_guard_laser_attack(note: Note, counter: int) -> void:
 	var attack_start_time: float = _get_guard_laser_attack_start_time(note)
+	_schedule_boss_attack_sound_for_note_type(note.type, false, attack_start_time)
 	if current_time >= attack_start_time - 0.001:
-		_play_guard_laser_attack(note, counter)
+		_play_guard_laser_attack(note, counter, false)
 		return
 
 	var token: int = _effect_runtime_token
 	_schedule_music_clock_event(attack_start_time, Callable(self, "_on_guard_laser_attack_time"), [token, note, counter])
 
 
-func _play_guard_laser_attack(note: Note, counter: int) -> void:
-	_spawn_main_animation(note, 0, counter, GUARD_LASER_BEAT_ALIGNMENT_FRAME)
+func _play_guard_laser_attack(note: Note, counter: int, play_sound: bool = true) -> void:
+	_spawn_main_animation(note, 0, counter, GUARD_LASER_BEAT_ALIGNMENT_FRAME, play_sound)
 
 
 func _get_guard_laser_attack_start_time(note: Note) -> float:
@@ -1067,7 +1099,7 @@ func _erase_active_warn_by_id(warn_instance_id: int) -> void:
 
 
 ## 生成主轨道动画（立即播放，通过速度缩放使 attack_end_frame 对齐判定时刻）
-func _spawn_main_animation(note: Note, target_beats: int, counter: int, alignment_frame: int = -1) -> void:
+func _spawn_main_animation(note: Note, target_beats: int, counter: int, alignment_frame: int = -1, play_sound: bool = true) -> void:
 	# 只要配置了外部节点路径，就强制使用外部节点，不再回退到实例化特效
 	if _has_external_anim_path(note.type):
 		var forced_external_sprite: AnimatedSprite2D = _get_external_anim_sprite(note.type)
@@ -1076,7 +1108,8 @@ func _spawn_main_animation(note: Note, target_beats: int, counter: int, alignmen
 			if track_animation_config:
 				forced_anim_name = track_animation_config.get_animation_name(note.type)
 			_play_external_track_animation(note, target_beats, forced_anim_name, forced_external_sprite)
-			_play_boss_attack_sound_for_note_type(note.type, false)
+			if play_sound:
+				_play_boss_attack_sound_for_note_type(note.type, false)
 			return
 		push_warning("[TrackManager] 已配置外部动画路径，但未找到节点，已跳过该轨道动画: %s" % note.get_type_string())
 		return
@@ -1172,7 +1205,8 @@ func _spawn_main_animation(note: Note, target_beats: int, counter: int, alignmen
 		instance.scale.x = -instance.scale.x
 	anim_sprite.speed_scale = anim_speed_scale
 	anim_sprite.play(resolved_anim_name)
-	_play_boss_attack_sound_for_note_type(note.type, false)
+	if play_sound:
+		_play_boss_attack_sound_for_note_type(note.type, false)
 	
 	# 追踪活跃特效（用于默认 Bling 槽位避重）
 	if not _active_blings.has(note.type):
@@ -1403,6 +1437,60 @@ func _schedule_music_clock_event(target_time: float, callback: Callable, args: A
 
 func _process_music_clock_events(now: float) -> void:
 	_music_clock_events.process(now)
+
+
+func _get_calibrated_sfx_play_time(visual_time: float) -> float:
+	return visual_time - _get_audio_calibration_offset_seconds()
+
+
+func _try_play_guard_warning_sound_for_note(note: Note, visual_time: float, now_time: float) -> void:
+	if note == null:
+		return
+	if _is_guard_warning_sound_played(note):
+		return
+	var sound_time: float = _get_calibrated_sfx_play_time(visual_time)
+	if now_time < sound_time:
+		return
+	_mark_guard_warning_sound_played(note)
+	_play_boss_attack_sound_for_note_type(Note.NoteType.GUARD, true)
+
+
+func _is_guard_warning_sound_played(note: Note) -> bool:
+	return note != null and bool(note.get_meta(GUARD_WARN_SOUND_PLAYED_META, false))
+
+
+func _mark_guard_warning_sound_played(note: Note) -> void:
+	if note != null:
+		note.set_meta(GUARD_WARN_SOUND_PLAYED_META, true)
+
+
+func _get_audio_calibration_offset_seconds() -> float:
+	if beat_manager != null and is_instance_valid(beat_manager):
+		var beat_manager_offset: Variant = beat_manager.get("user_offset")
+		if beat_manager_offset != null:
+			return float(beat_manager_offset)
+
+	var config: ConfigFile = ConfigFile.new()
+	var err: int = config.load(SETTINGS_FILE_PATH)
+	if err != OK:
+		return 0.0
+	return float(config.get_value(SETTINGS_AUDIO_SECTION, SETTINGS_AUDIO_OFFSET_KEY, 0.0)) / 1000.0
+
+
+func _schedule_boss_attack_sound_for_note_type(note_type: Note.NoteType, is_warn: bool, visual_time: float) -> void:
+	var sound_time: float = _get_calibrated_sfx_play_time(visual_time)
+	if current_time >= sound_time - 0.001:
+		_play_boss_attack_sound_for_note_type(note_type, is_warn)
+		return
+
+	var token: int = _effect_runtime_token
+	_schedule_music_clock_event(sound_time, Callable(self, "_on_boss_attack_sound_time"), [token, int(note_type), is_warn])
+
+
+func _on_boss_attack_sound_time(token: int, note_type: int, is_warn: bool) -> void:
+	if token != _effect_runtime_token or _attack_phase_blocked:
+		return
+	_play_boss_attack_sound_for_note_type(note_type as Note.NoteType, is_warn)
 
 
 func _play_boss_attack_sound_for_note_type(note_type: Note.NoteType, is_warn: bool = false) -> void:
