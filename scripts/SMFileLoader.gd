@@ -10,7 +10,7 @@ const LASER_CHORD_FIRE_STEP_BEATS := 0.5
 const LaserPatternEventScript := preload("res://scripts/LaserPatternEvent.gd")
 
 
-static func load_from_sm(sm_path: String, difficulty: String = "") -> Chart:
+static func load_from_sm(sm_path: String, difficulty: String = "", include_laser_pattern_layers: bool = true) -> Chart:
 	var file := FileAccess.open(sm_path, FileAccess.READ)
 	if not file:
 		push_error("Cannot open .sm file: ", sm_path)
@@ -38,12 +38,13 @@ static func load_from_sm(sm_path: String, difficulty: String = "") -> Chart:
 	if not standard_section.is_empty():
 		_parse_standard_notes(standard_section, chart)
 
-	for section in sections:
-		var layer_kind := String(section.get("layer_kind", ""))
-		if layer_kind == LASER_ECHO_LAYER:
-			_parse_laser_echo_layer(section, chart)
-		elif layer_kind == LASER_CHORD_LAYER:
-			_parse_laser_chord_layer(section, chart)
+	if include_laser_pattern_layers:
+		for section in sections:
+			var layer_kind := String(section.get("layer_kind", ""))
+			if layer_kind == LASER_ECHO_LAYER:
+				_parse_laser_echo_layer(section, chart)
+			elif layer_kind == LASER_CHORD_LAYER:
+				_parse_laser_chord_layer(section, chart)
 
 	chart.sort_notes()
 	chart.call("sort_laser_patterns")
@@ -51,7 +52,8 @@ static func load_from_sm(sm_path: String, difficulty: String = "") -> Chart:
 	var laser_patterns: Array = chart.get("laser_patterns")
 	print("Loaded .sm chart: ", chart.chart_name,
 		", notes=", chart.notes.size(),
-		", laser_patterns=", laser_patterns.size())
+		", laser_patterns=", laser_patterns.size(),
+		", laser_pattern_layers=", "enabled" if include_laser_pattern_layers else "disabled")
 	return chart
 
 

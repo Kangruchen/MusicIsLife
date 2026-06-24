@@ -21,7 +21,6 @@ sounds = Array[ExtResource("7_entry_script")]([SubResource("SoundEntry_charge")]
 [sub_resource type="Resource" id="BossAttackTypeSoundConfig_charge"]
 script = ExtResource("5_type_script")
 default_sound = SubResource("RandomSoundPool_charge")
-default_sound_time_offset = 0.0
 
 [sub_resource type="Resource" id="SoundEntry_charge_windup"]
 script = ExtResource("7_entry_script")
@@ -35,7 +34,6 @@ sounds = Array[ExtResource("7_entry_script")]([SubResource("SoundEntry_charge_wi
 [sub_resource type="Resource" id="BossAttackTypeSoundConfig_charge_windup"]
 script = ExtResource("5_type_script")
 default_sound = SubResource("RandomSoundPool_charge_windup")
-default_sound_time_offset = 0.0
 
 [sub_resource type="Resource" id="SoundEntry_laser"]
 script = ExtResource("7_entry_script")
@@ -49,7 +47,6 @@ sounds = Array[ExtResource("7_entry_script")]([SubResource("SoundEntry_laser")])
 [sub_resource type="Resource" id="BossAttackTypeSoundConfig_laser"]
 script = ExtResource("5_type_script")
 default_sound = SubResource("RandomSoundPool_laser")
-default_sound_time_offset = 0.0
 
 [sub_resource type="Resource" id="SoundEntry_missile"]
 script = ExtResource("7_entry_script")
@@ -63,7 +60,6 @@ sounds = Array[ExtResource("7_entry_script")]([SubResource("SoundEntry_missile")
 [sub_resource type="Resource" id="BossAttackTypeSoundConfig_missile"]
 script = ExtResource("5_type_script")
 default_sound = SubResource("RandomSoundPool_missile")
-default_sound_time_offset = 0.0
 beat_sounds = Array[ExtResource("6_pool_script")]([null, null])
 beat_sound_time_offsets = Array[float]([0.0, 0.0])
 
