@@ -22,6 +22,12 @@ const PREJUDGE_HINT_MODE_ALWAYS: int = 0
 const PREJUDGE_HINT_MODE_LIMITED: int = 1
 const JUDGMENT_MISS: int = 3
 const GUARD_WARN_SOUND_PLAYED_META: StringName = &"_guard_warn_sound_played"
+const MISSILE_LAUNCH_TIME_META: StringName = &"_missile_launch_time"
+const MISSILE_LAUNCH_BEAT_META: StringName = &"_missile_launch_beat"
+const MISSILE_BARRAGE_GROUP_META: StringName = &"_missile_barrage_group"
+const MISSILE_BARRAGE_SIDE_META: StringName = &"_missile_barrage_side"
+const MISSILE_BARRAGE_GROUP_INDEX_META: StringName = &"_missile_barrage_group_index"
+const BEATS_PER_MEASURE: float = 4.0
 
 # Bling 特效配置
 const BLING_BASE_X: float = 50.0  # 特效基础X坐标（屏幕左侧）
@@ -63,6 +69,10 @@ var _boss_node: Node2D = null
 @export_group("Boss 导弹联动")
 @export_node_path("Node2D") var boss_node_path: NodePath = NodePath("../Boss")
 @export_range(0.0, 4.0, 0.25) var boss_charge_prepare_lead_beats: float = 0.75
+@export var enable_missile_barrage_timing: bool = true
+@export_range(1, 8, 1) var missile_barrage_group_size: int = 4
+@export_range(0.0, 4.0, 0.25) var missile_barrage_return_beats: float = 1.0
+@export_range(0.1, 6.0, 0.25) var missile_barrage_attack_beats: float = 2.0
 @export var debug_missile_timing: bool = false
 @export var debug_charge_timing: bool = false
 @export_group("")
@@ -310,10 +320,25 @@ func set_chart(chart: Chart) -> void:
 	clear_all_notes()
 	reset_prejudge_hint_progress()
 	current_chart = chart
-	scheduled_notes = chart.notes.duplicate()
+	scheduled_notes.clear()
+	for note in chart.notes:
+		scheduled_notes.append(_duplicate_note_for_schedule(note))
 	_apply_laser_patterns_to_schedule(chart)
+	_apply_missile_barrage_timing_to_schedule(chart)
 	_assign_hit_note_sides()
 	print("TrackManager loaded chart: notes=", scheduled_notes.size(), ", laser_warnings=", scheduled_laser_warnings.size())
+
+
+func _duplicate_note_for_schedule(source_note: Note) -> Note:
+	var note := Note.new()
+	if source_note == null:
+		return note
+	note.beat_time = source_note.beat_time
+	note.beat_number = source_note.beat_number
+	note.type = source_note.type
+	note.slot_index = source_note.slot_index
+	note.source_layer = source_note.source_layer
+	return note
 
 
 func _apply_laser_patterns_to_schedule(chart: Chart) -> void:
@@ -349,6 +374,70 @@ func _apply_laser_patterns_to_schedule(chart: Chart) -> void:
 
 func _assign_hit_note_sides() -> void:
 	_hit_note_sides.assign_notes(scheduled_notes)
+
+
+func _apply_missile_barrage_timing_to_schedule(chart: Chart) -> void:
+	if not enable_missile_barrage_timing:
+		return
+	if tutorial_mode:
+		return
+
+	var beat_interval: float = EventBus.beat_interval
+	if beat_interval <= 0.0 and chart != null and chart.bpm > 0.0:
+		beat_interval = 60.0 / chart.bpm
+	if beat_interval <= 0.0:
+		beat_interval = 0.5
+
+	var groups_by_measure: Dictionary = {}
+	for note in scheduled_notes:
+		if note == null or note.type != Note.NoteType.HIT:
+			continue
+		var measure_index: int = int(floor(note.beat_number / BEATS_PER_MEASURE))
+		if not groups_by_measure.has(measure_index):
+			groups_by_measure[measure_index] = []
+		groups_by_measure[measure_index].append(note)
+
+	var group_size: int = maxi(1, missile_barrage_group_size)
+	var measure_indices: Array = groups_by_measure.keys()
+	measure_indices.sort()
+	var next_group_side: int = MISSILE_SIDE_LEFT
+	var next_group_index: int = 0
+	for measure_index in measure_indices:
+		var measure_notes: Array = groups_by_measure[measure_index]
+		measure_notes.sort_custom(func(a: Note, b: Note) -> bool:
+			return a.beat_time < b.beat_time
+		)
+
+		var cursor: int = 0
+		while cursor + group_size <= measure_notes.size():
+			var group: Array[Note] = []
+			for i in range(group_size):
+				group.append(measure_notes[cursor + i])
+			_apply_missile_barrage_group_timing(group, beat_interval, next_group_side, next_group_index)
+			next_group_side = MISSILE_SIDE_RIGHT if next_group_side == MISSILE_SIDE_LEFT else MISSILE_SIDE_LEFT
+			next_group_index += 1
+			cursor += group_size
+
+
+func _apply_missile_barrage_group_timing(group: Array[Note], beat_interval: float, launch_side: int, group_index: int) -> void:
+	if group.is_empty():
+		return
+
+	var lead_beats: float = maxf(0.0, missile_barrage_return_beats) + maxf(0.1, missile_barrage_attack_beats)
+	var attack_beats: float = maxf(0.1, missile_barrage_attack_beats)
+	var return_beats: float = maxf(0.0, missile_barrage_return_beats)
+
+	for note in group:
+		var launch_time: float = note.beat_time - lead_beats * beat_interval
+		var launch_beat: float = note.beat_number - lead_beats
+
+		note.set_meta(MISSILE_LAUNCH_TIME_META, launch_time)
+		note.set_meta(MISSILE_LAUNCH_BEAT_META, launch_beat)
+		note.set_meta(MISSILE_BARRAGE_GROUP_META, true)
+		note.set_meta(MISSILE_BARRAGE_SIDE_META, launch_side)
+		note.set_meta(MISSILE_BARRAGE_GROUP_INDEX_META, group_index)
+		note.set_meta(&"_missile_barrage_return_beats", return_beats)
+		note.set_meta(&"_missile_barrage_attack_beats", attack_beats)
 
 
 func _process_tracked_note_runtime(now_time: float) -> void:
@@ -420,7 +509,7 @@ func _spawn_laser_pattern_warning(warning_step: Dictionary, play_sound: bool = t
 func _check_and_spawn_notes_by_time(now_time: float) -> void:
 	for note in scheduled_notes.duplicate():
 		if note.type == Note.NoteType.HIT:
-			var marked_side: int = _hit_note_sides.get_side(note)
+			var marked_side: int = _get_missile_side_for_note(note)
 			if _is_missile_side_destroyed(marked_side):
 
 				scheduled_notes.erase(note)
@@ -452,12 +541,21 @@ func _check_and_spawn_notes_by_time(now_time: float) -> void:
 		if note.type == Note.NoteType.HIT:
 			var prepare_seconds: float = _get_boss_return_prepare_seconds()
 			var request_time: float = spawn_time - prepare_seconds
+			if note.has_meta(MISSILE_LAUNCH_TIME_META):
+				request_time = float(note.get_meta(MISSILE_LAUNCH_TIME_META))
 			if now_time >= request_time and not _cue_requests.has_missile_request(note):
 				var remaining_beats_to_hit: float = maxf(0.0, (note.beat_time - now_time) / beat_interval)
-				var marked_side: int = _hit_note_sides.get_side(note)
+				var marked_side: int = _get_missile_side_for_note(note)
 				if _boss_node != null and is_instance_valid(_boss_node) and _boss_node.has_method("enqueue_missile_forced_side"):
 					_boss_node.call("enqueue_missile_forced_side", marked_side)
-				EventBus.boss_missile_requested.emit(remaining_beats_to_hit)
+				if note.has_meta(MISSILE_BARRAGE_GROUP_INDEX_META) and _boss_node != null and is_instance_valid(_boss_node) and _boss_node.has_method("set_next_missile_barrage_group_context"):
+					_boss_node.call("set_next_missile_barrage_group_context", int(note.get_meta(MISSILE_BARRAGE_GROUP_INDEX_META)))
+				if note.has_meta(MISSILE_BARRAGE_GROUP_META):
+					EventBus.boss_missile_requested.emit(remaining_beats_to_hit)
+				elif _boss_node != null and is_instance_valid(_boss_node) and _boss_node.has_method("request_legacy_missile_attack"):
+					_boss_node.call("request_legacy_missile_attack", remaining_beats_to_hit)
+				else:
+					EventBus.boss_missile_requested.emit(remaining_beats_to_hit)
 				if debug_missile_timing:
 					var side_name: String = "LEFT" if marked_side == MISSILE_SIDE_LEFT else "RIGHT"
 					print("[MissileDebug][Track] request hit_note=#", note.beat_number,
@@ -466,6 +564,7 @@ func _check_and_spawn_notes_by_time(now_time: float) -> void:
 						" spawn_time=", "%.3f" % spawn_time,
 						" prepare_s=", "%.3f" % prepare_seconds,
 						" remain_beats=", "%.3f" % remaining_beats_to_hit,
+						" barrage=", note.has_meta(MISSILE_BARRAGE_GROUP_META),
 						" side=", side_name)
 				_cue_requests.mark_missile_request(note)
 
@@ -534,6 +633,12 @@ func _is_missile_side_destroyed(side: int) -> bool:
 	if _boss_node.has_method("is_missile_side_destroyed"):
 		return bool(_boss_node.call("is_missile_side_destroyed", side))
 	return false
+
+
+func _get_missile_side_for_note(note: Note) -> int:
+	if note != null and note.has_meta(MISSILE_BARRAGE_SIDE_META):
+		return int(note.get_meta(MISSILE_BARRAGE_SIDE_META))
+	return _hit_note_sides.get_side(note)
 
 
 func _get_boss_return_prepare_seconds() -> float:

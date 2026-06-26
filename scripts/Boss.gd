@@ -109,6 +109,14 @@ enum BossState {
 @export var missile_warning_additive_blend: bool = true
 @export var missile_warning_preview_on_boss: bool = false
 @export var missile_warning_preview_offset: Vector2 = Vector2(0.0, -22.0)
+@export_group("Missile Barrage")
+@export var enable_missile_barrage_mode: bool = true
+@export_range(1, 8, 1) var missile_barrage_group_size: int = 4
+@export_range(0.1, 4.0, 0.05) var missile_barrage_gather_beats: float = 1.0
+@export_range(0.1, 6.0, 0.05) var missile_barrage_attack_beats: float = 2.0
+@export var missile_barrage_prep_screen_margin: Vector2 = Vector2(96.0, 72.0)
+@export_range(0.5, 3.0, 0.05) var missile_barrage_prep_scale_factor: float = 2.0
+@export_range(0.0, 160.0, 1.0) var missile_barrage_spawn_variation_px: float = 56.0
 @export var debug_missile_timing: bool = false
 @export var debug_charge_timing: bool = false
 
@@ -203,6 +211,8 @@ var _has_last_missile_despawn_position: bool = false
 var _missile_warning_style: RefCounted = BossMissileWarningLightStyle.new()
 var _missile_warning_preview_light: Sprite2D = null
 var _missile_warning_preview_token: int = 0
+var _pending_missile_barrage_group_index: int = -1
+var _missile_barrage_spawn_by_group: Dictionary = {}
 var _break_transition_tween: Tween = null
 var _break_tilt_tween: Tween = null
 var _player_dash_tween: Tween = null
@@ -1393,6 +1403,8 @@ func _reset_missile_flow(clear_active_missiles: bool) -> void:
 	_pending_missile_launch_time = 0.0
 	_pending_missile_beats = 0
 	_missile_state_remaining_time = 0.0
+	_pending_missile_barrage_group_index = -1
+	_missile_barrage_spawn_by_group.clear()
 	_missile_side_selector.clear_forced_sides()
 	if clear_active_missiles:
 		_clear_active_missiles()
@@ -1507,10 +1519,16 @@ func enqueue_missile_forced_side(side: int) -> void:
 	_missile_side_selector.enqueue_forced_side(side)
 
 
+func set_next_missile_barrage_group_context(group_index: int) -> void:
+	_pending_missile_barrage_group_index = group_index
+
+
 func is_track_attack_visual_active(note_type: int) -> bool:
 	if note_type == Note.NoteType.HIT:
 		if _are_missile_parts_all_destroyed():
 			return false
+		if enable_missile_barrage_mode and not _active_missiles.is_empty():
+			return true
 		if _is_preparing_missile or _has_pending_missile_launch:
 			return true
 		if _missile_state_remaining_time > 0.0:
@@ -1607,6 +1625,21 @@ func _on_boss_missile_requested(duration_beats: float) -> void:
 			print("[MissileDebug][Boss] request ignored reason=both_missile_parts_destroyed")
 		return
 
+	if enable_missile_barrage_mode:
+		_request_missile_barrage_member(duration_beats)
+		return
+
+	request_legacy_missile_attack(duration_beats)
+
+
+func request_legacy_missile_attack(duration_beats: float) -> void:
+	if is_dead:
+		return
+	if _are_missile_parts_all_destroyed():
+		if debug_missile_timing:
+			print("[MissileDebug][Boss] request ignored reason=both_missile_parts_destroyed")
+		return
+
 	var beats: float = duration_beats
 	if beats <= 0.0:
 		beats = float(missile_total_beats)
@@ -1691,6 +1724,132 @@ func _prepare_pre_missile_return_target() -> bool:
 
 	_has_move_target = true
 	return true
+
+
+func _request_missile_barrage_member(duration_beats: float) -> void:
+	if missile_scene == null:
+		push_warning("[Boss] missile_scene is not configured")
+		return
+
+	var now: float = _get_now_seconds()
+	var member: Dictionary = _spawn_missile_barrage_member(now, duration_beats)
+	if member.is_empty():
+		return
+
+	var beat_seconds: float = _get_beat_seconds()
+	var attack_duration: float = maxf(0.01, maxf(0.1, missile_barrage_attack_beats) * beat_seconds)
+	var gather_duration: float = maxf(0.01, maxf(0.1, missile_barrage_gather_beats) * beat_seconds)
+	var group_index: int = _pending_missile_barrage_group_index
+	_pending_missile_barrage_group_index = -1
+	var token: int = int(member.get("token", _missile_effect_token))
+	var attack_spawn_position: Vector2 = _get_missile_barrage_attack_spawn_position(group_index)
+	var start_time: float = now + gather_duration
+	_schedule_music_clock_event(start_time, Callable(self, "_spawn_missile_barrage_dash_from_prep"), [token, attack_spawn_position, attack_duration])
+	_missile_state_remaining_time = maxf(_missile_state_remaining_time, gather_duration + attack_duration)
+
+	if debug_missile_timing:
+		print("[MissileDebug][Boss] barrage launch now=", "%.3f" % now,
+			" gather_s=", "%.3f" % gather_duration,
+			" attack_s=", "%.3f" % attack_duration,
+			" remain_beats=", "%.3f" % duration_beats)
+
+
+func _spawn_missile_barrage_member(_launch_time: float, _duration_beats: float) -> Dictionary:
+	var launch_node: Node2D = _pick_missile_launch_node()
+	if launch_node == null:
+		push_warning("[Boss] missing MissileLeft/MissileRight node; cannot launch missile")
+		return {}
+
+	var missile: Node2D = missile_scene.instantiate() as Node2D
+	if missile == null:
+		push_warning("[Boss] missile_scene is not a Node2D; cannot launch missile")
+		return {}
+
+	var scene_root: Node = get_tree().current_scene
+	if scene_root == null:
+		scene_root = get_parent()
+	if scene_root == null:
+		missile.queue_free()
+		return {}
+
+	scene_root.add_child(missile)
+	missile.add_to_group(MISSILE_EFFECT_GROUP)
+	missile.global_position = launch_node.global_position
+	_active_missiles.append(missile)
+	_attach_missile_warning_light(missile)
+	_start_missile_warning_blink(missile, _missile_effect_token)
+	_schedule_boss_attack_sound_from_sprite(BossAttackSoundConfig.ATTACK_MISSILE, _find_timing_sprite(missile))
+
+	var beat_seconds: float = _get_beat_seconds()
+	var outward_dir: Vector2 = _get_missile_outward_direction(launch_node).normalized()
+	var launch_exit_target: Vector2 = _get_missile_offscreen_target(missile.global_position, outward_dir)
+	var gather_duration: float = maxf(0.01, missile_barrage_gather_beats * beat_seconds)
+	var base_scale: Vector2 = missile.scale
+
+	_play_missile_launcher_recoil(launch_node, outward_dir)
+	_orient_missile_to_direction(missile, outward_dir)
+
+	var missile_instance_id: int = missile.get_instance_id()
+	var token: int = _missile_effect_token
+	var gather_tween: Tween = missile.create_tween()
+	gather_tween.tween_property(missile, "global_position", launch_exit_target, gather_duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	gather_tween.parallel().tween_property(missile, "scale", base_scale * missile_barrage_prep_scale_factor, gather_duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	gather_tween.tween_callback(_on_missile_barrage_prep_arrived.bind(token, missile_instance_id))
+
+	return {
+		"token": token,
+		"missile_id": missile_instance_id
+	}
+
+
+func _on_missile_barrage_prep_arrived(token: int, missile_instance_id: int) -> void:
+	var missile_obj: Object = instance_from_id(missile_instance_id)
+	var missile_node: Node2D = missile_obj as Node2D
+	if token != _missile_effect_token:
+		if missile_node != null and is_instance_valid(missile_node):
+			_record_missile_despawn_position(missile_node)
+			missile_node.queue_free()
+		_remove_active_missile_by_id(missile_instance_id)
+		return
+	if missile_node == null or not is_instance_valid(missile_node):
+		_remove_active_missile_by_id(missile_instance_id)
+		return
+
+	_record_missile_despawn_position(missile_node)
+	missile_node.queue_free()
+	_remove_active_missile_by_id(missile_instance_id)
+
+
+func _spawn_missile_barrage_dash_from_prep(token: int, prep_position: Vector2, dash_duration: float) -> void:
+	if token != _missile_effect_token:
+		return
+
+	var missile_node: Node2D = missile_scene.instantiate() as Node2D
+	if missile_node == null or not is_instance_valid(missile_node):
+		return
+
+	var scene_root: Node = get_tree().current_scene
+	if scene_root == null:
+		scene_root = get_parent()
+	if scene_root == null:
+		missile_node.queue_free()
+		return
+
+	scene_root.add_child(missile_node)
+	missile_node.add_to_group(MISSILE_EFFECT_GROUP)
+	missile_node.global_position = prep_position
+	missile_node.scale *= missile_barrage_prep_scale_factor
+	_active_missiles.append(missile_node)
+	_attach_missile_warning_light(missile_node)
+	_start_missile_warning_blink(missile_node, token)
+
+	var missile_instance_id: int = missile_node.get_instance_id()
+	var player_target: Vector2 = _get_current_target_position(missile_node.global_position)
+	_orient_missile_to_direction(missile_node, player_target - missile_node.global_position)
+	var safe_dash_duration: float = maxf(0.01, dash_duration)
+	var dash_tween: Tween = missile_node.create_tween()
+	dash_tween.tween_property(missile_node, "global_position", player_target, safe_dash_duration).set_trans(Tween.TRANS_LINEAR).set_ease(Tween.EASE_IN_OUT)
+	dash_tween.tween_callback(_on_missile_phase2_finished.bind(token, missile_instance_id))
 
 
 func _begin_charge_attack(beats: float) -> void:
@@ -2134,6 +2293,68 @@ func _get_missile_teleport_corner(launch_node: Node2D) -> Vector2:
 	return Vector2(x2, y2)
 
 
+func _get_missile_barrage_attack_spawn_position(group_index: int) -> Vector2:
+	if group_index >= 0 and _missile_barrage_spawn_by_group.has(group_index):
+		return _missile_barrage_spawn_by_group[group_index]
+
+	var resolved_group_index: int = group_index
+	if resolved_group_index < 0:
+		resolved_group_index = _missile_barrage_spawn_by_group.size()
+	var camera: Camera2D = get_viewport().get_camera_2d()
+	var spawn_position: Vector2
+	if camera != null:
+		var center: Vector2 = camera.get_screen_center_position()
+		var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+		var zoom: Vector2 = camera.zoom
+		var half_world_size: Vector2 = Vector2(viewport_size.x * zoom.x * 0.5, viewport_size.y * zoom.y * 0.5)
+		var top_left: Vector2 = center - half_world_size
+		var bottom_right: Vector2 = center + half_world_size
+		spawn_position = _pick_missile_barrage_spawn_in_rect(top_left, bottom_right, resolved_group_index)
+	else:
+		var rect: Rect2 = get_viewport().get_visible_rect()
+		spawn_position = _pick_missile_barrage_spawn_in_rect(rect.position, rect.position + rect.size, resolved_group_index)
+
+	if group_index >= 0:
+		_missile_barrage_spawn_by_group[group_index] = spawn_position
+	return spawn_position
+
+
+func _pick_missile_barrage_spawn_in_rect(top_left: Vector2, bottom_right: Vector2, group_index: int) -> Vector2:
+	var player_target: Vector2 = _get_current_target_position(global_position)
+	var width: float = maxf(1.0, bottom_right.x - top_left.x)
+	var height: float = maxf(1.0, bottom_right.y - top_left.y)
+	var x_ratio: float = clampf((player_target.x - top_left.x) / width, 0.0, 1.0)
+	var y_ratio: float = clampf((player_target.y - top_left.y) / height, 0.0, 1.0)
+
+	var spawn_left: bool
+	if x_ratio > 0.58:
+		spawn_left = true
+	elif x_ratio < 0.42:
+		spawn_left = false
+	else:
+		spawn_left = (group_index % 2) == 0
+
+	var spawn_top: bool
+	if y_ratio > 0.55:
+		spawn_top = true
+	elif y_ratio < 0.35:
+		spawn_top = false
+	else:
+		spawn_top = true
+
+	var variation: float = maxf(0.0, missile_barrage_spawn_variation_px)
+	var variation_index: int = group_index % 5
+	var offset: float = float(variation_index - 2) * variation * 0.35
+	var x: float = top_left.x - missile_barrage_prep_screen_margin.x if spawn_left else bottom_right.x + missile_barrage_prep_screen_margin.x
+	var y: float = top_left.y - missile_barrage_prep_screen_margin.y if spawn_top else bottom_right.y + missile_barrage_prep_screen_margin.y
+	x += offset
+	if spawn_top:
+		y -= absf(offset) * 0.35
+	else:
+		y += absf(offset) * 0.35
+	return Vector2(x, y)
+
+
 func _orient_missile_to_direction(missile: Node2D, direction: Vector2) -> void:
 	if not is_instance_valid(missile):
 		return
@@ -2340,6 +2561,8 @@ func _stop_break_transition() -> void:
 func _clear_active_missiles() -> void:
 	_missile_effect_token += 1
 	_reset_missile_launcher_recoil()
+	_pending_missile_barrage_group_index = -1
+	_missile_barrage_spawn_by_group.clear()
 
 	for missile in _active_missiles:
 		if missile != null and is_instance_valid(missile):
