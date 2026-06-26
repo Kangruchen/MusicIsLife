@@ -106,7 +106,7 @@ func _build_skip_hint() -> void:
 
 	_skip_hint = Label.new()
 	_skip_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_skip_hint.text = "Hold %s to skip" % GameConstants.get_action_key_label(String(skip_action), "R")
+	_skip_hint.text = tr("PROMPT_SKIP_HOLD") % GameConstants.get_action_key_label(String(skip_action), "R")
 	_skip_hint.add_theme_font_size_override("font_size", 13)
 	_skip_hint.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.88))
 	_skip_hint.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.75))

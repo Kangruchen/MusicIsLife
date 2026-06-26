@@ -21,6 +21,7 @@ buses/default_bus_layout="res://config/default_bus_layout.tres"
 
 [autoload]
 
+LocalizationManager="*res://scripts/LocalizationManager.gd"
 EventBus="*res://scenes/autoload/EventBus.tscn"
 GamepadManager="*res://scripts/GamepadManager.gd"
 SFXManager="*res://scenes/autoload/SFXManager.tscn"

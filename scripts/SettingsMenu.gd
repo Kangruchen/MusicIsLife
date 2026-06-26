@@ -8,34 +8,47 @@ const PREJUDGE_HINT_MODE_KEY: String = "prejudge_key_hint_display_mode"
 const PREJUDGE_HINT_MODE_ALWAYS: int = 0
 const PREJUDGE_HINT_MODE_LIMITED: int = 1
 const ICON_MODE_ITEMS: Array[Dictionary] = [
-	{"label": "Auto Detect", "mode": "auto"},
-	{"label": "PlayStation", "mode": "playstation"},
-	{"label": "Xbox", "mode": "xbox"},
-	{"label": "Nintendo", "mode": "nintendo"},
+	{"label_key": "SETTINGS_ICON_AUTO", "mode": "auto"},
+	{"label_key": "SETTINGS_ICON_PLAYSTATION", "mode": "playstation"},
+	{"label_key": "SETTINGS_ICON_XBOX", "mode": "xbox"},
+	{"label_key": "SETTINGS_ICON_NINTENDO", "mode": "nintendo"},
 ]
 const KEY_HINT_MODE_ITEMS: Array[Dictionary] = [
-	{"label": "Always", "mode": PREJUDGE_HINT_MODE_ALWAYS},
-	{"label": "Limited", "mode": PREJUDGE_HINT_MODE_LIMITED},
+	{"label_key": "SETTINGS_HINT_ALWAYS", "mode": PREJUDGE_HINT_MODE_ALWAYS},
+	{"label_key": "SETTINGS_HINT_LIMITED", "mode": PREJUDGE_HINT_MODE_LIMITED},
 ]
 
+@onready var title_label: Label = $Panel/Margin/VBox/Title
+@onready var language_label: Label = $Panel/Margin/VBox/LanguageLabel
+@onready var language_button: OptionButton = $Panel/Margin/VBox/LanguageButton
 @onready var rumble_check: CheckBox = $Panel/Margin/VBox/RumbleCheck
 @onready var strength_label: Label = $Panel/Margin/VBox/StrengthLabel
 @onready var strength_slider: HSlider = $Panel/Margin/VBox/StrengthSlider
+@onready var icon_label: Label = $Panel/Margin/VBox/IconLabel
 @onready var icon_button: OptionButton = $Panel/Margin/VBox/IconButton
+@onready var key_hint_label: Label = $Panel/Margin/VBox/KeyHintLabel
 @onready var key_hint_button: OptionButton = $Panel/Margin/VBox/KeyHintButton
 @onready var latency_button: Button = $Panel/Margin/VBox/LatencyButton
 @onready var back_button: Button = $Panel/Margin/VBox/BackButton
 
 var _gamepad_manager: Node = null
+var _localization_manager: Node = null
+var _is_refreshing_language_options: bool = false
 
 
 func _ready() -> void:
 	_gamepad_manager = get_node_or_null("/root/GamepadManager")
+	_localization_manager = get_node_or_null("/root/LocalizationManager")
+	if _localization_manager != null and _localization_manager.has_signal("locale_changed"):
+		_localization_manager.connect("locale_changed", _on_locale_changed)
+	_setup_language_options()
 	_setup_icon_options()
 	_setup_key_hint_options()
 	_setup_values()
 	_setup_focus()
+	_apply_translations()
 
+	language_button.item_selected.connect(_on_language_selected)
 	rumble_check.toggled.connect(_on_rumble_toggled)
 	strength_slider.value_changed.connect(_on_strength_changed)
 	icon_button.item_selected.connect(_on_icon_mode_selected)
@@ -52,6 +65,12 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _setup_values() -> void:
+	if _localization_manager != null and _localization_manager.has_method("get_current_locale"):
+		_select_language(String(_localization_manager.call("get_current_locale")))
+	else:
+		var locale_config: ConfigFile = ConfigFile.new()
+		if locale_config.load(SETTINGS_FILE_PATH) == OK:
+			_select_language(String(locale_config.get_value("localization", "locale", "en")))
 	if _gamepad_manager != null:
 		rumble_check.button_pressed = bool(_gamepad_manager.get("rumble_enabled"))
 		strength_slider.value = float(_gamepad_manager.get("rumble_strength"))
@@ -70,11 +89,23 @@ func _setup_values() -> void:
 		_select_key_hint_mode(int(hint_config.get_value(GAMEPLAY_SETTINGS_SECTION, PREJUDGE_HINT_MODE_KEY, PREJUDGE_HINT_MODE_ALWAYS)))
 
 
+func _setup_language_options() -> void:
+	language_button.clear()
+	var locales: Array = ["en", "zh"]
+	if _localization_manager != null and _localization_manager.has_method("get_supported_locales"):
+		locales = _localization_manager.call("get_supported_locales")
+	for i in range(locales.size()):
+		var locale: String = locales[i]
+		language_button.add_item(_get_locale_label(locale), i)
+		language_button.set_item_metadata(i, locale)
+	_select_language("en")
+
+
 func _setup_icon_options() -> void:
 	icon_button.clear()
 	for i in range(ICON_MODE_ITEMS.size()):
 		var item: Dictionary = ICON_MODE_ITEMS[i]
-		icon_button.add_item(String(item["label"]), i)
+		icon_button.add_item(tr(String(item["label_key"])), i)
 		icon_button.set_item_metadata(i, String(item["mode"]))
 	_select_icon_mode("auto")
 
@@ -83,9 +114,22 @@ func _setup_key_hint_options() -> void:
 	key_hint_button.clear()
 	for i in range(KEY_HINT_MODE_ITEMS.size()):
 		var item: Dictionary = KEY_HINT_MODE_ITEMS[i]
-		key_hint_button.add_item(String(item["label"]), i)
+		key_hint_button.add_item(tr(String(item["label_key"])), i)
 		key_hint_button.set_item_metadata(i, int(item["mode"]))
 	_select_key_hint_mode(PREJUDGE_HINT_MODE_ALWAYS)
+
+
+func _select_language(locale: String) -> void:
+	var normalized: String = locale.strip_edges().to_lower()
+	if normalized.begins_with("zh"):
+		normalized = "zh"
+	elif normalized.begins_with("en"):
+		normalized = "en"
+	for i in range(language_button.get_item_count()):
+		if String(language_button.get_item_metadata(i)) == normalized:
+			language_button.select(i)
+			return
+	language_button.select(0)
 
 
 func _select_icon_mode(mode: String) -> void:
@@ -108,10 +152,12 @@ func _select_key_hint_mode(mode: int) -> void:
 
 func _setup_focus() -> void:
 	var focus_style: StyleBoxFlat = _make_focus_style()
-	for control in [rumble_check, strength_slider, icon_button, key_hint_button, latency_button, back_button]:
+	for control in [language_button, rumble_check, strength_slider, icon_button, key_hint_button, latency_button, back_button]:
 		control.focus_mode = Control.FOCUS_ALL
 		control.add_theme_stylebox_override("focus", focus_style)
 
+	language_button.focus_neighbor_bottom = language_button.get_path_to(rumble_check)
+	rumble_check.focus_neighbor_top = rumble_check.get_path_to(language_button)
 	rumble_check.focus_neighbor_bottom = rumble_check.get_path_to(strength_slider)
 	strength_slider.focus_neighbor_top = strength_slider.get_path_to(rumble_check)
 	strength_slider.focus_neighbor_bottom = strength_slider.get_path_to(icon_button)
@@ -134,8 +180,18 @@ func _make_focus_style() -> StyleBoxFlat:
 
 
 func _focus_first_control() -> void:
-	if rumble_check != null and is_instance_valid(rumble_check):
-		rumble_check.grab_focus()
+	if language_button != null and is_instance_valid(language_button):
+		language_button.grab_focus()
+
+
+func _on_language_selected(index: int) -> void:
+	if _is_refreshing_language_options:
+		return
+	if _localization_manager == null or not _localization_manager.has_method("set_locale"):
+		return
+	var locale: String = String(language_button.get_item_metadata(index))
+	_localization_manager.call("set_locale", locale)
+	_rumble_ui(&"ui_confirm")
 
 
 func _on_rumble_toggled(pressed: bool) -> void:
@@ -173,7 +229,50 @@ func _save_key_hint_mode(mode: int) -> void:
 
 
 func _update_strength_label(value: float) -> void:
-	strength_label.text = "Vibration Strength: %d%%" % int(round(value * 100.0))
+	strength_label.text = tr("SETTINGS_VIBRATION_STRENGTH") % int(round(value * 100.0))
+
+
+func _on_locale_changed(locale: String) -> void:
+	_select_language(locale)
+	_apply_translations()
+
+
+func _apply_translations() -> void:
+	title_label.text = tr("SETTINGS_TITLE")
+	language_label.text = tr("SETTINGS_LANGUAGE")
+	rumble_check.text = tr("SETTINGS_VIBRATION")
+	icon_label.text = tr("SETTINGS_BUTTON_ICONS")
+	key_hint_label.text = tr("SETTINGS_KEY_HINT_DISPLAY")
+	latency_button.text = tr("SETTINGS_AUDIO_LATENCY")
+	back_button.text = tr("SETTINGS_BACK")
+	_update_strength_label(strength_slider.value)
+	_refresh_language_option_labels()
+	_refresh_icon_option_labels()
+	_refresh_key_hint_option_labels()
+
+
+func _refresh_language_option_labels() -> void:
+	_is_refreshing_language_options = true
+	for i in range(language_button.get_item_count()):
+		var locale: String = String(language_button.get_item_metadata(i))
+		language_button.set_item_text(i, _get_locale_label(locale))
+	_is_refreshing_language_options = false
+
+
+func _refresh_icon_option_labels() -> void:
+	for i in range(mini(icon_button.get_item_count(), ICON_MODE_ITEMS.size())):
+		icon_button.set_item_text(i, tr(String(ICON_MODE_ITEMS[i]["label_key"])))
+
+
+func _refresh_key_hint_option_labels() -> void:
+	for i in range(mini(key_hint_button.get_item_count(), KEY_HINT_MODE_ITEMS.size())):
+		key_hint_button.set_item_text(i, tr(String(KEY_HINT_MODE_ITEMS[i]["label_key"])))
+
+
+func _get_locale_label(locale: String) -> String:
+	if _localization_manager != null and _localization_manager.has_method("get_locale_label"):
+		return String(_localization_manager.call("get_locale_label", locale))
+	return "Simplified Chinese" if locale == "zh" else "English"
 
 
 func _on_latency_pressed() -> void:

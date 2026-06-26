@@ -116,7 +116,7 @@ enum BossState {
 @export_range(0.1, 6.0, 0.05) var missile_barrage_attack_beats: float = 2.0
 @export var missile_barrage_prep_screen_margin: Vector2 = Vector2(96.0, 72.0)
 @export_range(0.5, 3.0, 0.05) var missile_barrage_prep_scale_factor: float = 2.0
-@export_range(0.0, 160.0, 1.0) var missile_barrage_spawn_variation_px: float = 56.0
+@export_range(0.0, 1.0, 0.01) var missile_barrage_spawn_lane_sweep: float = 0.85
 @export var debug_missile_timing: bool = false
 @export var debug_charge_timing: bool = false
 
@@ -1742,7 +1742,8 @@ func _request_missile_barrage_member(duration_beats: float) -> void:
 	var group_index: int = _pending_missile_barrage_group_index
 	_pending_missile_barrage_group_index = -1
 	var token: int = int(member.get("token", _missile_effect_token))
-	var attack_spawn_position: Vector2 = _get_missile_barrage_attack_spawn_position(group_index)
+	var launch_side: int = int(member.get("launch_side", MISSILE_SIDE_LEFT))
+	var attack_spawn_position: Vector2 = _get_missile_barrage_attack_spawn_position(group_index, launch_side)
 	var start_time: float = now + gather_duration
 	_schedule_music_clock_event(start_time, Callable(self, "_spawn_missile_barrage_dash_from_prep"), [token, attack_spawn_position, attack_duration])
 	_missile_state_remaining_time = maxf(_missile_state_remaining_time, gather_duration + attack_duration)
@@ -1798,7 +1799,8 @@ func _spawn_missile_barrage_member(_launch_time: float, _duration_beats: float) 
 
 	return {
 		"token": token,
-		"missile_id": missile_instance_id
+		"missile_id": missile_instance_id,
+		"launch_side": _get_missile_side_for_launch_node(launch_node)
 	}
 
 
@@ -2293,7 +2295,7 @@ func _get_missile_teleport_corner(launch_node: Node2D) -> Vector2:
 	return Vector2(x2, y2)
 
 
-func _get_missile_barrage_attack_spawn_position(group_index: int) -> Vector2:
+func _get_missile_barrage_attack_spawn_position(group_index: int, launch_side: int) -> Vector2:
 	if group_index >= 0 and _missile_barrage_spawn_by_group.has(group_index):
 		return _missile_barrage_spawn_by_group[group_index]
 
@@ -2309,22 +2311,21 @@ func _get_missile_barrage_attack_spawn_position(group_index: int) -> Vector2:
 		var half_world_size: Vector2 = Vector2(viewport_size.x * zoom.x * 0.5, viewport_size.y * zoom.y * 0.5)
 		var top_left: Vector2 = center - half_world_size
 		var bottom_right: Vector2 = center + half_world_size
-		spawn_position = _pick_missile_barrage_spawn_in_rect(top_left, bottom_right, resolved_group_index)
+		spawn_position = _pick_missile_barrage_spawn_in_rect(top_left, bottom_right, resolved_group_index, launch_side)
 	else:
 		var rect: Rect2 = get_viewport().get_visible_rect()
-		spawn_position = _pick_missile_barrage_spawn_in_rect(rect.position, rect.position + rect.size, resolved_group_index)
+		spawn_position = _pick_missile_barrage_spawn_in_rect(rect.position, rect.position + rect.size, resolved_group_index, launch_side)
 
 	if group_index >= 0:
 		_missile_barrage_spawn_by_group[group_index] = spawn_position
 	return spawn_position
 
 
-func _pick_missile_barrage_spawn_in_rect(top_left: Vector2, bottom_right: Vector2, group_index: int) -> Vector2:
+func _pick_missile_barrage_spawn_in_rect(top_left: Vector2, bottom_right: Vector2, group_index: int, launch_side: int) -> Vector2:
 	var player_target: Vector2 = _get_current_target_position(global_position)
 	var width: float = maxf(1.0, bottom_right.x - top_left.x)
 	var height: float = maxf(1.0, bottom_right.y - top_left.y)
 	var x_ratio: float = clampf((player_target.x - top_left.x) / width, 0.0, 1.0)
-	var y_ratio: float = clampf((player_target.y - top_left.y) / height, 0.0, 1.0)
 
 	var spawn_left: bool
 	if x_ratio > 0.58:
@@ -2332,27 +2333,50 @@ func _pick_missile_barrage_spawn_in_rect(top_left: Vector2, bottom_right: Vector
 	elif x_ratio < 0.42:
 		spawn_left = false
 	else:
-		spawn_left = (group_index % 2) == 0
+		if launch_side == MISSILE_SIDE_LEFT:
+			spawn_left = true
+		elif launch_side == MISSILE_SIDE_RIGHT:
+			spawn_left = false
+		else:
+			spawn_left = (group_index % 2) == 0
 
-	var spawn_top: bool
-	if y_ratio > 0.55:
-		spawn_top = true
-	elif y_ratio < 0.35:
-		spawn_top = false
-	else:
-		spawn_top = true
+	var lane_sweep: float = clampf(missile_barrage_spawn_lane_sweep, 0.0, 1.0)
+	var lane_phase: float = _get_missile_barrage_lane_phase(group_index, lane_sweep)
+	var horizontal_margin: float = maxf(16.0, missile_barrage_prep_screen_margin.x)
+	var vertical_margin: float = maxf(16.0, missile_barrage_prep_screen_margin.y)
+	var top_y: float = top_left.y - vertical_margin
+	var mid_y: float = top_left.y + height * 0.48
+	var center_x: float = top_left.x + width * 0.5
+	var left_x: float = top_left.x - horizontal_margin
+	var right_x: float = bottom_right.x + horizontal_margin
 
-	var variation: float = maxf(0.0, missile_barrage_spawn_variation_px)
-	var variation_index: int = group_index % 5
-	var offset: float = float(variation_index - 2) * variation * 0.35
-	var x: float = top_left.x - missile_barrage_prep_screen_margin.x if spawn_left else bottom_right.x + missile_barrage_prep_screen_margin.x
-	var y: float = top_left.y - missile_barrage_prep_screen_margin.y if spawn_top else bottom_right.y + missile_barrage_prep_screen_margin.y
-	x += offset
-	if spawn_top:
-		y -= absf(offset) * 0.35
-	else:
-		y += absf(offset) * 0.35
-	return Vector2(x, y)
+	if spawn_left:
+		if launch_side == MISSILE_SIDE_LEFT:
+			return Vector2(left_x, lerpf(mid_y, top_y, lane_phase))
+		if launch_side == MISSILE_SIDE_RIGHT:
+			return Vector2(lerpf(left_x, center_x, lane_phase), top_y)
+		return Vector2(left_x, top_y)
+
+	if launch_side == MISSILE_SIDE_RIGHT:
+		return Vector2(right_x, lerpf(mid_y, top_y, lane_phase))
+	if launch_side == MISSILE_SIDE_LEFT:
+		return Vector2(lerpf(right_x, center_x, lane_phase), top_y)
+	return Vector2(right_x, top_y)
+
+
+func _get_missile_barrage_lane_phase(group_index: int, lane_sweep: float) -> float:
+	var base: float = 0.5
+	if group_index >= 0:
+		match group_index % 4:
+			0:
+				base = 0.2
+			1:
+				base = 0.8
+			2:
+				base = 0.4
+			_:
+				base = 0.65
+	return lerpf(0.5, base, lane_sweep)
 
 
 func _orient_missile_to_direction(missile: Node2D, direction: Vector2) -> void:

@@ -1,7 +1,7 @@
 [gd_scene load_steps=28 format=3 uid="uid://bax6icm3f52fe"]
 
 [ext_resource type="Script" uid="uid://dlu3ahejwko8f" path="res://scripts/main_menu.gd" id="1_ekxnf"]
-[ext_resource type="Texture2D" uid="uid://c7k7eg77k2u0t" path="res://assets/UI/0bb116c02789fc5b0854eab691c92b2f.jpg" id="2_bqqt6"]
+[ext_resource type="Texture2D" uid="uid://c35sqidrv5t7h" path="res://assets/UI/main_menu_bg_v2_safe_layout.png" id="2_oa1go"]
 [ext_resource type="FontFile" uid="uid://r3dajd2i647q" path="res://assets/UI/Orbitron-VariableFont_wght.ttf" id="3_bqqt6"]
 [ext_resource type="Script" uid="uid://bb3n5cbcej0a" path="res://scripts/new_game_btn.gd" id="4_wu84c"]
 [ext_resource type="Script" uid="uid://kcmmt83orarr" path="res://scripts/guide_btn.gd" id="5_oa1go"]
@@ -18,17 +18,6 @@ base_font = ExtResource("3_bqqt6")
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_8ln24"]
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_rtw2f"]
-
-[sub_resource type="FontVariation" id="FontVariation_rtw2f"]
-base_font = ExtResource("3_bqqt6")
-
-[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_7b55j"]
-
-[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_5pajh"]
-
-[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_j7ex8"]
-
-[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_a8gd2"]
 
 [sub_resource type="FontVariation" id="FontVariation_wu84c"]
 base_font = ExtResource("3_bqqt6")
@@ -52,6 +41,17 @@ base_font = ExtResource("3_bqqt6")
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_1ajci"]
 
+[sub_resource type="FontVariation" id="FontVariation_rtw2f"]
+base_font = ExtResource("3_bqqt6")
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_7b55j"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_5pajh"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_j7ex8"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_a8gd2"]
+
 [node name="MainMenu" type="Control"]
 layout_mode = 3
 anchors_preset = 15
@@ -70,7 +70,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-texture = ExtResource("2_bqqt6")
+texture = ExtResource("2_oa1go")
 expand_mode = 1
 
 [node name="CenterContainer" type="CenterContainer" parent="."]

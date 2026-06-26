@@ -48,8 +48,8 @@ func _setup_ui() -> void:
 	_dual_rows.alignment = BoxContainer.ALIGNMENT_CENTER
 	_dual_rows.add_theme_constant_override("separation", 5)
 	_panel.add_child(_dual_rows)
-	_cannon_boxes = _create_labeled_row(_dual_rows, "Cannon", "CannonBox")
-	_missile_boxes = _create_labeled_row(_dual_rows, "Missile", "MissileBox")
+	_cannon_boxes = _create_labeled_row(_dual_rows, tr("TUTORIAL_PROGRESS_CANNON"), "CannonBox")
+	_missile_boxes = _create_labeled_row(_dual_rows, tr("TUTORIAL_PROGRESS_MISSILE"), "MissileBox")
 
 	_place_panel()
 

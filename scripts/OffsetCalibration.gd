@@ -21,6 +21,7 @@ var _gamepad_manager: Node = null
 
 @onready var judgment_line: ColorRect = $JudgmentLine
 @onready var notes_container: Control = $NotesContainer
+@onready var title_label: Label = $Title
 @onready var offset_label: Label = $OffsetLabel
 @onready var hint_label: Label = $HintLabel
 @onready var decrease_button: Button = $DecreaseButton
@@ -43,10 +44,16 @@ func _ready() -> void:
 	update_judgment_line_position()
 	_setup_buttons()
 	_update_hint_text()
+	_apply_translations()
 
 	if _gamepad_manager != null and _gamepad_manager.has_signal("input_scheme_changed"):
 		_gamepad_manager.connect("input_scheme_changed", func(_is_gamepad: bool) -> void:
 			_update_hint_text()
+		)
+	var localization_manager: Node = get_node_or_null("/root/LocalizationManager")
+	if localization_manager != null and localization_manager.has_signal("locale_changed"):
+		localization_manager.connect("locale_changed", func(_locale: String) -> void:
+			_apply_translations()
 		)
 
 	resized.connect(_on_resized)
@@ -160,7 +167,7 @@ func _on_increase_pressed() -> void:
 
 
 func update_offset_display() -> void:
-	offset_label.text = "Current offset: %.0f ms" % current_offset
+	offset_label.text = tr("CALIBRATION_CURRENT_OFFSET") % current_offset
 
 
 func _update_hint_text() -> void:
@@ -169,11 +176,18 @@ func _update_hint_text() -> void:
 	var left_prompt: String = GameConstants.get_action_key_label("ui_left", "Left")
 	var right_prompt: String = GameConstants.get_action_key_label("ui_right", "Right")
 	var back_prompt: String = GameConstants.get_action_key_label("ui_cancel", "Esc")
-	hint_label.text = "Adjust until the note crosses the line with the beat. %s/%s changes offset, %s returns." % [
+	hint_label.text = tr("CALIBRATION_HINT") % [
 		left_prompt,
 		right_prompt,
 		back_prompt,
 	]
+
+
+func _apply_translations() -> void:
+	title_label.text = tr("CALIBRATION_TITLE")
+	metronome_label.text = tr("CALIBRATION_BEAT")
+	update_offset_display()
+	_update_hint_text()
 
 
 func update_judgment_line_position() -> void:

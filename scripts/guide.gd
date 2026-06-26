@@ -2,7 +2,11 @@ extends Control
 class_name GuideMenu
 
 @onready var back_btn: Button = $BackButton
+@onready var title_label: Label = $Title
 @onready var defense_text: RichTextLabel = $Content
+@onready var shield_text: RichTextLabel = $Content2
+@onready var energy_text: RichTextLabel = $Content3
+@onready var health_text: RichTextLabel = $Content4
 @onready var attack_text: RichTextLabel = $Content5
 
 
@@ -20,7 +24,8 @@ func _ready() -> void:
 		gamepad_manager.connect("input_scheme_changed", func(_is_gamepad: bool) -> void:
 			_update_input_text()
 		)
-	_update_input_text()
+	_connect_localization_updates()
+	_apply_translations()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -37,20 +42,42 @@ func _update_input_text() -> void:
 	var right_prompt: String = GameConstants.get_action_key_label("move_right", "D")
 
 	if defense_text:
-		defense_text.text = "[u][color=red]Defense Phase[/color] - Match the attack color on the beat: [color=blue]%s[/color] / [color=yellow]%s[/color] / [color=green]%s[/color].[/u]" % [
+		defense_text.text = tr("GUIDE_DEFENSE_WITH_KEYS") % [
 			guard_prompt,
 			hit_prompt,
 			dodge_prompt,
 		]
 
 	if attack_text:
-		attack_text.text = "[u][color=red]Attack Phase[/color] - Move with %s/%s and attack on the beat.[/u]\n[color=blue]Blue (%s) = Light[/color]  [color=yellow]Yellow (%s) = Heavy[/color]\n[color=red]Red (%s) = Boost[/color]  [color=green]Green (No Input) = Heal[/color]" % [
+		attack_text.text = tr("GUIDE_ATTACK_WITH_KEYS") % [
 			left_prompt,
 			right_prompt,
 			guard_prompt,
 			hit_prompt,
 			dodge_prompt,
 		]
+
+
+func _connect_localization_updates() -> void:
+	var localization_manager: Node = get_node_or_null("/root/LocalizationManager")
+	if localization_manager == null or not localization_manager.has_signal("locale_changed"):
+		return
+	localization_manager.connect("locale_changed", func(_locale: String) -> void:
+		_apply_translations()
+	)
+
+
+func _apply_translations() -> void:
+	title_label.text = tr("GUIDE_TITLE")
+	if shield_text:
+		shield_text.text = tr("GUIDE_SHIELD")
+	if energy_text:
+		energy_text.text = tr("GUIDE_ENERGY")
+	if health_text:
+		health_text.text = tr("GUIDE_HEALTH")
+	if back_btn:
+		back_btn.text = tr("GUIDE_BACK_TO_MENU")
+	_update_input_text()
 
 
 func _focus_back_button() -> void:

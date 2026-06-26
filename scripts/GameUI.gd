@@ -19,6 +19,8 @@ const ACTION_HINT_PHASE_COLOR: Color = Color(0.36, 0.82, 1.0, 1.0)
 @onready var boss_health_bar: OctagonBar = $MarginContainer/VBoxContainer/BossHealthBar
 @onready var boss_guard_bar: OctagonBar = $MarginContainer/VBoxContainer/BossGuardBar
 @onready var player_health_bar: OctagonBar = $MarginContainer2/VBoxContainer/PlayerHealthBar
+@onready var boss_harmony_label: Label = $MarginContainer/VBoxContainer/Label
+@onready var player_label: Label = $MarginContainer2/VBoxContainer/Label
 
 # 暂停阶段视觉效果元素
 var countdown_label: Label = null
@@ -125,6 +127,8 @@ func _ready() -> void:
 	if show_action_hints:
 		_create_action_hint()
 		_connect_gamepad_prompt_updates()
+	_connect_localization_updates()
+	_apply_translations()
 
 
 func _process(_delta: float) -> void:
@@ -211,15 +215,15 @@ func _get_pause_countdown_text(index: int, beat_count: int) -> String:
 			1:
 				return "2"
 			2:
-				return "Ready"
+				return tr("COUNTDOWN_READY")
 			3:
-				return "Go!"
+				return tr("COUNTDOWN_GO")
 	return str(maxi(1, beat_count - index))
 
 
 func _pulse_countdown(count_text: String, bi: float) -> void:
 	countdown_label.text = count_text
-	var font_size: int = 72 if count_text == "Ready" else 120
+	var font_size: int = 72 if count_text == tr("COUNTDOWN_READY") else 120
 	countdown_label.add_theme_font_size_override("font_size", font_size)
 
 	var scale_tween: Tween = create_tween()
@@ -342,6 +346,25 @@ func _connect_gamepad_prompt_updates() -> void:
 		)
 
 
+func _connect_localization_updates() -> void:
+	var localization_manager: Node = get_node_or_null("/root/LocalizationManager")
+	if localization_manager == null or not localization_manager.has_signal("locale_changed"):
+		return
+	localization_manager.connect("locale_changed", func(_locale: String) -> void:
+		_apply_translations()
+	)
+
+
+func _apply_translations() -> void:
+	if boss_harmony_label:
+		boss_harmony_label.text = tr("HUD_BOSS_HARMONY")
+	if player_label:
+		player_label.text = tr("HUD_PLAYER")
+	_update_action_hint()
+	if _victory_label != null and is_instance_valid(_victory_label):
+		_victory_label.text = tr("GAME_VICTORY")
+
+
 func _update_action_hint() -> void:
 	if action_hint_label == null:
 		return
@@ -356,7 +379,7 @@ func _update_action_hint() -> void:
 		_apply_action_hint_layout(314.0, 74.0, -76.0, 124.0, 9)
 		var left_prompt: String = GameConstants.get_action_key_label("move_left", "A")
 		var right_prompt: String = GameConstants.get_action_key_label("move_right", "D")
-		action_hint_label.text = "[right][color=%s]ATTACK[/color]\nMOVE [color=%s]%s/%s[/color]\nLIGHT [color=%s]%s[/color]\nHEAVY [color=%s]%s[/color]\nHEAL [color=%s]%s[/color][/right]" % [
+		action_hint_label.text = tr("ACTION_HINT_ATTACK") % [
 			phase_color,
 			key_color,
 			left_prompt,
@@ -370,7 +393,7 @@ func _update_action_hint() -> void:
 		]
 	else:
 		_apply_action_hint_layout(452.0, 8.0, -12.0, 96.0, 11)
-		action_hint_label.text = "[right][color=%s]DEFENSE[/color]\nGUARD [color=%s]%s[/color]\nHIT [color=%s]%s[/color]\nDODGE [color=%s]%s[/color][/right]" % [
+		action_hint_label.text = tr("ACTION_HINT_DEFENSE") % [
 			phase_color,
 			key_color,
 			guard_prompt,
@@ -742,12 +765,12 @@ func _on_heat_changed(heat_level: int, heat_counter: int) -> void:
 		_current_heat_level = heat_level
 
 		if heat_level > prev_level:
-			_show_center_text("Heat Up! Lv%d" % (heat_level + 1), Color(1.0, 0.85, 0.2))
+			_show_center_text(tr("COMBAT_HEAT_UP") % (heat_level + 1), Color(1.0, 0.85, 0.2))
 		elif heat_level < prev_level and prev_level >= 0:
 			if _heavy_heat_consumed and heat_level == 0:
 				_heavy_heat_consumed = false
 			else:
-				_show_center_text("Heat Down", Color(0.5, 0.6, 0.8))
+				_show_center_text(tr("COMBAT_HEAT_DOWN"), Color(0.5, 0.6, 0.8))
 
 		if beat_flash_effect:
 			if _heat_tween != null and _heat_tween.is_valid():
@@ -826,7 +849,7 @@ func _on_boss_defeated() -> void:
 	_victory_label.anchor_top = 0.35
 	_victory_label.anchor_right = 1.0
 	_victory_label.anchor_bottom = 0.55
-	_victory_label.text = "Victory!"
+	_victory_label.text = tr("GAME_VICTORY")
 	_victory_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_victory_label)
 
@@ -842,7 +865,7 @@ func _on_boss_defeated() -> void:
 	restart_hint.anchor_top = 0.55
 	restart_hint.anchor_right = 1.0
 	restart_hint.anchor_bottom = 0.65
-	restart_hint.text = "Press %s to restart" % GameConstants.get_action_key_label("restart", "R")
+	restart_hint.text = tr("PROMPT_RESTART") % GameConstants.get_action_key_label("restart", "R")
 	restart_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(restart_hint)
 

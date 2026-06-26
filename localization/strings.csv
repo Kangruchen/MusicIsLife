@@ -1,0 +1,69 @@
+key,en,zh
+LANGUAGE_ENGLISH,English,English
+LANGUAGE_CHINESE,Simplified Chinese,简体中文
+SETTINGS_TITLE,Settings,设置
+SETTINGS_LANGUAGE,Language,语言
+SETTINGS_VIBRATION,Vibration,震动
+SETTINGS_VIBRATION_STRENGTH,Vibration Strength: %d%%,震动强度：%d%%
+SETTINGS_BUTTON_ICONS,Button Icons,按键图标
+SETTINGS_KEY_HINT_DISPLAY,Key Hint Display,按键提示显示
+SETTINGS_AUDIO_LATENCY,Audio Latency Calibration,音频延迟校准
+SETTINGS_BACK,Back,返回
+SETTINGS_ICON_AUTO,Auto Detect,自动检测
+SETTINGS_ICON_PLAYSTATION,PlayStation,PlayStation
+SETTINGS_ICON_XBOX,Xbox,Xbox
+SETTINGS_ICON_NINTENDO,Nintendo,Nintendo
+SETTINGS_HINT_ALWAYS,Always,始终
+SETTINGS_HINT_LIMITED,Limited,精简
+MENU_NEW_GAME,New Game,新游戏
+MENU_GUIDE,Guide,指南
+MENU_SETTINGS,Settings,设置
+MENU_QUIT,Quit,退出
+MENU_PLAY_TUTORIAL,Play Tutorial,游玩教程
+MENU_SKIP_TUTORIAL,Skip Tutorial,跳过教程
+INPUT_CONFIRM,CONFIRM,确认
+INPUT_CANCEL,CANCEL,取消
+GUIDE_TITLE,Game Guide,游戏指南
+GUIDE_DEFENSE_WITH_KEYS,[u][color=red]Defense Phase[/color] - Match the attack color on the beat: [color=blue]%s[/color] / [color=yellow]%s[/color] / [color=green]%s[/color].[/u],[u][color=red]防御阶段[/color] - 跟着节拍匹配攻击颜色：[color=blue]%s[/color] / [color=yellow]%s[/color] / [color=green]%s[/color]。[/u]
+GUIDE_SHIELD,The yellow bar is the boss's [color=yellow]shield.[/color] Successfully parrying an attack will reduce the shield; once the shield is empty it will be your attack phase!,黄色条是 Boss 的[color=yellow]护盾[/color]。成功招架攻击会削减护盾；护盾清空后就会进入你的攻击阶段！
+GUIDE_ENERGY,The blue bar is your [color=yellow]rhythm energy[/color]. Making mistakes and using powerful attacks will drain some of your energy. [color=yellow]Be careful not to let it run out![/color],蓝色条是你的[color=yellow]节奏能量[/color]。失误和使用强力攻击都会消耗能量。[color=yellow]别让它耗尽！[/color]
+GUIDE_HEALTH,The red bar is the boss's [color=yellow]health[/color]. Attack the boss in attack phase and beat the boss!,红色条是 Boss 的[color=yellow]生命值[/color]。在攻击阶段攻击 Boss 并击败它！
+GUIDE_ATTACK_WITH_KEYS,[u][color=red]Attack Phase[/color] - Move with %s/%s and attack on the beat.[/u]\n[color=blue]Blue (%s) = Light[/color]  [color=yellow]Yellow (%s) = Heavy[/color]\n[color=red]Red (%s) = Boost[/color]  [color=green]Green (No Input) = Heal[/color],[u][color=red]攻击阶段[/color] - 用 %s/%s 移动，并跟着节拍攻击。[/u]\n[color=blue]蓝色（%s）= 轻击[/color]  [color=yellow]黄色（%s）= 重击[/color]\n[color=red]红色（%s）= 强化[/color]  [color=green]绿色（不输入）= 治疗[/color]
+GUIDE_BACK_TO_MENU,Back to Menu,返回菜单
+CALIBRATION_TITLE,Audio Latency Calibration,音频延迟校准
+CALIBRATION_CURRENT_OFFSET,Current offset: %.0f ms,当前延迟：%.0f 毫秒
+CALIBRATION_HINT,"Adjust until the note crosses the line with the beat. %s/%s changes offset, %s returns.","调整到音符随节拍穿过判定线。%s/%s 调整延迟，%s 返回。"
+CALIBRATION_BEAT,BEAT,节拍
+HUD_BOSS_HARMONY,HARMONY,和声
+HUD_PLAYER,Player,玩家
+COUNTDOWN_READY,Ready,准备
+COUNTDOWN_GO,Go!,开始！
+ACTION_HINT_ATTACK,[right][color=%s]ATTACK[/color]\nMOVE [color=%s]%s/%s[/color]\nLIGHT [color=%s]%s[/color]\nHEAVY [color=%s]%s[/color]\nHEAL [color=%s]%s[/color][/right],[right][color=%s]攻击[/color]\n移动 [color=%s]%s/%s[/color]\n轻击 [color=%s]%s[/color]\n重击 [color=%s]%s[/color]\n治疗 [color=%s]%s[/color][/right]
+ACTION_HINT_DEFENSE,[right][color=%s]DEFENSE[/color]\nGUARD [color=%s]%s[/color]\nHIT [color=%s]%s[/color]\nDODGE [color=%s]%s[/color][/right],[right][color=%s]防御[/color]\n格挡 [color=%s]%s[/color]\n击打 [color=%s]%s[/color]\n闪避 [color=%s]%s[/color][/right]
+GAME_VICTORY,Victory!,胜利！
+PROMPT_RESTART,Press %s to restart,按 %s 重新开始
+PROMPT_RETURN_MENU,Press %s to return to menu,按 %s 返回菜单
+PROMPT_SKIP_HOLD,Hold %s to skip,按住 %s 跳过
+PROMPT_PRESS,Press %s,按 %s
+COMBAT_HIT,Hit,命中
+COMBAT_MISS,Miss,未命中
+COMBAT_CRITICAL,Critical x%d,暴击 x%d
+COMBAT_HEAL,Heal,治疗
+COMBAT_HEAT_UP,Heat Up! Lv%d,热度提升！Lv%d
+COMBAT_HEAT_DOWN,Heat Down,热度下降
+JUDGMENT_PERFECT,PERFECT,完美
+JUDGMENT_GREAT,GREAT,很棒
+JUDGMENT_GOOD,GOOD,良好
+JUDGMENT_MISS,MISS,失误
+TRACK_KEY_HINTS,Key Hints: %s,按键提示：%s
+TUTORIAL_PROGRESS_CANNON,Cannon,炮击
+TUTORIAL_PROGRESS_MISSILE,Missile,导弹
+System,System,系统
+Shield down. The rhythm switches to ATTACK.,Shield down. The rhythm switches to ATTACK.,护盾已破。节奏切换到攻击。
+Tap the light attack on the beat to build HEAT.,Tap the light attack on the beat to build HEAT.,跟着节拍使用轻击来积累热度。
+Heavy attacks spend HEAT for big damage. Heal uses a beat to recover.,Heavy attacks spend HEAT for big damage. Heal uses a beat to recover.,重击会消耗热度造成高伤害。治疗会占用一个节拍来恢复。
+Let our dissonant notes break the HARMONY!,Let our dissonant notes break the HARMONY!,让我们的不协和音打破和声！
+Lasers? Easy for us right?,Lasers? Easy for us right?,激光？对我们来说很简单，对吧？
+"Lasers? Easy for us, right?","Lasers? Easy for us, right?",激光？对我们来说很简单，对吧？
+Stronger ones coming up! Stay Focused!,Stronger ones coming up! Stay Focused!,更强的要来了！集中注意力！
+There's a huge machine up ahead.,There's a huge machine up ahead.,前面有一台巨大的机器。

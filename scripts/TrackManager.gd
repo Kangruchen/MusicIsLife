@@ -246,7 +246,7 @@ func _toggle_prejudge_hint_display_mode() -> void:
 	_reset_defense_hint_counts()
 	_save_prejudge_hint_settings()
 
-	var mode_text: String = "Always" if prejudge_key_hint_display_mode == PREJUDGE_HINT_MODE_ALWAYS else "Limited"
+	var mode_text: String = tr("SETTINGS_HINT_ALWAYS") if prejudge_key_hint_display_mode == PREJUDGE_HINT_MODE_ALWAYS else tr("SETTINGS_HINT_LIMITED")
 	_show_hint_mode_status_toast(mode_text)
 	print("[HintMode] Key hint mode changed to: ", mode_text, " (F5)")
 
@@ -281,7 +281,7 @@ func _show_hint_mode_status_toast(mode_text: String) -> void:
 
 	_hint_mode_toast_token += 1
 	var token: int = _hint_mode_toast_token
-	_hint_mode_toast_label.text = "Key Hints: " + mode_text
+	_hint_mode_toast_label.text = tr("TRACK_KEY_HINTS") % mode_text
 	_hint_mode_toast_label.modulate = Color(1.0, 1.0, 1.0, 1.0)
 	_hint_mode_toast_label.visible = true
 

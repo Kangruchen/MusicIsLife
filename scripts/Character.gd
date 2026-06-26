@@ -289,16 +289,16 @@ func _on_attack_result_display(attack_type: int, is_perfect: bool, heat_level: i
 	match attack_type:
 		ATTACK_TYPE_LIGHT:
 			if is_perfect:
-				text = "Hit"
+				text = tr("COMBAT_HIT")
 				color = Color(0.4, 0.7, 1.0)
 			else:
-				text = "Miss"
+				text = tr("COMBAT_MISS")
 				color = Color(0.7, 0.7, 0.7)
 		ATTACK_TYPE_HEAVY:
-			text = "Critical x%d" % (heat_level + 1)
+			text = tr("COMBAT_CRITICAL") % (heat_level + 1)
 			color = Color(1.0, 0.4, 0.1)
 		ATTACK_TYPE_HEAL:
-			text = "Heal"
+			text = tr("COMBAT_HEAL")
 			color = Color(0.2, 1.0, 0.4)
 
 	_spawn_floating_text(text, color)
@@ -1073,7 +1073,7 @@ func _show_death_restart_hints() -> void:
 	_hide_death_restart_hints()
 
 	_death_hint_line_top = Label.new()
-	_death_hint_line_top.text = "Press %s to restart" % GameConstants.get_action_key_label("restart", "R")
+	_death_hint_line_top.text = tr("PROMPT_RESTART") % GameConstants.get_action_key_label("restart", "R")
 	_death_hint_line_top.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_death_hint_line_top.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_death_hint_line_top.add_theme_font_size_override("font_size", 26)
@@ -1089,7 +1089,7 @@ func _show_death_restart_hints() -> void:
 	_death_fx_layer.add_child(_death_hint_line_top)
 
 	_death_hint_line_bottom = Label.new()
-	_death_hint_line_bottom.text = "Press %s to return to menu" % GameConstants.get_action_key_label("menu", "Esc")
+	_death_hint_line_bottom.text = tr("PROMPT_RETURN_MENU") % GameConstants.get_action_key_label("menu", "Esc")
 	_death_hint_line_bottom.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_death_hint_line_bottom.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_death_hint_line_bottom.add_theme_font_size_override("font_size", 22)

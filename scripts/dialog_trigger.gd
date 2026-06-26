@@ -79,7 +79,7 @@ func _update_prompt_text() -> void:
 	if prompt_node == null:
 		return
 
-	var prompt_text: String = "Press %s" % GameConstants.get_action_key_label(String(interact_action), "E")
+	var prompt_text: String = tr("PROMPT_PRESS") % GameConstants.get_action_key_label(String(interact_action), "E")
 	if prompt_node is Label:
 		(prompt_node as Label).text = prompt_text
 	elif prompt_node is RichTextLabel:

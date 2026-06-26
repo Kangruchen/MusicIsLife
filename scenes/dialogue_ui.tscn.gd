@@ -58,8 +58,9 @@ func _show_current_line() -> void:
 	var line: DialogueLine = current_lines[current_index]
 
 	# 更新名字和文本
-	name_label.text = line.speaker_name
-	text_label.text = line.content
+	name_label.text = tr(line.speaker_name)
+	var localized_content: String = tr(line.content)
+	text_label.text = localized_content
 	text_label.visible_characters = 0
 
 	# 检查并更新头像，如果没有头像(旁白)则隐藏对应图形节点
@@ -71,12 +72,12 @@ func _show_current_line() -> void:
 
 	await get_tree().create_timer(0.1).timeout 
 	is_typing = true
-	var total_chars: int = line.content.length()
+	var total_chars: int = localized_content.length()
 
 	# 打字机效果
 	while text_label.visible_characters < total_chars and is_typing:
 		text_label.visible_characters += 1
-		var current_char: String = line.content[text_label.visible_characters - 1]
+		var current_char: String = localized_content[text_label.visible_characters - 1]
 		
 		if current_char != " " and current_char != "\n":
 			typing_sound.play()

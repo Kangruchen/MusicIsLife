@@ -50,12 +50,12 @@ func _process(delta: float) -> void:
 func _get_judgment_text(judgment: int) -> String:
 	match judgment:
 		0:  # PERFECT
-			return "PERFECT"
+			return tr("JUDGMENT_PERFECT")
 		1:  # GREAT
-			return "GREAT"
+			return tr("JUDGMENT_GREAT")
 		2:  # GOOD
-			return "GOOD"
+			return tr("JUDGMENT_GOOD")
 		3:  # MISS
-			return "MISS"
+			return tr("JUDGMENT_MISS")
 		_:
 			return ""

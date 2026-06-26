@@ -6,6 +6,7 @@ const MENU_HINT_FONT: FontFile = preload("res://assets/UI/Orbitron-VariableFont_
 @onready var new_game_btn: Button = $CenterContainer/MenuVBox/NewGameBtn
 @onready var main_menu_container: CenterContainer = $CenterContainer
 @onready var new_game_choice_overlay: Control = $NewGameChoiceOverlay
+@onready var new_game_choice_title: Label = $NewGameChoiceOverlay/ChoiceCenter/ChoiceVBox/ChoiceTitle
 @onready var start_with_tutorial_btn: Button = $NewGameChoiceOverlay/ChoiceCenter/ChoiceVBox/ChoiceHBox/StartWithTutorialBtn
 @onready var skip_tutorial_btn: Button = $NewGameChoiceOverlay/ChoiceCenter/ChoiceVBox/ChoiceHBox/SkipTutorialBtn
 @onready var guide_btn: Button = $CenterContainer/MenuVBox/GuideBtn
@@ -41,6 +42,8 @@ func _ready() -> void:
 	_setup_focus_navigation()
 	_create_menu_input_hint()
 	_connect_gamepad_prompt_updates()
+	_connect_localization_updates()
+	_apply_translations()
 	call_deferred("_focus_first_button")
 
 
@@ -122,16 +125,38 @@ func _connect_gamepad_prompt_updates() -> void:
 		)
 
 
+func _connect_localization_updates() -> void:
+	var localization_manager: Node = get_node_or_null("/root/LocalizationManager")
+	if localization_manager == null or not localization_manager.has_signal("locale_changed"):
+		return
+	localization_manager.connect("locale_changed", func(_locale: String) -> void:
+		_apply_translations()
+	)
+
+
+func _apply_translations() -> void:
+	new_game_btn.text = tr("MENU_NEW_GAME")
+	guide_btn.text = tr("MENU_GUIDE")
+	settings_btn.text = tr("MENU_SETTINGS")
+	quit_btn.text = tr("MENU_QUIT")
+	new_game_choice_title.text = tr("MENU_NEW_GAME")
+	start_with_tutorial_btn.text = tr("MENU_PLAY_TUTORIAL")
+	skip_tutorial_btn.text = tr("MENU_SKIP_TUTORIAL")
+	_update_menu_input_hint()
+
+
 func _update_menu_input_hint() -> void:
 	if _menu_input_hint == null:
 		return
 	var confirm_prompt: String = GameConstants.get_action_key_label("ui_accept", "Enter")
 	var cancel_prompt: String = GameConstants.get_action_key_label("ui_cancel", "Esc")
-	_menu_input_hint.text = "[color=%s]%s[/color]  CONFIRM\n[color=%s]%s[/color]  CANCEL" % [
+	_menu_input_hint.text = "[color=%s]%s[/color]  %s\n[color=%s]%s[/color]  %s" % [
 		"#" + MENU_HINT_ACCENT_COLOR.to_html(false),
 		confirm_prompt,
+		tr("INPUT_CONFIRM"),
 		"#" + MENU_HINT_ACCENT_COLOR.to_html(false),
 		cancel_prompt,
+		tr("INPUT_CANCEL"),
 	]
 
 
