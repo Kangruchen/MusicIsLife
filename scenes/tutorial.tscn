@@ -218,6 +218,9 @@ position = Vector2(1510, 110)
 [node name="Missile1" type="Node2D" parent="PositionNodes"]
 position = Vector2(3102, -818)
 
+[node name="Speaker" type="Node2D" parent="PositionNodes"]
+position = Vector2(1525, -233)
+
 [node name="GameManager" type="Node" parent="."]
 
 [node name="MusicPlayer" type="Node" parent="GameManager"]
@@ -232,10 +235,12 @@ enable_miss_audio_effect = true
 script = ExtResource("11_beat_mgr")
 bpm = 0.0
 
-[node name="TrackManager" type="Node" parent="GameManager" node_paths=PackedStringArray("guard_position_nodes", "guard_warn_position_nodes", "game_ui")]
+[node name="TrackManager" type="Node" parent="GameManager" node_paths=PackedStringArray("guard_position_nodes", "laser_pattern_position_nodes", "laser_pattern_warn_position_nodes", "guard_warn_position_nodes", "game_ui")]
 script = ExtResource("12_track_mgr")
 track_animation_config = ExtResource("15_track_anim")
 guard_position_nodes = [NodePath("../../PositionNodes/Laser1"), NodePath("../../PositionNodes/Laser2")]
+laser_pattern_position_nodes = [NodePath("../../PositionNodes/Laser1"), NodePath("../../PositionNodes/Laser2"), NodePath("../../PositionNodes/Laser1"), NodePath("../../PositionNodes/Laser2")]
+laser_pattern_warn_position_nodes = [NodePath("../../PositionNodes/LaserWarn3"), NodePath("../../PositionNodes/LaserWarn4"), NodePath("../../PositionNodes/LaserWarn3"), NodePath("../../PositionNodes/LaserWarn4")]
 dodge_external_anim_sprite_path = NodePath("../../tutorial_scene/Cannon")
 dodge_external_anim_persistent = true
 tutorial_mode = true
@@ -346,25 +351,26 @@ shape = SubResource("RectangleShape2D_wall")
 position = Vector2(1197, -995)
 shape = SubResource("RectangleShape2D_ceiling")
 
-[node name="Trigger1" type="Area2D" parent="." node_paths=PackedStringArray("dialogue_ui", "pre_dialogue_cutscene")]
+[node name="Trigger1" type="Area2D" parent="." node_paths=PackedStringArray("dialogue_ui")]
 position = Vector2(-220, 72)
 collision_layer = 0
 script = ExtResource("4_4kmhl")
 dialogue_lines = Array[ExtResource("21_bl2xa")]([SubResource("Resource_15kfc")])
 dialogue_ui = NodePath("../UILayer/DialogueUi_tscn")
-pre_dialogue_cutscene = NodePath("../Trigger1Cutscene")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Trigger1"]
 position = Vector2(-157, 5)
 shape = SubResource("RectangleShape2D_0epgs")
 
-[node name="Trigger2" type="Area2D" parent="." node_paths=PackedStringArray("dialogue_ui")]
+[node name="Trigger2" type="Area2D" parent="." node_paths=PackedStringArray("dialogue_ui", "pre_dialogue_cutscene")]
 position = Vector2(181, -6)
 collision_layer = 0
 script = ExtResource("4_4kmhl")
 dialogue_lines = Array[ExtResource("21_bl2xa")]([SubResource("Resource_feaue")])
 dialogue_ui = NodePath("../UILayer/DialogueUi_tscn")
 trigger_battle_id = 1
+prepare_battle_before_cutscene = true
+pre_dialogue_cutscene = NodePath("../Trigger1Cutscene")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Trigger2"]
 position = Vector2(454, 77)
@@ -445,19 +451,25 @@ position = Vector2(-626, 42)
 [node name="MaskRightBound" type="Marker2D" parent="."]
 position = Vector2(-625, -566)
 
-[node name="Trigger1Cutscene" type="Node2D" parent="." node_paths=PackedStringArray("player_node", "speaker_sprite", "player_sprite", "audio_player")]
+[node name="Trigger1Cutscene" type="Node2D" parent="." node_paths=PackedStringArray("player_node", "speaker_sprite", "player_sprite", "audio_player", "speaker_anchor")]
 script = ExtResource("27_qbchm")
 player_node = NodePath("../Player")
 speaker_sprite = NodePath("SpeakerSprite")
 player_sprite = NodePath("PlayerSprite")
 audio_player = NodePath("AudioPlayer")
-speaker_local_position = Vector2(60, -80)
+speaker_anchor = NodePath("../PositionNodes/Speaker")
+speaker_local_position = Vector2(-45, 45)
 speaker_frames = Array[Texture2D]([ExtResource("28_6wmvi"), ExtResource("29_7muwt"), ExtResource("30_liift"), ExtResource("31_2urjh"), ExtResource("32_x6vwi"), ExtResource("33_coeiu"), ExtResource("34_16x21"), ExtResource("35_edwa4"), ExtResource("36_7artv")])
 player_frames = Array[Texture2D]([ExtResource("37_qxc7v"), ExtResource("38_626aq")])
 sound_effect = ExtResource("39_jfjt2")
+sound_effect_start_seconds = 1.012
+loop_speaker_until_sound_finished = true
+queue_free_when_finished = true
 
 [node name="SpeakerSprite" type="Sprite2D" parent="Trigger1Cutscene"]
+visible = false
 
 [node name="PlayerSprite" type="Sprite2D" parent="Trigger1Cutscene"]
+visible = false
 
 [node name="AudioPlayer" type="AudioStreamPlayer" parent="Trigger1Cutscene"]

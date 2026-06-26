@@ -254,6 +254,8 @@ const BOSS_PART_RIGHT: int = 2
 const HURTBOX_RESTORE_META_KEY: StringName = &"boss_part_hurtbox_restore_group"
 const MISSILE_SIDE_LEFT: int = 0
 const MISSILE_SIDE_RIGHT: int = 1
+const MISSILE_BARRAGE_CENTER_BAND_MIN: float = 1.0 / 3.0
+const MISSILE_BARRAGE_CENTER_BAND_MAX: float = 2.0 / 3.0
 
 
 func _ready() -> void:
@@ -2291,7 +2293,10 @@ func _get_missile_teleport_corner(launch_node: Node2D) -> Vector2:
 		var center: Vector2 = camera.get_screen_center_position()
 		var viewport_size: Vector2 = get_viewport().get_visible_rect().size
 		var zoom: Vector2 = camera.zoom
-		var half_world_size: Vector2 = Vector2(viewport_size.x * zoom.x * 0.5, viewport_size.y * zoom.y * 0.5)
+		var half_world_size: Vector2 = Vector2(
+			viewport_size.x / maxf(0.01, zoom.x) * 0.5,
+			viewport_size.y / maxf(0.01, zoom.y) * 0.5
+		)
 		var x: float = center.x - half_world_size.x - margin if use_left else center.x + half_world_size.x + margin
 		var y: float = center.y - half_world_size.y - margin
 		return Vector2(x, y)
@@ -2315,7 +2320,10 @@ func _get_missile_barrage_attack_spawn_position(group_index: int, launch_side: i
 		var center: Vector2 = camera.get_screen_center_position()
 		var viewport_size: Vector2 = get_viewport().get_visible_rect().size
 		var zoom: Vector2 = camera.zoom
-		var half_world_size: Vector2 = Vector2(viewport_size.x * zoom.x * 0.5, viewport_size.y * zoom.y * 0.5)
+		var half_world_size: Vector2 = Vector2(
+			viewport_size.x / maxf(0.01, zoom.x) * 0.5,
+			viewport_size.y / maxf(0.01, zoom.y) * 0.5
+		)
 		var top_left: Vector2 = center - half_world_size
 		var bottom_right: Vector2 = center + half_world_size
 		spawn_position = _pick_missile_barrage_spawn_in_rect(top_left, bottom_right, resolved_group_index, launch_side)
@@ -2335,9 +2343,9 @@ func _pick_missile_barrage_spawn_in_rect(top_left: Vector2, bottom_right: Vector
 	var x_ratio: float = clampf((player_target.x - top_left.x) / width, 0.0, 1.0)
 
 	var spawn_left: bool
-	if x_ratio > 0.58:
+	if x_ratio > MISSILE_BARRAGE_CENTER_BAND_MAX:
 		spawn_left = true
-	elif x_ratio < 0.42:
+	elif x_ratio < MISSILE_BARRAGE_CENTER_BAND_MIN:
 		spawn_left = false
 	else:
 		if launch_side == MISSILE_SIDE_LEFT:

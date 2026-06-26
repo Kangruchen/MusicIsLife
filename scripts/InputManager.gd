@@ -50,6 +50,8 @@ const ACTION_MAPPING := {
 @export var defense_hit_effect_offset: Vector2 = Vector2(-24.0, 0.0)
 @export var defense_hit_effect_scale_multiplier: Vector2 = Vector2(1.0, 1.0)
 @export var defense_hit_effect_follow_anchor_scale: bool = false
+@export var defense_judgment_text_offset: Vector2 = Vector2(0.0, -96.0)
+@export var defense_judgment_text_rise: float = 32.0
 
 @onready var track_manager: Node = get_node("../TrackManager")
 @onready var music_player: Node = get_node("../MusicPlayer")
@@ -420,34 +422,30 @@ func _spawn_defense_judgment_text(judgment: int) -> void:
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.z_index = 100
-	label.position = _get_defense_judgment_text_origin(anchor)
+	_place_label_centered(label, _get_defense_judgment_text_center(anchor))
 	label.modulate.a = 1.0
 	anchor.add_child(label)
 
 	var tween: Tween = create_tween()
 	tween.set_ease(Tween.EASE_OUT)
 	tween.set_trans(Tween.TRANS_EXPO)
-	tween.tween_property(label, "position:y", label.position.y - 40.0, 0.45)
+	tween.tween_property(label, "position:y", label.position.y - maxf(0.0, defense_judgment_text_rise), 0.45)
 	tween.parallel().tween_property(label, "modulate:a", 0.0, 0.4).set_delay(0.08)
 	tween.tween_callback(label.queue_free)
 
 
-func _get_defense_judgment_text_origin(anchor: Node2D) -> Vector2:
+func _place_label_centered(label: Label, center: Vector2) -> void:
+	var label_size: Vector2 = label.get_combined_minimum_size()
+	label.size = label_size
+	label.pivot_offset = label_size * 0.5
+	label.position = center - label_size * 0.5
+
+
+func _get_defense_judgment_text_center(anchor: Node2D) -> Vector2:
 	var visual_anchor: Node2D = _get_defense_hit_effect_visual_anchor(anchor)
-	var sprite: AnimatedSprite2D = visual_anchor as AnimatedSprite2D
-	if sprite == null or sprite.sprite_frames == null:
-		return Vector2(0.0, -96.0)
-
-	var anim_name: String = String(sprite.animation)
-	if anim_name.is_empty() or not sprite.sprite_frames.has_animation(anim_name):
-		return Vector2(0.0, -96.0)
-
-	var frame_texture: Texture2D = sprite.sprite_frames.get_frame_texture(anim_name, sprite.frame)
-	if frame_texture == null:
-		return Vector2(0.0, -96.0)
-
-	var tex_height: float = frame_texture.get_size().y * maxf(0.01, absf(sprite.scale.y))
-	return Vector2(0.0, -tex_height * 0.5 - 20.0)
+	if visual_anchor == null:
+		return defense_judgment_text_offset
+	return anchor.to_local(visual_anchor.global_transform * defense_judgment_text_offset)
 
 
 func _on_defense_hit_effect_anim_finished(effect_instance_id: int) -> void:

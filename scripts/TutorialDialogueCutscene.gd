@@ -12,6 +12,7 @@ signal finished
 @export_group("Player Binding")
 @export var attach_sprites_to_player: bool = true
 @export var player_anchor_path: NodePath = NodePath("CharacterVisual")
+@export var speaker_anchor: Node2D
 @export var hide_existing_player_visual: bool = true
 @export var existing_player_visual_path: NodePath = NodePath("CharacterVisual/AnimatedSprite2D")
 @export var freeze_player_during_cutscene: bool = true
@@ -27,11 +28,14 @@ signal finished
 @export_range(1.0, 60.0, 1.0) var speaker_fps: float = 12.0
 @export_range(1.0, 60.0, 1.0) var player_fps: float = 6.0
 @export var wait_for_sound_to_finish: bool = true
+@export_range(0.0, 10.0, 0.001) var sound_effect_start_seconds: float = 0.0
 @export var hide_sprites_when_finished: bool = true
 @export_range(0.0, 1.0, 0.01) var fade_in_seconds: float = 0.12
 @export_range(0.0, 1.0, 0.01) var fade_out_seconds: float = 0.12
 @export_range(0.0, 1.0, 0.01) var end_hold_seconds: float = 0.08
 @export var restore_sprite_parents_when_finished: bool = true
+@export var loop_speaker_until_sound_finished: bool = false
+@export var queue_free_when_finished: bool = false
 
 var _is_playing: bool = false
 var _previous_player_input_process: bool = true
@@ -46,19 +50,26 @@ func play() -> void:
 
 	_is_playing = true
 	_prepare_player_state()
-	_attach_sprites_to_player()
+	_attach_cutscene_sprites()
 	_show_first_frames()
 	await _fade_cutscene_sprites(1.0, fade_in_seconds)
 
 	if audio_player != null and sound_effect != null:
 		audio_player.stream = sound_effect
-		audio_player.play()
+		audio_player.play(maxf(0.0, sound_effect_start_seconds))
 
 	var speaker_time: float = _get_animation_seconds(speaker_frames, speaker_fps)
 	var player_time: float = _get_animation_seconds(player_frames, player_fps)
 	var animation_time: float = maxf(speaker_time, player_time)
 
-	var speaker_tween: Tween = _play_frame_sequence(speaker_sprite, speaker_frames, speaker_fps)
+	var should_loop_speaker: bool = (
+		loop_speaker_until_sound_finished
+		and wait_for_sound_to_finish
+		and audio_player != null
+		and audio_player.playing
+	)
+
+	var speaker_tween: Tween = _play_frame_sequence(speaker_sprite, speaker_frames, speaker_fps, should_loop_speaker)
 	var player_tween: Tween = _play_frame_sequence(player_sprite, player_frames, player_fps)
 
 	if animation_time > 0.0:
@@ -75,16 +86,14 @@ func play() -> void:
 
 	await _fade_cutscene_sprites(0.0, fade_out_seconds)
 
-	if hide_sprites_when_finished:
-		if speaker_sprite != null:
-			speaker_sprite.hide()
-		if player_sprite != null:
-			player_sprite.hide()
-
 	_restore_player_state()
 	_restore_sprite_parents()
+	if hide_sprites_when_finished:
+		_hide_cutscene_sprites()
 	_is_playing = false
 	finished.emit()
+	if queue_free_when_finished:
+		queue_free()
 
 
 func play_for_player(trigger_player: Node2D) -> void:
@@ -126,16 +135,24 @@ func _restore_player_state() -> void:
 			player_node.unfreeze_movement()
 
 
-func _attach_sprites_to_player() -> void:
+func _attach_cutscene_sprites() -> void:
+	var player_anchor: Node = _get_player_anchor()
+	var speaker_parent: Node = speaker_anchor
+	if speaker_parent == null:
+		speaker_parent = player_anchor
+
+	_reparent_sprite_to_anchor(speaker_sprite, speaker_parent, speaker_local_position)
+	_reparent_sprite_to_anchor(player_sprite, player_anchor, player_local_position)
+
+
+func _get_player_anchor() -> Node:
 	if not attach_sprites_to_player or player_node == null:
-		return
+		return null
 
 	var anchor: Node = player_node.get_node_or_null(player_anchor_path)
 	if anchor == null:
 		anchor = player_node
-
-	_reparent_sprite_to_anchor(speaker_sprite, anchor, speaker_local_position)
-	_reparent_sprite_to_anchor(player_sprite, anchor, player_local_position)
+	return anchor
 
 
 func _reparent_sprite_to_anchor(sprite: Sprite2D, anchor: Node, local_position: Vector2) -> void:
@@ -169,12 +186,14 @@ func _show_first_frames() -> void:
 		player_sprite.show()
 
 
-func _play_frame_sequence(sprite: Sprite2D, frames: Array[Texture2D], fps: float) -> Tween:
+func _play_frame_sequence(sprite: Sprite2D, frames: Array[Texture2D], fps: float, loop: bool = false) -> Tween:
 	if sprite == null or frames.is_empty():
 		return null
 
 	var frame_seconds: float = 1.0 / maxf(1.0, fps)
 	var tween: Tween = create_tween()
+	if loop and frames.size() > 1:
+		tween.set_loops()
 	for texture in frames:
 		tween.tween_callback(func() -> void:
 			if sprite != null:
@@ -212,6 +231,15 @@ func _set_cutscene_sprites_alpha(alpha: float) -> void:
 		speaker_sprite.modulate.a = alpha
 	if player_sprite != null:
 		player_sprite.modulate.a = alpha
+
+
+func _hide_cutscene_sprites() -> void:
+	if speaker_sprite != null:
+		speaker_sprite.hide()
+		speaker_sprite.modulate.a = 0.0
+	if player_sprite != null:
+		player_sprite.hide()
+		player_sprite.modulate.a = 0.0
 
 
 func _remember_sprite_state(sprite: Sprite2D) -> void:

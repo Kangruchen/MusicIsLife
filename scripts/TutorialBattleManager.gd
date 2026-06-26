@@ -3,6 +3,11 @@ extends Node
 class_name TutorialBattleManager
 
 const RhythmClock := preload("res://scripts/RhythmClock.gd")
+const LaserPatternEventScript := preload("res://scripts/LaserPatternEvent.gd")
+
+const TUTORIAL_LASER_WARNING_LEAD_BEATS: float = 2.0
+const TUTORIAL_LASER_SLOT_INDEX: int = 2
+const TUTORIAL_LASER_SOURCE_LAYER: String = "TutorialMainLaserEcho"
 
 enum BattleState {
 	IDLE,
@@ -409,40 +414,9 @@ func _start_battle_internal() -> void:
 
 
 func _generate_and_emit_chart() -> void:
-	var chart := Chart.new()
-	chart.chart_name = "Tutorial Battle %d" % _current_config.battle_id
-	chart.bpm = _current_config.bpm
-	var effective_offset: float = _current_config.offset
-	if _beat_manager:
-		effective_offset += _beat_manager.user_offset
-	chart.offset = effective_offset
-
-	var note_count: int = _current_config.max_notes
 	_last_generated_beat = 0.0
-	for i in range(note_count):
-		var beat_num: float = float(_current_config.start_delay_beats + 1 + i * _current_config.beat_interval_beats)
-		var note := Note.new()
-		note.beat_number = beat_num
-		note.beat_time = effective_offset + beat_num * _beat_interval
-		
-		if _current_config.attack_type == TutorialBattleConfig.AttackType.ALTERNATING_MISSILE_CHARGE:
-			note.type = _next_attack_type as Note.NoteType
-			if _next_attack_type == int(Note.NoteType.HIT):
-				_next_attack_type = int(Note.NoteType.DODGE)
-				_missile_target_times.append(note.beat_time)
-			else:
-				_next_attack_type = int(Note.NoteType.HIT)
-		else:
-			var note_type: Note.NoteType = _config_attack_type_to_note_type(_current_config.attack_type)
-			note.type = note_type
-			if note_type == Note.NoteType.HIT:
-				_missile_target_times.append(note.beat_time)
-		
-		chart.add_note(note)
-		if beat_num > _last_generated_beat:
-			_last_generated_beat = beat_num
-
-	chart.sort_notes()
+	var first_beat: float = float(_current_config.start_delay_beats + 1)
+	var chart := _build_tutorial_chart_batch(first_beat, _current_config.max_notes)
 	EventBus.chart_loaded.emit(chart)
 
 
@@ -460,34 +434,78 @@ func _config_attack_type_to_note_type(attack_type: TutorialBattleConfig.AttackTy
 func _append_more_notes() -> void:
 	if _current_config == null or _track_manager == null:
 		return
+	var batch_size: int = _current_config.max_notes
+	var first_beat: float = _last_generated_beat + float(_current_config.beat_interval_beats)
+	var chart := _build_tutorial_chart_batch(first_beat, batch_size)
+	if _track_manager.has_method("append_scheduled_chart_events"):
+		_track_manager.append_scheduled_chart_events(chart)
+	elif _track_manager.has_method("append_scheduled_notes"):
+		_track_manager.append_scheduled_notes(chart.notes)
+
+
+func _build_tutorial_chart_batch(first_beat: float, note_count: int) -> Chart:
+	var chart := Chart.new()
+	chart.chart_name = "Tutorial Battle %d" % _current_config.battle_id
+	chart.bpm = _current_config.bpm
+	chart.offset = _get_effective_chart_offset()
+	for i in range(note_count):
+		var beat_num: float = first_beat + float(i * _current_config.beat_interval_beats)
+		_add_tutorial_chart_event(chart, beat_num)
+		if beat_num > _last_generated_beat:
+			_last_generated_beat = beat_num
+	chart.sort_notes()
+	chart.call("sort_laser_patterns")
+	return chart
+
+
+func _get_effective_chart_offset() -> float:
 	var effective_offset: float = _current_config.offset
 	if _beat_manager:
 		effective_offset += _beat_manager.user_offset
-	var batch_size: int = _current_config.max_notes
-	var new_notes: Array[Note] = []
-	for i in range(batch_size):
-		var beat_num: float = _last_generated_beat + float((i + 1) * _current_config.beat_interval_beats)
-		var note := Note.new()
-		note.beat_number = beat_num
-		note.beat_time = effective_offset + beat_num * _beat_interval
-		
-		if _current_config.attack_type == TutorialBattleConfig.AttackType.ALTERNATING_MISSILE_CHARGE:
-			note.type = _next_attack_type as Note.NoteType
-			if _next_attack_type == int(Note.NoteType.HIT):
-				_next_attack_type = int(Note.NoteType.DODGE)
-				_missile_target_times.append(note.beat_time)
-			else:
-				_next_attack_type = int(Note.NoteType.HIT)
+	return effective_offset
+
+
+func _add_tutorial_chart_event(chart: Chart, beat_num: float) -> void:
+	if _current_config.attack_type == TutorialBattleConfig.AttackType.LASER:
+		_add_tutorial_laser_pattern(chart, beat_num)
+		return
+
+	var note := Note.new()
+	note.beat_number = beat_num
+	note.beat_time = chart.offset + beat_num * _beat_interval
+	if _current_config.attack_type == TutorialBattleConfig.AttackType.ALTERNATING_MISSILE_CHARGE:
+		note.type = _next_attack_type as Note.NoteType
+		if _next_attack_type == int(Note.NoteType.HIT):
+			_next_attack_type = int(Note.NoteType.DODGE)
+			_missile_target_times.append(note.beat_time)
 		else:
-			var note_type: Note.NoteType = _config_attack_type_to_note_type(_current_config.attack_type)
-			note.type = note_type
-			if note_type == Note.NoteType.HIT:
-				_missile_target_times.append(note.beat_time)
-		
-		new_notes.append(note)
-	_last_generated_beat = _last_generated_beat + float(batch_size * _current_config.beat_interval_beats)
-	if _track_manager.has_method("append_scheduled_notes"):
-		_track_manager.append_scheduled_notes(new_notes)
+			_next_attack_type = int(Note.NoteType.HIT)
+	else:
+		var note_type: Note.NoteType = _config_attack_type_to_note_type(_current_config.attack_type)
+		note.type = note_type
+		if note_type == Note.NoteType.HIT:
+			_missile_target_times.append(note.beat_time)
+	chart.add_note(note)
+
+
+func _add_tutorial_laser_pattern(chart: Chart, fire_beat: float) -> void:
+	var beat_interval: float = _beat_interval
+	if beat_interval <= 0.0:
+		beat_interval = 60.0 / chart.bpm if chart.bpm > 0.0 else EventBus.beat_interval
+	if beat_interval <= 0.0:
+		beat_interval = 0.5
+
+	var fire_time: float = chart.offset + fire_beat * beat_interval
+	var warning_beat: float = fire_beat - TUTORIAL_LASER_WARNING_LEAD_BEATS
+	var pattern: Resource = LaserPatternEventScript.new()
+	pattern.kind = LaserPatternEventScript.PatternKind.ECHO
+	pattern.source_layer = TUTORIAL_LASER_SOURCE_LAYER
+	pattern.beat_number = fire_beat
+	pattern.beat_time = fire_time
+	pattern.add_warning_step(warning_beat, chart.offset + warning_beat * beat_interval, TUTORIAL_LASER_SLOT_INDEX)
+	pattern.add_fire_step(fire_beat, fire_time, TUTORIAL_LASER_SLOT_INDEX)
+	pattern.sort_steps()
+	chart.call("add_laser_pattern", pattern)
 
 
 func _on_judgment_made(track: int, judgment: int, _timing_diff: float) -> void:
@@ -586,7 +604,7 @@ func _end_battle() -> void:
 		_battle_ui.hide_ui()
 
 	if _track_manager and _track_manager.has_method("clear_all_notes"):
-		_track_manager.clear_all_notes()
+		_track_manager.clear_all_notes(true)
 
 	if _music_player and _music_player.has_method("crossfade_base_music_to_ambient_attack_loop"):
 		_music_player.crossfade_base_music_to_ambient_attack_loop(music_crossfade_seconds)

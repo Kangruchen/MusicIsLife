@@ -21,6 +21,32 @@ const ATTACK_TYPE_LIGHT: int = 0
 const ATTACK_TYPE_HEAVY: int = 1
 const ATTACK_TYPE_HEAL: int = 2
 const ATTACK_TYPE_ENHANCE: int = 3
+const ATTACK_VFX_ANIM: StringName = &"play"
+const LIGHT_ATTACK_VFX_FRAMES: Array[String] = [
+	"res://assets/VFX/attack/轻击特效/1.png",
+	"res://assets/VFX/attack/轻击特效/2.png",
+	"res://assets/VFX/attack/轻击特效/3.png",
+	"res://assets/VFX/attack/轻击特效/4.png",
+]
+const HEAVY_ATTACK_VFX_FRAMES: Array[String] = [
+	"res://assets/VFX/attack/重击特效/1.png",
+	"res://assets/VFX/attack/重击特效/2.png",
+	"res://assets/VFX/attack/重击特效/3.png",
+	"res://assets/VFX/attack/重击特效/4.png",
+	"res://assets/VFX/attack/重击特效/5.png",
+	"res://assets/VFX/attack/重击特效/6.png",
+	"res://assets/VFX/attack/重击特效/7.png",
+	"res://assets/VFX/attack/重击特效/8.png",
+]
+const HEAL_VFX_FRAMES: Array[String] = [
+	"res://assets/VFX/attack/回血特效/1.png",
+	"res://assets/VFX/attack/回血特效/2.png",
+	"res://assets/VFX/attack/回血特效/3.png",
+	"res://assets/VFX/attack/回血特效/4.png",
+	"res://assets/VFX/attack/回血特效/5.png",
+	"res://assets/VFX/attack/回血特效/6.png",
+	"res://assets/VFX/attack/回血特效/7.png",
+]
 
 @export var anim_config: CharacterAnimConfig = null
 
@@ -53,6 +79,21 @@ const ATTACK_TYPE_ENHANCE: int = 3
 @export var heavy_hitbox_preset_name: StringName = &"Heavy"
 @export var charged_light_hitbox_preset_name: StringName = &""
 @export var charged_heavy_hitbox_preset_name: StringName = &""
+
+@export_group("Attack VFX")
+@export var attack_vfx_enabled: bool = true
+@export_range(1.0, 60.0, 1.0) var attack_vfx_fps: float = 16.0
+@export_range(0.05, 6.0, 0.05) var light_attack_vfx_scale: float = 0.7
+@export_range(0.05, 6.0, 0.05) var heavy_attack_vfx_scale: float = 0.7
+@export_range(0.05, 6.0, 0.05) var heal_vfx_scale: float = 0.75
+@export var light_attack_vfx_offset: Vector2 = Vector2(64.0, -24.0)
+@export var heavy_attack_vfx_offset: Vector2 = Vector2(74.0, -18.0)
+@export var heal_vfx_offset: Vector2 = Vector2(0.0, 0.0)
+
+@export_group("Combat Visual Anchors")
+@export_node_path("Node2D") var combat_visual_anchor_path: NodePath = NodePath("AnimatedSprite2D")
+@export var floating_text_offset: Vector2 = Vector2(0.0, -96.0)
+@export var floating_text_rise: float = 32.0
 
 @onready var animated_sprite: AnimatedSprite2D = $AnimatedSprite2D
 @onready var attack_hitbox: Area2D = $AttackHitbox
@@ -315,29 +356,38 @@ func _spawn_floating_text(text: String, color: Color) -> void:
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.z_index = 100
-	label.position = _get_floating_text_origin()
+	_place_label_centered(label, _get_floating_text_center())
 	label.modulate.a = 1.0
 	add_child(label)
 
 	var tween: Tween = create_tween()
 	tween.set_ease(Tween.EASE_OUT)
 	tween.set_trans(Tween.TRANS_EXPO)
-	tween.tween_property(label, "position:y", label.position.y - 40.0, 0.45)
+	tween.tween_property(label, "position:y", label.position.y - maxf(0.0, floating_text_rise), 0.45)
 	tween.parallel().tween_property(label, "modulate:a", 0.0, 0.4).set_delay(0.08)
 	tween.tween_callback(label.queue_free)
 
 
-func _get_floating_text_origin() -> Vector2:
-	if animated_sprite == null or animated_sprite.sprite_frames == null:
-		return Vector2(0.0, -80.0)
-	var anim_name: String = String(animated_sprite.animation)
-	if anim_name.is_empty() or not animated_sprite.sprite_frames.has_animation(anim_name):
-		return Vector2(0.0, -80.0)
-	var frame_texture: Texture2D = animated_sprite.sprite_frames.get_frame_texture(anim_name, animated_sprite.frame)
-	if frame_texture == null:
-		return Vector2(0.0, -80.0)
-	var tex_height: float = frame_texture.get_size().y * absf(animated_sprite.global_scale.y)
-	return Vector2(0.0, -tex_height * 0.5 - 20.0)
+func _place_label_centered(label: Label, center: Vector2) -> void:
+	var label_size: Vector2 = label.get_combined_minimum_size()
+	label.size = label_size
+	label.pivot_offset = label_size * 0.5
+	label.position = center - label_size * 0.5
+
+
+func _get_floating_text_center() -> Vector2:
+	var anchor: Node2D = _resolve_combat_visual_anchor()
+	if anchor == null:
+		return floating_text_offset
+	return to_local(anchor.global_transform * floating_text_offset)
+
+
+func _resolve_combat_visual_anchor() -> Node2D:
+	if not combat_visual_anchor_path.is_empty():
+		var configured_anchor: Node2D = get_node_or_null(combat_visual_anchor_path) as Node2D
+		if configured_anchor != null:
+			return configured_anchor
+	return animated_sprite
 
 
 func _on_attack_phase_started() -> void:
@@ -553,6 +603,7 @@ func _start_attack_action(attack_type: int, is_charged: bool) -> void:
 		return
 
 	_play_anim(anim_name, false)
+	_play_attack_action_vfx(attack_type)
 	_try_open_hitbox_at_current_frame()
 
 
@@ -914,6 +965,80 @@ func _on_animation_frame_changed() -> void:
 
 func _try_open_hitbox_at_current_frame() -> void:
 	_on_animation_frame_changed()
+
+
+func _play_attack_action_vfx(attack_type: int) -> void:
+	if not attack_vfx_enabled:
+		return
+
+	match attack_type:
+		ATTACK_TYPE_LIGHT:
+			_spawn_attack_vfx(
+				LIGHT_ATTACK_VFX_FRAMES,
+				_get_directional_attack_vfx_offset(light_attack_vfx_offset),
+				light_attack_vfx_scale,
+				true
+			)
+		ATTACK_TYPE_HEAVY:
+			_spawn_attack_vfx(
+				HEAVY_ATTACK_VFX_FRAMES,
+				_get_directional_attack_vfx_offset(heavy_attack_vfx_offset),
+				heavy_attack_vfx_scale,
+				true
+			)
+		ATTACK_TYPE_HEAL:
+			_spawn_attack_vfx(HEAL_VFX_FRAMES, heal_vfx_offset, heal_vfx_scale, false)
+
+
+func _get_directional_attack_vfx_offset(base_offset: Vector2) -> Vector2:
+	return Vector2(_get_attack_forward_sign() * absf(base_offset.x), base_offset.y)
+
+
+func _spawn_attack_vfx(frame_paths: Array[String], local_position: Vector2, vfx_scale: float, mirror_with_player: bool) -> void:
+	if frame_paths.is_empty():
+		return
+
+	var sprite_frames: SpriteFrames = _build_one_shot_sprite_frames(frame_paths)
+	if sprite_frames == null:
+		return
+
+	var vfx: AnimatedSprite2D = AnimatedSprite2D.new()
+	vfx.name = "AttackActionVFX"
+	vfx.sprite_frames = sprite_frames
+	vfx.animation = ATTACK_VFX_ANIM
+	vfx.centered = true
+	vfx.position = local_position
+	vfx.scale = Vector2.ONE * maxf(0.05, vfx_scale)
+	vfx.z_index = 70
+	if mirror_with_player and animated_sprite != null:
+		vfx.flip_h = animated_sprite.flip_h
+	add_child(vfx)
+
+	vfx.animation_finished.connect(func() -> void:
+		if vfx != null and is_instance_valid(vfx):
+			vfx.queue_free()
+	)
+	vfx.play(ATTACK_VFX_ANIM)
+
+
+func _build_one_shot_sprite_frames(frame_paths: Array[String]) -> SpriteFrames:
+	var sprite_frames: SpriteFrames = SpriteFrames.new()
+	if sprite_frames.has_animation(&"default"):
+		sprite_frames.remove_animation(&"default")
+	sprite_frames.add_animation(ATTACK_VFX_ANIM)
+	sprite_frames.set_animation_loop(ATTACK_VFX_ANIM, false)
+	sprite_frames.set_animation_speed(ATTACK_VFX_ANIM, maxf(1.0, attack_vfx_fps))
+
+	for frame_path in frame_paths:
+		var texture: Texture2D = ResourceLoader.load(frame_path) as Texture2D
+		if texture == null:
+			push_warning("[Character] Missing attack VFX frame: %s" % frame_path)
+			continue
+		sprite_frames.add_frame(ATTACK_VFX_ANIM, texture)
+
+	if sprite_frames.get_frame_count(ATTACK_VFX_ANIM) <= 0:
+		return null
+	return sprite_frames
 
 
 func _play_status_flash(color: Color, duration: float = 0.22) -> void:

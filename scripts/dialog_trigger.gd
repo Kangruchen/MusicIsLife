@@ -7,6 +7,7 @@ class_name DialogueTrigger
 @export var start_battle_after_dialogue: bool = false
 @export var battle_manager_path: NodePath = NodePath("")
 @export var battle_id: int = 1
+@export var prepare_battle_before_cutscene: bool = false
 @export var pre_dialogue_cutscene: Node = null
 
 @export var require_input: bool = false
@@ -100,6 +101,8 @@ func _try_trigger_dialogue() -> void:
 		prompt_node.hide()
 
 	_has_triggered = true
+	if prepare_battle_before_cutscene:
+		_prepare_battle_for_trigger()
 	if pre_dialogue_cutscene != null and pre_dialogue_cutscene.has_method("play"):
 		_is_waiting_for_cutscene = true
 		if pre_dialogue_cutscene.has_method("play_for_player"):
@@ -132,8 +135,21 @@ func _get_battle_manager() -> TutorialBattleManager:
 	return null
 
 
+func _get_battle_to_start() -> int:
+	return trigger_battle_id if trigger_battle_id > 0 else battle_id
+
+
+func _prepare_battle_for_trigger() -> void:
+	var battle_to_prepare: int = _get_battle_to_start()
+	if battle_to_prepare <= 0:
+		return
+	var battle_manager: TutorialBattleManager = _get_battle_manager()
+	if battle_manager != null:
+		battle_manager.prepare_battle(battle_to_prepare)
+
+
 func _on_dialogue_closed_start_battle() -> void:
-	var battle_to_start: int = trigger_battle_id if trigger_battle_id > 0 else battle_id
+	var battle_to_start: int = _get_battle_to_start()
 	if battle_to_start > 0:
 		if not battle_manager_path.is_empty():
 			var battle_manager: TutorialBattleManager = get_node_or_null(battle_manager_path) as TutorialBattleManager

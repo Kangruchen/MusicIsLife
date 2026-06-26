@@ -322,15 +322,10 @@ func _process(_delta: float) -> void:
 
 ## 设置铺面数据
 func set_chart(chart: Chart) -> void:
-	clear_all_notes()
+	clear_all_notes(true)
 	reset_prejudge_hint_progress()
 	current_chart = chart
-	scheduled_notes.clear()
-	for note in chart.notes:
-		scheduled_notes.append(_duplicate_note_for_schedule(note))
-	_apply_laser_patterns_to_schedule(chart)
-	_apply_missile_barrage_timing_to_schedule(chart)
-	_assign_hit_note_sides()
+	append_scheduled_chart_events(chart)
 	print("TrackManager loaded chart: notes=", scheduled_notes.size(), ", laser_warnings=", scheduled_laser_warnings.size())
 
 
@@ -346,11 +341,19 @@ func _duplicate_note_for_schedule(source_note: Note) -> Note:
 	return note
 
 
-func _apply_laser_patterns_to_schedule(chart: Chart) -> void:
-	scheduled_laser_warnings.clear()
+func append_scheduled_chart_events(chart: Chart) -> void:
 	if chart == null:
 		return
 
+	for note in chart.notes:
+		scheduled_notes.append(_duplicate_note_for_schedule(note))
+	_append_laser_patterns_to_schedule(chart)
+	_apply_missile_barrage_timing_to_schedule(chart)
+	_sort_scheduled_chart_events()
+	_assign_hit_note_sides()
+
+
+func _append_laser_patterns_to_schedule(chart: Chart) -> void:
 	var laser_patterns: Array = chart.get("laser_patterns")
 	for pattern_value in laser_patterns:
 		var pattern: Resource = pattern_value as Resource
@@ -369,6 +372,8 @@ func _apply_laser_patterns_to_schedule(chart: Chart) -> void:
 			note.source_layer = String(fire_step.get("source_layer", pattern.get("source_layer")))
 			scheduled_notes.append(note)
 
+
+func _sort_scheduled_chart_events() -> void:
 	scheduled_notes.sort_custom(func(a: Note, b: Note) -> bool:
 		return a.beat_time < b.beat_time
 	)
@@ -855,10 +860,13 @@ func _get_hint_screen_position(note_type: Note.NoteType) -> Vector2:
 
 
 ## 清除所有活跃的音符
-func clear_all_notes() -> void:
+func clear_all_notes(clear_schedule: bool = false) -> void:
 	_invalidate_effect_callbacks()
 	_clear_active_key_hints()
 
+	if clear_schedule:
+		scheduled_notes.clear()
+		scheduled_laser_warnings.clear()
 	tracked_notes.clear()
 	_cue_requests.clear()
 	_music_clock_events.clear()
@@ -965,12 +973,7 @@ func resume_note_spawning() -> void:
 		beat_interval = 0.5
 	
 	for note in scheduled_notes.duplicate():
-		var advance_beats: int = _get_spawn_advance_beats(note)
-		var spawn_time: float = note.beat_time - advance_beats * beat_interval
-		var should_remove: bool = spawn_time <= current_time
-		if note.type == Note.NoteType.HIT and note.has_meta(MISSILE_LAUNCH_TIME_META) and not _cue_requests.has_missile_request(note):
-			should_remove = note.beat_time <= current_time
-		if should_remove:
+		if _should_remove_note_on_resume(note, current_time, beat_interval):
 			scheduled_notes.erase(note)
 			_cue_requests.erase(note)
 			_hit_note_sides.erase(note)
@@ -992,6 +995,48 @@ func resume_note_spawning() -> void:
 	pause_start_time = 0.0
 	
 	print("音符生成已恢复")
+
+
+func _should_remove_note_on_resume(note: Note, resume_time: float, beat_interval: float) -> bool:
+	if note == null:
+		return true
+
+	var spawn_time: float = note.beat_time - float(_get_spawn_advance_beats(note)) * beat_interval
+	match note.type:
+		Note.NoteType.GUARD:
+			if _uses_laser_pattern_positions(note):
+				var laser_warning_time: float = _get_laser_pattern_warning_time_for_fire(note)
+				if laser_warning_time > -INF and laser_warning_time <= resume_time:
+					return true
+			return spawn_time <= resume_time
+		Note.NoteType.HIT:
+			var missile_request_time: float = _get_missile_request_time(note, spawn_time, _get_boss_return_prepare_seconds())
+			return missile_request_time <= resume_time
+		Note.NoteType.DODGE:
+			var charge_prepare_lead_beats: float = maxf(0.0, boss_charge_prepare_lead_beats)
+			var charge_request_time: float = spawn_time - charge_prepare_lead_beats * beat_interval
+			return charge_request_time <= resume_time
+
+	return spawn_time <= resume_time
+
+
+func _get_laser_pattern_warning_time_for_fire(note: Note) -> float:
+	if note == null:
+		return -INF
+
+	var best_warning_time: float = -INF
+	for warning_step in scheduled_laser_warnings:
+		var warning_source: String = String(warning_step.get("source_layer", ""))
+		if warning_source != note.source_layer:
+			continue
+		if int(warning_step.get("slot_index", -1)) != note.slot_index:
+			continue
+
+		var warning_time: float = float(warning_step["beat_time"])
+		if warning_time <= note.beat_time + 0.001 and warning_time > best_warning_time:
+			best_warning_time = warning_time
+
+	return best_warning_time
 
 
 func _on_attack_phase_started() -> void:
