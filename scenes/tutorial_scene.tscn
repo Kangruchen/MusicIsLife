@@ -1,4 +1,4 @@
-[gd_scene load_steps=89 format=4 uid="uid://c6yxi20pgmbbx"]
+[gd_scene load_steps=90 format=4 uid="uid://c6yxi20pgmbbx"]
 
 [ext_resource type="Texture2D" uid="uid://bixshvvvi35xi" path="res://assets/environment/scene_tutorial/background.png" id="1_k1v41"]
 [ext_resource type="Texture2D" uid="uid://2luontrbyikd" path="res://assets/environment/scene_tutorial/machine.png" id="2_7ncn3"]
@@ -35,6 +35,7 @@
 [ext_resource type="Texture2D" uid="uid://cyyrngokdk32e" path="res://assets/environment/scene_tutorial/cargo.png" id="28_154sd"]
 [ext_resource type="Texture2D" uid="uid://cy1wbrl53c2jw" path="res://assets/environment/scene_tutorial/launcher.png" id="29_astrp"]
 [ext_resource type="Script" uid="uid://bxtkjanxcar8w" path="res://scripts/TutorialSceneParallax.gd" id="30_pvndr"]
+[ext_resource type="Texture2D" uid="uid://bpx73nrdralew" path="res://assets/environment/scene_tutorial/光效.png" id="35_tlj4v"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_48nin"]
 
@@ -670,7 +671,13 @@ metadata/_aseprite_wizard_interface_config_ = {
 position = Vector2(1935, -423)
 texture = ExtResource("29_astrp")
 
+[node name="光效" type="Sprite2D" parent="."]
+self_modulate = Color(1.353256, 1.353256, 1.353256, 1)
+position = Vector2(-5, -7)
+texture = ExtResource("35_tlj4v")
+
 [node name="Light" type="Sprite2D" parent="."]
+visible = false
 self_modulate = Color(1, 1, 1, 0.36)
 z_index = 4
 position = Vector2(-5, -7)

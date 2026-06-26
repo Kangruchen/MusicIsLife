@@ -60,6 +60,7 @@ var _heat_dots_container: Control = null
 var _heavy_heat_consumed: bool = false
 
 var _victory_label: Label = null
+var _victory_time_label: Label = null
 var _is_boss_defeated: bool = false
 var _attack_clock_active: bool = false
 var _attack_clock_base_time: float = 0.0
@@ -632,6 +633,15 @@ func _on_attack_result_display(attack_type: int, is_perfect: bool, _heat_level: 
 	var beat_idx: int = int((now - _track_first_beat_time + _track_bi * 0.5) / _track_bi)
 	if beat_idx < 0 or beat_idx >= _perfect_zones.size():
 		return
+
+	_resolve_attack_zone(beat_idx, is_perfect)
+	if attack_type == 1:  # HEAVY occupies the next beat too.
+		_resolve_attack_zone(beat_idx + 1, true)
+
+
+func _resolve_attack_zone(beat_idx: int, is_perfect: bool) -> void:
+	if beat_idx < 0 or beat_idx >= _perfect_zones.size():
+		return
 	if _resolved_zones.has(beat_idx):
 		return
 
@@ -641,10 +651,9 @@ func _on_attack_result_display(attack_type: int, is_perfect: bool, _heat_level: 
 
 	if is_perfect:
 		zone.color = Color(0.2, 0.9, 0.3, 0.95)
-		_resolved_zones[beat_idx] = true
 	else:
 		zone.color = Color(0.9, 0.15, 0.15, 0.9)
-		_resolved_zones[beat_idx] = true
+	_resolved_zones[beat_idx] = true
 
 
 func _show_center_text(text: String, color: Color) -> void:
@@ -837,6 +846,8 @@ func _on_boss_defeated() -> void:
 
 	if _victory_label != null and is_instance_valid(_victory_label):
 		_victory_label.queue_free()
+	if _victory_time_label != null and is_instance_valid(_victory_time_label):
+		_victory_time_label.queue_free()
 	_victory_label = Label.new()
 	_victory_label.name = "VictoryLabel"
 	_victory_label.add_theme_font_size_override("font_size", 72)
@@ -846,12 +857,28 @@ func _on_boss_defeated() -> void:
 	_victory_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_victory_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_victory_label.anchor_left = 0.0
-	_victory_label.anchor_top = 0.35
+	_victory_label.anchor_top = 0.30
 	_victory_label.anchor_right = 1.0
-	_victory_label.anchor_bottom = 0.55
+	_victory_label.anchor_bottom = 0.48
 	_victory_label.text = tr("GAME_VICTORY")
 	_victory_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_victory_label)
+
+	_victory_time_label = Label.new()
+	_victory_time_label.name = "VictoryTimeLabel"
+	_victory_time_label.add_theme_font_size_override("font_size", 34)
+	_victory_time_label.add_theme_color_override("font_color", Color(0.94, 0.96, 1.0))
+	_victory_time_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0))
+	_victory_time_label.add_theme_constant_override("outline_size", 4)
+	_victory_time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_victory_time_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_victory_time_label.anchor_left = 0.0
+	_victory_time_label.anchor_top = 0.49
+	_victory_time_label.anchor_right = 1.0
+	_victory_time_label.anchor_bottom = 0.58
+	_victory_time_label.text = "Time: %s" % _format_victory_time(_get_victory_elapsed_time())
+	_victory_time_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_victory_time_label)
 
 	var restart_hint: Label = Label.new()
 	restart_hint.name = "RestartHint"
@@ -862,9 +889,9 @@ func _on_boss_defeated() -> void:
 	restart_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	restart_hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	restart_hint.anchor_left = 0.0
-	restart_hint.anchor_top = 0.55
+	restart_hint.anchor_top = 0.61
 	restart_hint.anchor_right = 1.0
-	restart_hint.anchor_bottom = 0.65
+	restart_hint.anchor_bottom = 0.70
 	restart_hint.text = tr("PROMPT_RESTART") % GameConstants.get_action_key_label("restart", "R")
 	restart_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(restart_hint)
@@ -875,8 +902,26 @@ func _on_boss_defeated() -> void:
 	fade_in.set_trans(Tween.TRANS_SINE)
 	fade_in.tween_property(_victory_label, "modulate:a", 1.0, 0.8)
 
+	_victory_time_label.modulate.a = 0.0
+	var time_fade: Tween = create_tween()
+	time_fade.set_ease(Tween.EASE_OUT)
+	time_fade.set_trans(Tween.TRANS_SINE)
+	time_fade.tween_property(_victory_time_label, "modulate:a", 1.0, 0.8).set_delay(0.35)
+
 	restart_hint.modulate.a = 0.0
 	var hint_fade: Tween = create_tween()
 	hint_fade.set_ease(Tween.EASE_OUT)
 	hint_fade.set_trans(Tween.TRANS_SINE)
 	hint_fade.tween_property(restart_hint, "modulate:a", 1.0, 0.8).set_delay(1.0)
+
+
+func _get_victory_elapsed_time() -> float:
+	return maxf(0.0, RhythmClock.get_music_time(music_player))
+
+
+func _format_victory_time(seconds: float) -> String:
+	var total_centiseconds: int = int(round(seconds * 100.0))
+	var minutes: int = int(total_centiseconds / 6000)
+	var whole_seconds: int = int(total_centiseconds / 100) % 60
+	var centiseconds: int = total_centiseconds % 100
+	return "%02d:%02d.%02d" % [minutes, whole_seconds, centiseconds]

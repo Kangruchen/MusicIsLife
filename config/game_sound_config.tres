@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="GameSoundConfig" load_steps=75 format=3 uid="uid://d2s8ter7rgrt3"]
+[gd_resource type="Resource" script_class="GameSoundConfig" load_steps=78 format=3 uid="uid://d2s8ter7rgrt3"]
 
 [ext_resource type="AudioStream" uid="uid://7n1vbkb2k41a" path="res://assets/SFX/dodgedrum.wav" id="1_dodge"]
 [ext_resource type="AudioStream" uid="uid://b40kly4fniq14" path="res://assets/SFX/guarddrum.wav" id="2_guard"]
@@ -29,6 +29,7 @@
 [ext_resource type="AudioStream" uid="uid://b5m7gxhiot4l5" path="res://assets/SFX/player/heavy.wav" id="35_p_heavy"]
 [ext_resource type="AudioStream" uid="uid://d0fapby6v3bne" path="res://assets/SFX/player/chargelight.wav" id="36_p_clight"]
 [ext_resource type="AudioStream" uid="uid://butsw8nq5dts5" path="res://assets/SFX/player/chargeheavy.wav" id="37_p_cheavy"]
+[ext_resource type="AudioStream" uid="uid://gcxvpu3u4hx" path="res://assets/SFX/player/heal.wav" id="38_p_heal"]
 
 [sub_resource type="Resource" id="SE_charge_atk"]
 script = ExtResource("16_entry_script")
@@ -148,6 +149,15 @@ volume_db = 5.0
 script = ExtResource("15_pool_script")
 sounds = Array[ExtResource("16_entry_script")]([SubResource("SE_atk_enhance")])
 
+[sub_resource type="Resource" id="SE_atk_heal"]
+script = ExtResource("16_entry_script")
+stream = ExtResource("38_p_heal")
+volume_db = 5.0
+
+[sub_resource type="Resource" id="Pool_atk_heal"]
+script = ExtResource("15_pool_script")
+sounds = Array[ExtResource("16_entry_script")]([SubResource("SE_atk_heal")])
+
 [sub_resource type="Resource" id="SE_atk_heavy"]
 script = ExtResource("16_entry_script")
 stream = ExtResource("35_p_heavy")
@@ -172,6 +182,7 @@ light_attack = SubResource("Pool_atk_light")
 heavy_attack = SubResource("Pool_atk_heavy")
 charged_light_attack = SubResource("Pool_atk_charged_light")
 charged_heavy_attack = SubResource("Pool_atk_charged_heavy")
+heal = SubResource("Pool_atk_heal")
 enhance = SubResource("Pool_atk_enhance")
 
 [sub_resource type="Resource" id="SE_miss1"]

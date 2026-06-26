@@ -1732,13 +1732,20 @@ func _request_missile_barrage_member(duration_beats: float) -> void:
 		return
 
 	var now: float = _get_now_seconds()
-	var member: Dictionary = _spawn_missile_barrage_member(now, duration_beats)
+	var beat_seconds: float = _get_beat_seconds()
+	var total_beats: float = duration_beats
+	if total_beats <= 0.0:
+		total_beats = maxf(0.1, missile_barrage_gather_beats) + maxf(0.1, missile_barrage_attack_beats)
+	total_beats = maxf(0.1, total_beats)
+	var total_duration: float = maxf(0.01, total_beats * beat_seconds)
+	var attack_duration: float = maxf(0.01, maxf(0.1, missile_barrage_attack_beats) * beat_seconds)
+	attack_duration = minf(attack_duration, total_duration)
+	var gather_duration: float = maxf(0.0, total_duration - attack_duration)
+
+	var member: Dictionary = _spawn_missile_barrage_member(now, duration_beats, gather_duration)
 	if member.is_empty():
 		return
 
-	var beat_seconds: float = _get_beat_seconds()
-	var attack_duration: float = maxf(0.01, maxf(0.1, missile_barrage_attack_beats) * beat_seconds)
-	var gather_duration: float = maxf(0.01, maxf(0.1, missile_barrage_gather_beats) * beat_seconds)
 	var group_index: int = _pending_missile_barrage_group_index
 	_pending_missile_barrage_group_index = -1
 	var token: int = int(member.get("token", _missile_effect_token))
@@ -1746,16 +1753,17 @@ func _request_missile_barrage_member(duration_beats: float) -> void:
 	var attack_spawn_position: Vector2 = _get_missile_barrage_attack_spawn_position(group_index, launch_side)
 	var start_time: float = now + gather_duration
 	_schedule_music_clock_event(start_time, Callable(self, "_spawn_missile_barrage_dash_from_prep"), [token, attack_spawn_position, attack_duration])
-	_missile_state_remaining_time = maxf(_missile_state_remaining_time, gather_duration + attack_duration)
+	_missile_state_remaining_time = maxf(_missile_state_remaining_time, total_duration)
 
 	if debug_missile_timing:
 		print("[MissileDebug][Boss] barrage launch now=", "%.3f" % now,
+			" total_beats=", "%.3f" % total_beats,
 			" gather_s=", "%.3f" % gather_duration,
 			" attack_s=", "%.3f" % attack_duration,
 			" remain_beats=", "%.3f" % duration_beats)
 
 
-func _spawn_missile_barrage_member(_launch_time: float, _duration_beats: float) -> Dictionary:
+func _spawn_missile_barrage_member(_launch_time: float, _duration_beats: float, gather_duration: float) -> Dictionary:
 	var launch_node: Node2D = _pick_missile_launch_node()
 	if launch_node == null:
 		push_warning("[Boss] missing MissileLeft/MissileRight node; cannot launch missile")
@@ -1781,10 +1789,9 @@ func _spawn_missile_barrage_member(_launch_time: float, _duration_beats: float) 
 	_start_missile_warning_blink(missile, _missile_effect_token)
 	_schedule_boss_attack_sound_from_sprite(BossAttackSoundConfig.ATTACK_MISSILE, _find_timing_sprite(missile))
 
-	var beat_seconds: float = _get_beat_seconds()
 	var outward_dir: Vector2 = _get_missile_outward_direction(launch_node).normalized()
 	var launch_exit_target: Vector2 = _get_missile_offscreen_target(missile.global_position, outward_dir)
-	var gather_duration: float = maxf(0.01, missile_barrage_gather_beats * beat_seconds)
+	var safe_gather_duration: float = maxf(0.01, gather_duration)
 	var base_scale: Vector2 = missile.scale
 
 	_play_missile_launcher_recoil(launch_node, outward_dir)
@@ -1793,8 +1800,8 @@ func _spawn_missile_barrage_member(_launch_time: float, _duration_beats: float) 
 	var missile_instance_id: int = missile.get_instance_id()
 	var token: int = _missile_effect_token
 	var gather_tween: Tween = missile.create_tween()
-	gather_tween.tween_property(missile, "global_position", launch_exit_target, gather_duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	gather_tween.parallel().tween_property(missile, "scale", base_scale * missile_barrage_prep_scale_factor, gather_duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	gather_tween.tween_property(missile, "global_position", launch_exit_target, safe_gather_duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	gather_tween.parallel().tween_property(missile, "scale", base_scale * missile_barrage_prep_scale_factor, safe_gather_duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	gather_tween.tween_callback(_on_missile_barrage_prep_arrived.bind(token, missile_instance_id))
 
 	return {

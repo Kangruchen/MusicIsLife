@@ -6,7 +6,7 @@ const RhythmClock := preload("res://scripts/RhythmClock.gd")
 @export var offset: float = 0.0
 @export var generate_test_chart: bool = false
 @export_file("*.sm") var chart_sm_path: String = ""
-@export_group("Debug Laser Pattern Layers")
+@export_group("Legacy Laser Pattern Layers")
 @export var debug_enable_laser_pattern_layers: bool = false
 @export_group("")
 
@@ -74,9 +74,7 @@ func _on_music_started() -> void:
 				" -> runtime beat0 time: ", original_offset,
 				" + user offset: ", user_offset,
 				" = effective beat0 time: ", offset)
-			print("Chart mode: ",
-				"standard + laser pattern layers" if debug_enable_laser_pattern_layers else "standard",
-				", path=", chart_sm_path)
+			print("Chart mode: main chart with merged laser patterns; legacy LaserEcho/LaserChord layers ignored, path=", chart_sm_path)
 	elif generate_test_chart:
 		offset += user_offset
 		_generate_test_chart()

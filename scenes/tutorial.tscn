@@ -247,7 +247,6 @@ hint_dodge_offset = Vector2(0, -120)
 
 [node name="InputManager" type="Node" parent="GameManager"]
 script = ExtResource("13_input_mgr")
-ignore_empty_press_without_nearby_notes = true
 defense_hit_effect_anchor_path = NodePath("../../Player/CharacterVisual")
 defense_hit_effect_offset = Vector2(-40, 0)
 defense_hit_effect_scale_multiplier = Vector2(1.67, 1.67)

@@ -1,6 +1,7 @@
 extends Node2D
 
 const CharacterAttackHitboxRules := preload("res://scripts/CharacterAttackHitboxRules.gd")
+const DefenseJudgmentRules := preload("res://scripts/DefenseJudgmentRules.gd")
 const DebugShapeDrawer := preload("res://scripts/DebugShapeDrawer.gd")
 const SpriteAnimationDuration := preload("res://scripts/SpriteAnimationDuration.gd")
 ## 玩家控制器（阶段状态机 + 动作状态机 + 按动画帧控制判定框）
@@ -134,7 +135,7 @@ func _on_judgment_made(_track: int, judgment: int, _timing_diff: float) -> void:
 		return
 	if _state != PlayerState.DEFENSE:
 		return
-	if judgment != 3:
+	if judgment != DefenseJudgmentRules.MISS:
 		return
 	_play_defense_miss_flash()
 

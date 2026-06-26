@@ -1,7 +1,7 @@
 [gd_scene load_steps=28 format=3 uid="uid://bax6icm3f52fe"]
 
 [ext_resource type="Script" uid="uid://dlu3ahejwko8f" path="res://scripts/main_menu.gd" id="1_ekxnf"]
-[ext_resource type="Texture2D" uid="uid://c35sqidrv5t7h" path="res://assets/UI/main_menu_bg_v2_safe_layout.png" id="2_oa1go"]
+[ext_resource type="Texture2D" uid="uid://3gfso7epebq6" path="res://assets/UI/Menu.png" id="2_oa1go"]
 [ext_resource type="FontFile" uid="uid://r3dajd2i647q" path="res://assets/UI/Orbitron-VariableFont_wght.ttf" id="3_bqqt6"]
 [ext_resource type="Script" uid="uid://bb3n5cbcej0a" path="res://scripts/new_game_btn.gd" id="4_wu84c"]
 [ext_resource type="Script" uid="uid://kcmmt83orarr" path="res://scripts/guide_btn.gd" id="5_oa1go"]
@@ -19,17 +19,6 @@ base_font = ExtResource("3_bqqt6")
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_rtw2f"]
 
-[sub_resource type="FontVariation" id="FontVariation_wu84c"]
-base_font = ExtResource("3_bqqt6")
-
-[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_oa1go"]
-
-[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_tbmy8"]
-
-[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_jk1qb"]
-
-[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_5dd4i"]
-
 [sub_resource type="FontVariation" id="FontVariation_8ln24"]
 base_font = ExtResource("3_bqqt6")
 
@@ -40,6 +29,17 @@ base_font = ExtResource("3_bqqt6")
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_rcqid"]
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_1ajci"]
+
+[sub_resource type="FontVariation" id="FontVariation_wu84c"]
+base_font = ExtResource("3_bqqt6")
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_oa1go"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_tbmy8"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_jk1qb"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_5dd4i"]
 
 [sub_resource type="FontVariation" id="FontVariation_rtw2f"]
 base_font = ExtResource("3_bqqt6")
@@ -78,6 +78,8 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_left = 134.0
+offset_right = 134.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -101,22 +103,6 @@ theme_override_styles/focus = SubResource("StyleBoxEmpty_rtw2f")
 text = "New Game"
 script = ExtResource("4_wu84c")
 
-[node name="GuideBtn" type="Button" parent="CenterContainer/MenuVBox"]
-layout_mode = 2
-theme_override_colors/font_hover_color = Color(1, 0.8, 0, 1)
-theme_override_colors/font_hover_pressed_color = Color(1, 0.27058825, 0, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 4
-theme_override_constants/h_separation = 4
-theme_override_fonts/font = SubResource("FontVariation_wu84c")
-theme_override_font_sizes/font_size = 32
-theme_override_styles/normal = SubResource("StyleBoxEmpty_oa1go")
-theme_override_styles/pressed = SubResource("StyleBoxEmpty_tbmy8")
-theme_override_styles/hover = SubResource("StyleBoxEmpty_jk1qb")
-theme_override_styles/focus = SubResource("StyleBoxEmpty_5dd4i")
-text = "Guide"
-script = ExtResource("5_oa1go")
-
 [node name="SettingsBtn" type="Button" parent="CenterContainer/MenuVBox"]
 layout_mode = 2
 theme_override_colors/font_hover_color = Color(1, 0.8, 0, 1)
@@ -132,6 +118,22 @@ theme_override_styles/hover = SubResource("StyleBoxEmpty_rcqid")
 theme_override_styles/focus = SubResource("StyleBoxEmpty_1ajci")
 text = "Settings"
 script = ExtResource("6_tbmy8")
+
+[node name="GuideBtn" type="Button" parent="CenterContainer/MenuVBox"]
+layout_mode = 2
+theme_override_colors/font_hover_color = Color(1, 0.8, 0, 1)
+theme_override_colors/font_hover_pressed_color = Color(1, 0.27058825, 0, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_constants/h_separation = 4
+theme_override_fonts/font = SubResource("FontVariation_wu84c")
+theme_override_font_sizes/font_size = 32
+theme_override_styles/normal = SubResource("StyleBoxEmpty_oa1go")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_tbmy8")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_jk1qb")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_5dd4i")
+text = "Credits"
+script = ExtResource("5_oa1go")
 
 [node name="QuitBtn" type="Button" parent="CenterContainer/MenuVBox"]
 layout_mode = 2

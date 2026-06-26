@@ -20,13 +20,19 @@ const SETTINGS_GAMEPLAY_SECTION: String = "gameplay"
 const SETTINGS_PREJUDGE_HINT_MODE_KEY: String = "prejudge_key_hint_display_mode"
 const PREJUDGE_HINT_MODE_ALWAYS: int = 0
 const PREJUDGE_HINT_MODE_LIMITED: int = 1
-const JUDGMENT_MISS: int = 3
 const GUARD_WARN_SOUND_PLAYED_META: StringName = &"_guard_warn_sound_played"
 const MISSILE_LAUNCH_TIME_META: StringName = &"_missile_launch_time"
 const MISSILE_LAUNCH_BEAT_META: StringName = &"_missile_launch_beat"
 const MISSILE_BARRAGE_GROUP_META: StringName = &"_missile_barrage_group"
 const MISSILE_BARRAGE_SIDE_META: StringName = &"_missile_barrage_side"
 const MISSILE_BARRAGE_GROUP_INDEX_META: StringName = &"_missile_barrage_group_index"
+const PREJUDGE_HINT_CATEGORY_MISSILE: StringName = &"missile"
+const PREJUDGE_HINT_CATEGORY_LASER: StringName = &"laser"
+const PREJUDGE_HINT_CATEGORY_CHARGE: StringName = &"charge"
+const PREJUDGE_HINT_MISSILE_GROUP_LIMIT: int = 2
+const PREJUDGE_HINT_MISSILE_FALLBACK_NOTE_LIMIT: int = 8
+const PREJUDGE_HINT_LASER_LIMIT: int = 4
+const PREJUDGE_HINT_CHARGE_LIMIT: int = 2
 const BEATS_PER_MEASURE: float = 4.0
 
 # Bling 特效配置
@@ -165,10 +171,10 @@ var _hint_mode_toast_label: Label = null
 var _hint_mode_toast_tween: Tween = null
 var _hint_mode_toast_token: int = 0
 var _music_clock_events: RefCounted = MusicClockEventQueue.new()
-var _defense_hint_success_counts: Dictionary = {
-	Note.NoteType.GUARD: 0,
-	Note.NoteType.HIT: 0,
-	Note.NoteType.DODGE: 0
+var _limited_hint_display_counts: Dictionary = {
+	PREJUDGE_HINT_CATEGORY_MISSILE: 0,
+	PREJUDGE_HINT_CATEGORY_LASER: 0,
+	PREJUDGE_HINT_CATEGORY_CHARGE: 0
 }
 
 
@@ -181,7 +187,6 @@ func _ready() -> void:
 	EventBus.boss_energy_depleted.connect(_on_attack_phase_started)
 	EventBus.attack_phase_started.connect(_on_attack_phase_started)
 	EventBus.attack_phase_ended.connect(_on_attack_phase_ended)
-	EventBus.judgment_made.connect(_on_judgment_made)
 	if not game_ui:
 		push_warning("[TrackManager] game_ui 未设置，请在编辑器中拖拽 GameUI 节点到 @export")
 	_resolve_boss_node()
@@ -423,9 +428,12 @@ func _apply_missile_barrage_group_timing(group: Array[Note], beat_interval: floa
 	if group.is_empty():
 		return
 
-	var lead_beats: float = maxf(0.0, missile_barrage_return_beats) + maxf(0.1, missile_barrage_attack_beats)
+	var first_note: Note = group.front()
+	var last_note: Note = group.back()
+	var group_span_beats: float = maxf(0.0, (last_note.beat_time - first_note.beat_time) / beat_interval)
 	var attack_beats: float = maxf(0.1, missile_barrage_attack_beats)
-	var return_beats: float = maxf(0.0, missile_barrage_return_beats)
+	var return_beats: float = group_span_beats
+	var lead_beats: float = maxf(0.1, return_beats + attack_beats)
 
 	for note in group:
 		var launch_time: float = note.beat_time - lead_beats * beat_interval
@@ -538,12 +546,11 @@ func _check_and_spawn_notes_by_time(now_time: float) -> void:
 		if note.type == Note.NoteType.GUARD and not _uses_laser_pattern_positions(note):
 			_try_play_guard_warning_sound_for_note(note, spawn_time, now_time)
 
+		var missile_request_time: float = -INF
 		if note.type == Note.NoteType.HIT:
 			var prepare_seconds: float = _get_boss_return_prepare_seconds()
-			var request_time: float = spawn_time - prepare_seconds
-			if note.has_meta(MISSILE_LAUNCH_TIME_META):
-				request_time = float(note.get_meta(MISSILE_LAUNCH_TIME_META))
-			if now_time >= request_time and not _cue_requests.has_missile_request(note):
+			missile_request_time = _get_missile_request_time(note, spawn_time, prepare_seconds)
+			if now_time >= missile_request_time and not _cue_requests.has_missile_request(note):
 				var remaining_beats_to_hit: float = maxf(0.0, (note.beat_time - now_time) / beat_interval)
 				var marked_side: int = _get_missile_side_for_note(note)
 				if _boss_node != null and is_instance_valid(_boss_node) and _boss_node.has_method("enqueue_missile_forced_side"):
@@ -560,7 +567,7 @@ func _check_and_spawn_notes_by_time(now_time: float) -> void:
 					var side_name: String = "LEFT" if marked_side == MISSILE_SIDE_LEFT else "RIGHT"
 					print("[MissileDebug][Track] request hit_note=#", note.beat_number,
 						" now=", "%.3f" % now_time,
-						" request_time=", "%.3f" % request_time,
+						" request_time=", "%.3f" % missile_request_time,
 						" spawn_time=", "%.3f" % spawn_time,
 						" prepare_s=", "%.3f" % prepare_seconds,
 						" remain_beats=", "%.3f" % remaining_beats_to_hit,
@@ -593,6 +600,9 @@ func _check_and_spawn_notes_by_time(now_time: float) -> void:
 					" now=", "%.3f" % now_time,
 					" spawn_time=", "%.3f" % spawn_time)
 
+			if note.type == Note.NoteType.HIT and note.has_meta(MISSILE_LAUNCH_TIME_META) and not _cue_requests.has_missile_request(note) and now_time < missile_request_time:
+				continue
+
 			if (note.type == Note.NoteType.HIT or note.type == Note.NoteType.DODGE) and not tutorial_mode and not _is_attack_visual_ready_for_note(note.type):
 				scheduled_notes.erase(note)
 				_cue_requests.erase(note)
@@ -611,6 +621,12 @@ func _get_spawn_advance_beats(note: Note) -> int:
 	if note != null and SPAWN_ADVANCE.has(note.type):
 		return int(SPAWN_ADVANCE[note.type])
 	return 2
+
+
+func _get_missile_request_time(note: Note, spawn_time: float, prepare_seconds: float) -> float:
+	if note != null and note.has_meta(MISSILE_LAUNCH_TIME_META):
+		return float(note.get_meta(MISSILE_LAUNCH_TIME_META))
+	return spawn_time - prepare_seconds
 
 
 func _is_attack_visual_ready_for_note(note_type: Note.NoteType) -> bool:
@@ -773,34 +789,37 @@ func _schedule_prejudge_key_hint(note: Note) -> void:
 
 	if delay <= 0.01:
 		if token == _hint_runtime_token and not _attack_phase_blocked:
-			_spawn_prejudge_key_hint(note.type)
+			_spawn_prejudge_key_hint(note)
 		return
 
-	_schedule_music_clock_event(hint_time, Callable(self, "_on_prejudge_key_hint_time"), [token, note.type])
+	_schedule_music_clock_event(hint_time, Callable(self, "_on_prejudge_key_hint_time"), [token, note])
 
 
-func _on_prejudge_key_hint_time(token: int, note_type: Note.NoteType) -> void:
+func _on_prejudge_key_hint_time(token: int, note: Note) -> void:
 	if token != _hint_runtime_token:
 		return
 	if _attack_phase_blocked:
 		return
-	_spawn_prejudge_key_hint(note_type)
+	_spawn_prejudge_key_hint(note)
 
 
-func _spawn_prejudge_key_hint(note_type: Note.NoteType) -> void:
+func _spawn_prejudge_key_hint(note: Note) -> void:
 	if not enable_prejudge_key_hint:
 		return
 	if _attack_phase_blocked:
 		return
 	if not game_ui:
 		return
-	if not _can_show_prejudge_hint(note_type):
+	if note == null:
+		return
+	if not _can_show_prejudge_hint(note):
 		return
 
 	var hint := PREJUDGE_KEY_HINT_SCRIPT.new() as PrejudgeKeyHint
 	if hint == null:
 		return
 
+	var note_type: Note.NoteType = note.type
 	var hint_style: Dictionary = PrejudgeKeyHintStyle.get_style(note_type)
 	var key_text: String = hint_style["key_text"]
 	var core_color: Color = hint_style["core_color"]
@@ -810,6 +829,7 @@ func _spawn_prejudge_key_hint(note_type: Note.NoteType) -> void:
 	game_ui.add_child(hint)
 	hint.position = _get_hint_screen_position(note_type)
 	_active_key_hints.append(hint)
+	_mark_prejudge_hint_displayed(note)
 
 
 func _get_hint_screen_position(note_type: Note.NoteType) -> Vector2:
@@ -947,7 +967,10 @@ func resume_note_spawning() -> void:
 	for note in scheduled_notes.duplicate():
 		var advance_beats: int = _get_spawn_advance_beats(note)
 		var spawn_time: float = note.beat_time - advance_beats * beat_interval
-		if spawn_time <= current_time:
+		var should_remove: bool = spawn_time <= current_time
+		if note.type == Note.NoteType.HIT and note.has_meta(MISSILE_LAUNCH_TIME_META) and not _cue_requests.has_missile_request(note):
+			should_remove = note.beat_time <= current_time
+		if should_remove:
 			scheduled_notes.erase(note)
 			_cue_requests.erase(note)
 			_hit_note_sides.erase(note)
@@ -989,29 +1012,50 @@ func _on_attack_phase_ended() -> void:
 	# 避免 attack_phase_ended（提前半拍）导致过早恢复。
 
 
-func _on_judgment_made(track: int, judgment: int, _timing_diff: float) -> void:
-	if judgment == JUDGMENT_MISS:
-		return
-	if track != int(Note.NoteType.GUARD) and track != int(Note.NoteType.HIT) and track != int(Note.NoteType.DODGE):
-		return
-	var note_type: Note.NoteType = track as Note.NoteType
-	var success_count: int = int(_defense_hint_success_counts.get(note_type, 0))
-	_defense_hint_success_counts[note_type] = success_count + 1
-
-
-func _can_show_prejudge_hint(note_type: Note.NoteType) -> bool:
+func _can_show_prejudge_hint(note: Note) -> bool:
 	if prejudge_key_hint_display_mode == PREJUDGE_HINT_MODE_ALWAYS:
 		return true
-	if defense_hint_max_per_attack_type <= 0:
+	if note == null:
 		return false
-	var success_count: int = int(_defense_hint_success_counts.get(note_type, 0))
-	return success_count < defense_hint_max_per_attack_type
+	var category: StringName = _get_prejudge_hint_category(note)
+	match category:
+		PREJUDGE_HINT_CATEGORY_MISSILE:
+			if note.has_meta(MISSILE_BARRAGE_GROUP_INDEX_META):
+				return int(note.get_meta(MISSILE_BARRAGE_GROUP_INDEX_META)) < PREJUDGE_HINT_MISSILE_GROUP_LIMIT
+			return int(_limited_hint_display_counts.get(category, 0)) < PREJUDGE_HINT_MISSILE_FALLBACK_NOTE_LIMIT
+		PREJUDGE_HINT_CATEGORY_LASER:
+			return int(_limited_hint_display_counts.get(category, 0)) < PREJUDGE_HINT_LASER_LIMIT
+		PREJUDGE_HINT_CATEGORY_CHARGE:
+			return int(_limited_hint_display_counts.get(category, 0)) < PREJUDGE_HINT_CHARGE_LIMIT
+	return false
+
+
+func _mark_prejudge_hint_displayed(note: Note) -> void:
+	if prejudge_key_hint_display_mode == PREJUDGE_HINT_MODE_ALWAYS:
+		return
+	var category: StringName = _get_prejudge_hint_category(note)
+	if category == &"":
+		return
+	var count: int = int(_limited_hint_display_counts.get(category, 0))
+	_limited_hint_display_counts[category] = count + 1
+
+
+func _get_prejudge_hint_category(note: Note) -> StringName:
+	if note == null:
+		return &""
+	if note.type == Note.NoteType.HIT:
+		return PREJUDGE_HINT_CATEGORY_MISSILE
+	if note.type == Note.NoteType.GUARD and _uses_laser_pattern_positions(note):
+		return PREJUDGE_HINT_CATEGORY_LASER
+	if note.type == Note.NoteType.DODGE:
+		return PREJUDGE_HINT_CATEGORY_CHARGE
+	return &""
 
 
 func _reset_defense_hint_counts() -> void:
-	_defense_hint_success_counts[Note.NoteType.GUARD] = 0
-	_defense_hint_success_counts[Note.NoteType.HIT] = 0
-	_defense_hint_success_counts[Note.NoteType.DODGE] = 0
+	_limited_hint_display_counts[PREJUDGE_HINT_CATEGORY_MISSILE] = 0
+	_limited_hint_display_counts[PREJUDGE_HINT_CATEGORY_LASER] = 0
+	_limited_hint_display_counts[PREJUDGE_HINT_CATEGORY_CHARGE] = 0
 
 
 func reset_prejudge_hint_progress() -> void:

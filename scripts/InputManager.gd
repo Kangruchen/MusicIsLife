@@ -197,6 +197,7 @@ func _handle_input(track_type: Note.NoteType) -> void:
 				_spawn_defense_hit_effect(track_type)
 				_play_defense_sound(track_type, false)
 		EventBus.judgment_made.emit(track_type, judgment, timing_diff)
+		_spawn_defense_judgment_text(judgment)
 		print("判定: ", _get_judgment_text(judgment), " (", int(min_tracked_diff * 1000), "ms)")
 		return
 	
@@ -211,6 +212,7 @@ func _handle_input(track_type: Note.NoteType) -> void:
 		_apply_miss_audio_effect()
 		_play_defense_sound(wrong_note.type, true)
 		EventBus.judgment_made.emit(wrong_note.type, JudgmentType.MISS, 0.0)
+		_spawn_defense_judgment_text(JudgmentType.MISS)
 		print("判定: MISS (按错键 - 应为 ", wrong_note.get_type_string(), ")")
 		return
 
@@ -223,6 +225,7 @@ func _handle_input(track_type: Note.NoteType) -> void:
 	_apply_miss_audio_effect()
 	_play_defense_sound(track_type, true)
 	EventBus.judgment_made.emit(track_type, JudgmentType.MISS, 0.0)
+	_spawn_defense_judgment_text(JudgmentType.MISS)
 	print("判定: MISS (空按)")
 
 
@@ -399,6 +402,54 @@ func _play_defense_hit_effect_and_auto_free(effect_instance: Node2D) -> void:
 	effect_instance.queue_free()
 
 
+func _spawn_defense_judgment_text(judgment: int) -> void:
+	var text: String = DefenseJudgmentRules.get_text(judgment)
+	if text.is_empty():
+		return
+
+	var anchor: Node2D = _resolve_defense_hit_effect_anchor()
+	if anchor == null:
+		return
+
+	var label: Label = Label.new()
+	label.text = text
+	label.add_theme_font_size_override("font_size", 28)
+	label.add_theme_color_override("font_color", DefenseJudgmentRules.get_color(judgment))
+	label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 1.0))
+	label.add_theme_constant_override("outline_size", 3)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.z_index = 100
+	label.position = _get_defense_judgment_text_origin(anchor)
+	label.modulate.a = 1.0
+	anchor.add_child(label)
+
+	var tween: Tween = create_tween()
+	tween.set_ease(Tween.EASE_OUT)
+	tween.set_trans(Tween.TRANS_EXPO)
+	tween.tween_property(label, "position:y", label.position.y - 40.0, 0.45)
+	tween.parallel().tween_property(label, "modulate:a", 0.0, 0.4).set_delay(0.08)
+	tween.tween_callback(label.queue_free)
+
+
+func _get_defense_judgment_text_origin(anchor: Node2D) -> Vector2:
+	var visual_anchor: Node2D = _get_defense_hit_effect_visual_anchor(anchor)
+	var sprite: AnimatedSprite2D = visual_anchor as AnimatedSprite2D
+	if sprite == null or sprite.sprite_frames == null:
+		return Vector2(0.0, -96.0)
+
+	var anim_name: String = String(sprite.animation)
+	if anim_name.is_empty() or not sprite.sprite_frames.has_animation(anim_name):
+		return Vector2(0.0, -96.0)
+
+	var frame_texture: Texture2D = sprite.sprite_frames.get_frame_texture(anim_name, sprite.frame)
+	if frame_texture == null:
+		return Vector2(0.0, -96.0)
+
+	var tex_height: float = frame_texture.get_size().y * maxf(0.01, absf(sprite.scale.y))
+	return Vector2(0.0, -tex_height * 0.5 - 20.0)
+
+
 func _on_defense_hit_effect_anim_finished(effect_instance_id: int) -> void:
 	_free_node_by_instance_id(effect_instance_id)
 
@@ -442,6 +493,7 @@ func _on_miss_triggered(track_type: int) -> void:
 	_apply_miss_audio_effect()
 	_play_defense_sound(track_type, true)
 	EventBus.judgment_made.emit(track_type, JudgmentType.MISS, 0.0)
+	_spawn_defense_judgment_text(JudgmentType.MISS)
 	print("判定: MISS (自动)")
 
 

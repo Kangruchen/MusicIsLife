@@ -10,7 +10,7 @@ const LASER_CHORD_FIRE_STEP_BEATS := 0.5
 const LaserPatternEventScript := preload("res://scripts/LaserPatternEvent.gd")
 
 
-static func load_from_sm(sm_path: String, difficulty: String = "", include_laser_pattern_layers: bool = true) -> Chart:
+static func load_from_sm(sm_path: String, difficulty: String = "", _include_laser_pattern_layers: bool = true) -> Chart:
 	var file := FileAccess.open(sm_path, FileAccess.READ)
 	if not file:
 		push_error("Cannot open .sm file: ", sm_path)
@@ -38,14 +38,6 @@ static func load_from_sm(sm_path: String, difficulty: String = "", include_laser
 	if not standard_section.is_empty():
 		_parse_standard_notes(standard_section, chart)
 
-	if include_laser_pattern_layers:
-		for section in sections:
-			var layer_kind := String(section.get("layer_kind", ""))
-			if layer_kind == LASER_ECHO_LAYER:
-				_parse_laser_echo_layer(section, chart)
-			elif layer_kind == LASER_CHORD_LAYER:
-				_parse_laser_chord_layer(section, chart)
-
 	chart.sort_notes()
 	chart.call("sort_laser_patterns")
 
@@ -53,7 +45,8 @@ static func load_from_sm(sm_path: String, difficulty: String = "", include_laser
 	print("Loaded .sm chart: ", chart.chart_name,
 		", notes=", chart.notes.size(),
 		", laser_patterns=", laser_patterns.size(),
-		", laser_pattern_layers=", "enabled" if include_laser_pattern_layers else "disabled")
+		", main_laser_patterns=enabled",
+		", legacy_laser_layers=ignored")
 	return chart
 
 
@@ -199,6 +192,13 @@ static func _process_standard_measure(measure_lines: Array, measure: int, chart:
 		var beat_in_measure := float(i) * beats_per_line
 		var total_beats := float(measure) * BEATS_PER_MEASURE + beat_in_measure
 		var beat_time := chart.offset + total_beats * beat_interval
+		var active_slots := _get_active_slots(line)
+		if active_slots.size() > 1:
+			_add_main_laser_chord_pattern(chart, total_beats, beat_time, active_slots, beat_interval)
+			continue
+		if active_slots.size() == 1 and int(active_slots[0]) == 2:
+			_add_main_laser_echo_pattern(chart, total_beats, beat_time, 2, beat_interval)
+			continue
 
 		for track_idx in range(min(4, line.length())):
 			var note_char := line.substr(track_idx, 1)
@@ -210,90 +210,40 @@ static func _process_standard_measure(measure_lines: Array, measure: int, chart:
 				match track_idx:
 					0, 1:
 						note.type = Note.NoteType.HIT
-					2:
-						note.type = Note.NoteType.GUARD
 					3:
 						note.type = Note.NoteType.DODGE
 
 				chart.add_note(note)
 
 
-static func _parse_laser_echo_layer(section: Dictionary, chart: Chart) -> void:
-	var measures := _collect_measures(String(section["body"]))
-	var beat_interval := 60.0 / chart.bpm
-	var source_layer := _get_source_layer_name(section, "LaserEcho")
+static func _add_main_laser_echo_pattern(chart: Chart, fire_beat: float, fire_time: float, slot_idx: int, beat_interval: float) -> void:
+	var event: Resource = LaserPatternEventScript.new()
+	event.kind = LaserPatternEventScript.PatternKind.ECHO
+	event.source_layer = "MainLaserEcho"
+	event.beat_number = fire_beat
+	event.beat_time = fire_time
 
-	for measure in range(measures.size()):
-		var measure_lines: Array = measures[measure]
-		if measure_lines.is_empty():
-			continue
-
-		var event: Resource = LaserPatternEventScript.new()
-		event.kind = LaserPatternEventScript.PatternKind.ECHO
-		event.source_layer = source_layer
-		event.beat_number = float(measure) * BEATS_PER_MEASURE
-		event.beat_time = chart.offset + event.beat_number * beat_interval
-
-		var lines_count := measure_lines.size()
-		var beats_per_line := BEATS_PER_MEASURE / float(lines_count)
-		for i in range(lines_count):
-			var line := String(measure_lines[i])
-			var beat_in_measure := float(i) * beats_per_line
-			var fire_beat := float(measure) * BEATS_PER_MEASURE + beat_in_measure
-			var warning_beat := fire_beat - LASER_ECHO_WARNING_LEAD_BEATS
-
-			for slot_idx in range(min(4, line.length())):
-				if _is_active_note_char(line.substr(slot_idx, 1)):
-					event.add_warning_step(warning_beat, chart.offset + warning_beat * beat_interval, slot_idx)
-					event.add_fire_step(fire_beat, chart.offset + fire_beat * beat_interval, slot_idx)
-
-		if not event.warning_steps.is_empty():
-			event.sort_steps()
-			chart.call("add_laser_pattern", event)
+	var warning_beat := fire_beat - LASER_ECHO_WARNING_LEAD_BEATS
+	event.add_warning_step(warning_beat, chart.offset + warning_beat * beat_interval, slot_idx)
+	event.add_fire_step(fire_beat, fire_time, slot_idx)
+	event.sort_steps()
+	chart.call("add_laser_pattern", event)
 
 
-static func _parse_laser_chord_layer(section: Dictionary, chart: Chart) -> void:
-	var measures := _collect_measures(String(section["body"]))
-	var beat_interval := 60.0 / chart.bpm
-	var source_layer := _get_source_layer_name(section, "LaserChord")
+static func _add_main_laser_chord_pattern(chart: Chart, warning_beat: float, warning_time: float, slots: Array[int], beat_interval: float) -> void:
+	var event: Resource = LaserPatternEventScript.new()
+	event.kind = LaserPatternEventScript.PatternKind.CHORD
+	event.source_layer = "MainLaserChord"
+	event.beat_number = warning_beat
+	event.beat_time = warning_time
 
-	for measure in range(measures.size()):
-		var measure_lines: Array = measures[measure]
-		if measure_lines.is_empty():
-			continue
+	for slot_idx in slots:
+		event.add_warning_step(warning_beat, warning_time, slot_idx)
+		var fire_beat := warning_beat + LASER_CHORD_FIRE_START_OFFSET_BEATS + float(slot_idx) * LASER_CHORD_FIRE_STEP_BEATS
+		event.add_fire_step(fire_beat, chart.offset + fire_beat * beat_interval, slot_idx)
 
-		var lines_count := measure_lines.size()
-		var beats_per_line := BEATS_PER_MEASURE / float(lines_count)
-		for i in range(lines_count):
-			var line := String(measure_lines[i])
-			var slots := _get_active_slots(line)
-			if slots.is_empty():
-				continue
-
-			var warning_beat := float(measure) * BEATS_PER_MEASURE + float(i) * beats_per_line
-			var event: Resource = LaserPatternEventScript.new()
-			event.kind = LaserPatternEventScript.PatternKind.CHORD
-			event.source_layer = source_layer
-			event.beat_number = warning_beat
-			event.beat_time = chart.offset + warning_beat * beat_interval
-
-			for slot_idx in slots:
-				event.add_warning_step(warning_beat, chart.offset + warning_beat * beat_interval, slot_idx)
-				var fire_beat := warning_beat + LASER_CHORD_FIRE_START_OFFSET_BEATS + float(slot_idx) * LASER_CHORD_FIRE_STEP_BEATS
-				event.add_fire_step(fire_beat, chart.offset + fire_beat * beat_interval, slot_idx)
-
-			event.sort_steps()
-			chart.call("add_laser_pattern", event)
-
-
-static func _get_source_layer_name(section: Dictionary, fallback: String) -> String:
-	var description := String(section.get("description", ""))
-	if not description.is_empty():
-		return description
-	var chart_difficulty := String(section.get("difficulty", ""))
-	if not chart_difficulty.is_empty():
-		return chart_difficulty
-	return fallback
+	event.sort_steps()
+	chart.call("add_laser_pattern", event)
 
 
 static func _collect_measures(notes_data: String) -> Array:
